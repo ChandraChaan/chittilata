@@ -160,7 +160,7 @@ class _FinalViewState extends State<FinalView> {
                 'A tied player left, so the ${room.tiebreak!.title} title is shared.',
               _ when room.isKq =>
                 'Ties: most points, then most rounds finished as King. Players '
-                    'still tied share the title. ★ = that round\'s King.',
+                    'still tied share the title. Gold = that round\'s King.',
               _ =>
                 'Ties: most points, then most movie wins. Players still tied '
                     'share the title.',

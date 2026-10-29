@@ -257,7 +257,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
           feedback.warning();
           _messages.add(
             h.kind == 'timeout'
-                ? "Time's up for $who: the game guessed $whom. Wrong, so they swapped roles."
+                ? "Time's up for ${h.guesser == uid ? 'you' : who}: the game guessed $whom. Wrong, so they swapped roles."
                 : '$who guessed $whom for $role. Wrong! They swapped roles.',
           );
         }

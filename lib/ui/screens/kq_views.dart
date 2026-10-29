@@ -284,7 +284,9 @@ class KqGuessView extends StatelessWidget {
       title = 'Find the ${kr.targetRole}!';
       subtitle = 'You are the ${kr.seekerRole}. Tap who you think it is.';
     } else {
-      title = '$guesserName (${kr.seekerRole}) is finding the ${kr.targetRole}';
+      title = guesser == ctrl.uid
+          ? 'You (${kr.seekerRole}) are finding the ${kr.targetRole}'
+          : '$guesserName (${kr.seekerRole}) is finding the ${kr.targetRole}';
       subtitle = 'Wrong guesses swap roles. Watch closely!';
     }
 
@@ -593,7 +595,9 @@ class _History extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     if (round.history.isEmpty) return const SizedBox.shrink();
+    // Sentence-start and mid-sentence forms of a player's name.
     String n(String u) => u == me ? 'You' : room.nameOf(u);
+    String m(String u) => u == me ? 'you' : room.nameOf(u);
     final items = round.history.reversed.take(5).toList();
     return Panel(
       padding: const EdgeInsets.all(Space.md),
@@ -624,11 +628,11 @@ class _History extends StatelessWidget {
                       (true, 'forced') =>
                         '${n(h.target)} must be the ${round.chain[h.step + 1]}: nobody else was left.',
                       (true, _) =>
-                        '${n(h.guesser)} found the ${round.chain[h.step + 1]}: ${n(h.target)}!',
+                        '${n(h.guesser)} found the ${round.chain[h.step + 1]}: ${m(h.target)}!',
                       (false, 'timeout') =>
-                        "Time's up for ${n(h.guesser)}. The game picked ${n(h.target)}: wrong, roles swapped.",
+                        "Time's up for ${m(h.guesser)}. The game picked ${m(h.target)}: wrong, roles swapped.",
                       _ =>
-                        '${n(h.guesser)} guessed ${n(h.target)} for ${round.chain[h.step + 1]}: wrong, roles swapped.',
+                        '${n(h.guesser)} guessed ${m(h.target)} for ${round.chain[h.step + 1]}: wrong, roles swapped.',
                     }, style: const TextStyle(height: 1.3)),
                   ),
                 ],
