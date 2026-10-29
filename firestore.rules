@@ -56,6 +56,11 @@ service cloud.firestore {
       match /audit/{id} {
         allow read, write: if false;
       }
+
+      // Server-only: slips not yet picked and sealed character chits.
+      match /secrets/{roundKey} {
+        allow read, write: if false;
+      }
     }
 
     match /{document=**} {

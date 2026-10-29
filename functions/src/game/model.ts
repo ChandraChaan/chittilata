@@ -9,6 +9,7 @@ import type { Card, CharacterDef, GameSettings, Standing } from "../engine";
  *   rooms/{roomId}/hands/{uid}  private hand + character (owner only)
  *   rooms/{roomId}/presence/{uid} heartbeat written by the owner
  *   rooms/{roomId}/audit/{id}   server-only debug log with card details
+ *   rooms/{roomId}/secrets/{key} server-only: undealt slips and sealed character chits
  */
 
 export type RoomStatus = "lobby" | "playing" | "tiebreakVote" | "finished" | "closed";
@@ -24,7 +25,7 @@ export interface TiebreakState {
   deadline: Timestamp;
   stage: "vote" | "playing" | "declined" | "done" | "cancelled";
 }
-export type RoundStatus = "exchange" | "characters" | "revealed" | "aborted";
+export type RoundStatus = "picking" | "exchange" | "characters" | "revealed" | "aborted";
 
 export interface PlayerInfo {
   name: string;
@@ -80,6 +81,18 @@ export interface RoundDoc {
   nextUid: string;
   timed: boolean;
   turnSeconds: number;
+  /**
+   * Folded movie chits on the table (opaque ids, no contents). Each player
+   * picks 4; a picked chit is bound to the next slip of that player's
+   * secretly dealt hand, so the fair-deal rules always hold.
+   */
+  chits: string[];
+  /** chitId -> uid of the player who picked it. */
+  picks: Record<string, string>;
+  /** Picking opens after the folding/shuffling animation on every phone. */
+  pickOpensAt: Timestamp;
+  /** After this, any member may ask the server to finish the picks at random. */
+  pickDeadline: Timestamp;
   /** Players see the circular order until this time; passing starts after it. */
   introEndsAt: Timestamp;
   turnDeadline: Timestamp;
@@ -88,6 +101,13 @@ export interface RoundDoc {
   lastAction: LastAction | null;
   timeouts: Record<string, number>;
   winner: { uid: string; movie: string; points: number; at: Timestamp } | null;
+  /** Folded character chits (opaque ids); one per non-winner. */
+  charChits: string[];
+  /** chitId -> uid. */
+  charPicks: Record<string, string>;
+  charPickOpensAt: Timestamp | null;
+  charPickDeadline: Timestamp | null;
+  /** Set once every character chit is picked; the reveal may happen after it. */
   revealAt: Timestamp | null;
   revealedHands: Record<string, Card[]> | null;
   characters: Record<string, CharacterDef> | null;
@@ -105,13 +125,31 @@ export interface HandDoc {
   updatedAt: Timestamp;
 }
 
+/** Server-only per-round secrets. Clients can never read this document. */
+export interface SecretDoc {
+  /** uid -> that player's not-yet-picked slips (already fairly dealt). */
+  deal: Record<string, Card[]>;
+  /** movie chitId -> card id it was bound to (for idempotent retries). */
+  bound: Record<string, string>;
+  /** character chitId -> sealed character. */
+  characters: Record<string, CharacterDef>;
+}
+
 export const roundKeyFor = (gameNo: number, roundNo: number) =>
   `g${gameNo}r${String(roundNo).padStart(2, "0")}`;
 
+/** Seconds of the create/fold/shuffle/scatter animation before picking opens. */
+export const CHIT_CEREMONY_SECONDS = 4;
+/** Seconds players have to pick their movie chits. */
+export const PICK_SECONDS = 25;
+/** Seconds of winner celebration before character chits can be picked. */
+export const CHAR_CEREMONY_SECONDS = 4;
+/** Seconds eligible players have to pick a character chit. */
+export const CHAR_PICK_SECONDS = 20;
 /** Seconds the circular order is shown before the first pass. */
 export const INTRO_SECONDS = 5;
-/** Seconds every non-winner sees their secret character before the reveal. */
-export const REVEAL_DELAY_SECONDS = 7;
+/** Seconds everyone looks at their own character before the public reveal. */
+export const REVEAL_DELAY_SECONDS = 5;
 /** Network allowance after a deadline. Passes inside it count; timeouts start after it. */
 export const DEADLINE_GRACE_MS = 1000;
 /** Seconds the tied players have to vote on a tie-breaker. */

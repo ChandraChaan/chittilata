@@ -6,8 +6,8 @@ import {
 } from "firebase-admin/firestore";
 import {
   applyPass,
-  assignCharacters,
   buildDeck,
+  charactersFor,
   Card,
   cleanPlayerName,
   dealHands,
@@ -20,6 +20,7 @@ import {
   mergeSettings,
   MIN_PLAYERS,
   pickNames,
+  randomId,
   rankPlayers,
   RELAXED_TURN_SECONDS,
   Rng,
@@ -31,14 +32,19 @@ import {
   validateForStart,
 } from "../engine";
 import {
+  CHAR_CEREMONY_SECONDS,
+  CHAR_PICK_SECONDS,
+  CHIT_CEREMONY_SECONDS,
   DEADLINE_GRACE_MS,
   HandDoc,
   INTRO_SECONDS,
   LastAction,
+  PICK_SECONDS,
   REVEAL_DELAY_SECONDS,
   RoomDoc,
   roundKeyFor,
   RoundDoc,
+  SecretDoc,
   TIEBREAK_VOTE_SECONDS,
   TiebreakState,
 } from "./model";
@@ -61,6 +67,8 @@ const roundRef = (db: Firestore, roomId: string, key: string) =>
   db.collection("rooms").doc(roomId).collection("rounds").doc(key) as DocumentReference<RoundDoc>;
 const handRef = (db: Firestore, roomId: string, uid: string) =>
   db.collection("rooms").doc(roomId).collection("hands").doc(uid) as DocumentReference<HandDoc>;
+const secretRef = (db: Firestore, roomId: string, key: string) =>
+  db.collection("rooms").doc(roomId).collection("secrets").doc(key) as DocumentReference<SecretDoc>;
 const auditRef = (db: Firestore, roomId: string) =>
   db.collection("rooms").doc(roomId).collection("audit").doc();
 
@@ -278,7 +286,7 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
     }
     next.hostUid = migrateHost({ ...room, memberUids: members });
 
-    if (round && round.status === "exchange" && members.length > 0) {
+    if (round && (round.status === "exchange" || round.status === "picking") && members.length > 0) {
       // The leaver's cards cannot keep circulating, so the round is void.
       tx.update(roundRef(db, roomId, round.roundKey), {
         status: "aborted",
@@ -333,26 +341,36 @@ function startRoundTx(
   const ts = Timestamp.fromMillis(t);
   const timed = room.settings.turnSeconds > 0;
   const turnSeconds = timed ? room.settings.turnSeconds : RELAXED_TURN_SECONDS;
-  const introEndsAt = t + INTRO_SECONDS * 1000;
+  const pickOpensAt = t + CHIT_CEREMONY_SECONDS * 1000;
+  const pickDeadline = pickOpensAt + PICK_SECONDS * 1000;
+  // Passing timestamps are set for real when the last chit is picked.
+  const introEndsAt = pickDeadline + INTRO_SECONDS * 1000;
 
+  // Hands start empty: each player fills theirs by picking folded chits.
+  // Their fairly dealt slips wait in the server-only secrets document,
+  // in a random order, and are handed out one per picked chit.
   const handSizes: Record<string, number> = {};
+  const deal: Record<string, Card[]> = {};
   order.forEach((uid, i) => {
-    handSizes[uid] = HAND_SIZE;
+    handSizes[uid] = 0;
+    deal[uid] = shuffle(hands[i], rng);
     tx.set(handRef(db, roomId, uid), {
       roundKey: key,
-      cards: hands[i],
+      cards: [],
       incomingCardId: null,
       character: null,
       updatedAt: ts,
     });
   });
+  const chits = Array.from({ length: deck.length }, () => `m${randomId(rng, 12)}`);
+  tx.set(secretRef(db, roomId, key), { deal, bound: {}, characters: {} });
 
   const round: RoundDoc = {
     roundKey: key,
     gameNo: room.gameNo,
     roundNo,
     tiebreak: opts.tiebreak === true,
-    status: "exchange",
+    status: "picking",
     order,
     turnIndex: 0,
     turnId: 0,
@@ -360,6 +378,10 @@ function startRoundTx(
     nextUid: order[1 % order.length],
     timed,
     turnSeconds,
+    chits,
+    picks: {},
+    pickOpensAt: Timestamp.fromMillis(pickOpensAt),
+    pickDeadline: Timestamp.fromMillis(pickDeadline),
     introEndsAt: Timestamp.fromMillis(introEndsAt),
     turnDeadline: Timestamp.fromMillis(introEndsAt + turnSeconds * 1000),
     movieNames: names,
@@ -367,6 +389,10 @@ function startRoundTx(
     lastAction: null,
     timeouts: {},
     winner: null,
+    charChits: [],
+    charPicks: {},
+    charPickOpensAt: null,
+    charPickDeadline: null,
     revealAt: null,
     revealedHands: null,
     characters: null,
@@ -531,13 +557,22 @@ async function passTx(
 
     if (result.winner) {
       const w = result.winner;
+      // Seal one character into each folded chit; non-winners pick them.
       const others = round.order.filter((u) => u !== w.uid);
-      const chars = assignCharacters(others, room.settings.characters, rng);
-      for (const u of others) tx.update(handRef(db, roomId, u), { character: chars[u] });
+      const defs = shuffle(charactersFor(room.settings.characters, others.length), rng);
+      const sealed: Record<string, { name: string; points: number }> = {};
+      for (const def of defs) sealed[`c${randomId(rng, 12)}`] = { name: def.name, points: def.points };
+      const charChits = shuffle(Object.keys(sealed), rng);
+      const opens = t + CHAR_CEREMONY_SECONDS * 1000;
+      tx.update(secretRef(db, roomId, roundKey), { characters: sealed });
       Object.assign(roundUpdate, {
         status: "characters",
         winner: { uid: w.uid, movie: w.name, points: room.settings.winPoints, at: ts },
-        revealAt: Timestamp.fromMillis(t + REVEAL_DELAY_SECONDS * 1000),
+        charChits,
+        charPicks: {},
+        charPickOpensAt: Timestamp.fromMillis(opens),
+        charPickDeadline: Timestamp.fromMillis(opens + CHAR_PICK_SECONDS * 1000),
+        revealAt: null,
       });
       // Movie-win points are applied exactly once, guarded by the status change.
       // Tie-breaker points only order the tied players, so totals stay as they were.
@@ -548,7 +583,7 @@ async function passTx(
           updatedAt: ts,
         });
       }
-      tx.create(auditRef(db, roomId), { type: "characters", roundKey, characters: chars, at: ts });
+      tx.create(auditRef(db, roomId), { type: "characterChits", roundKey, sealed, at: ts });
     }
     tx.update(roundRef(db, roomId, roundKey), roundUpdate);
     tx.create(auditRef(db, roomId), {
@@ -563,6 +598,198 @@ async function passTx(
       at: ts,
     });
     return { duplicate: false, winner: result.winner?.uid ?? null };
+  });
+}
+
+// ---------- picking folded chits ----------
+
+/** The slip each movie chit revealed, plus whether passing can start. */
+function bindMovieChits(
+  tx: Transaction,
+  deps: Deps,
+  roomId: string,
+  round: RoundDoc,
+  secret: SecretDoc,
+  hands: Record<string, HandDoc>,
+  assignments: [chitId: string, uid: string][],
+  t: number,
+  auto: boolean,
+) {
+  const { db } = deps;
+  const ts = Timestamp.fromMillis(t);
+  const deal = { ...secret.deal };
+  const bound = { ...secret.bound };
+  const picks = { ...round.picks };
+  const cards: Record<string, Card[]> = {};
+  const revealed: Record<string, Card> = {};
+  for (const [chitId, uid] of assignments) {
+    const remaining = deal[uid] ?? [];
+    if (remaining.length === 0) fail("failed-precondition", "You already have 4 chits.");
+    const [card, ...rest] = remaining;
+    deal[uid] = rest;
+    bound[chitId] = card.id;
+    picks[chitId] = uid;
+    cards[uid] = [...(cards[uid] ?? hands[uid].cards), card];
+    revealed[chitId] = card;
+  }
+  for (const [uid, list] of Object.entries(cards)) {
+    tx.update(handRef(db, roomId, uid), { cards: list, updatedAt: ts });
+  }
+  tx.update(secretRef(db, roomId, round.roundKey), { deal, bound });
+
+  const update: Record<string, unknown> = { picks };
+  for (const uid of Object.keys(cards)) update[`handSizes.${uid}`] = cards[uid].length;
+  const complete = Object.keys(picks).length === round.chits.length;
+  if (complete) {
+    // Everyone holds 4 slips: show the circle, then passing begins.
+    const intro = t + INTRO_SECONDS * 1000;
+    Object.assign(update, {
+      status: "exchange",
+      introEndsAt: Timestamp.fromMillis(intro),
+      turnDeadline: Timestamp.fromMillis(intro + round.turnSeconds * 1000),
+    });
+  }
+  tx.update(roundRef(db, roomId, round.roundKey), update);
+  tx.create(auditRef(db, roomId), {
+    type: auto ? "autoPick" : "pick",
+    roundKey: round.roundKey,
+    picks: Object.fromEntries(assignments),
+    cards: revealed,
+    at: ts,
+  });
+  return { revealed, complete };
+}
+
+async function loadPicking(tx: Transaction, deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  const roundKey = str(data, "roundKey");
+  const { room } = await loadRoom(tx, deps.db, roomId);
+  requireMember(room, uid);
+  if (room.currentRoundKey !== roundKey) fail("failed-precondition", "That round is over.");
+  const [roundSnap, secretSnap] = await Promise.all([
+    tx.get(roundRef(deps.db, roomId, roundKey)),
+    tx.get(secretRef(deps.db, roomId, roundKey)),
+  ]);
+  const round = roundSnap.data() as RoundDoc;
+  const secret = secretSnap.data() as SecretDoc;
+  if (!round || !secret) fail("not-found", "Round not found.");
+  return { roomId, roundKey, room, round, secret };
+}
+
+/** A player picks one folded movie chit from the table. */
+export async function pickChit(deps: Deps, uid: string, data: unknown) {
+  const chitId = str(data, "chitId");
+  return deps.db.runTransaction(async (tx) => {
+    const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
+    if (!round.order.includes(uid)) fail("permission-denied", "You are not playing this round.");
+    const handSnap = await tx.get(handRef(deps.db, roomId, uid));
+    const hand = handSnap.data() as HandDoc;
+    if (round.picks[chitId] === uid) {
+      // Retried request: return the same slip, change nothing.
+      const card = hand.cards.find((c) => c.id === secret.bound[chitId]);
+      return { duplicate: true, card };
+    }
+    if (round.status !== "picking") fail("failed-precondition", "Picking has finished.");
+    const t = deps.now();
+    if (t < round.pickOpensAt.toMillis()) fail("failed-precondition", "The chits are still being shuffled.");
+    if (!round.chits.includes(chitId)) fail("invalid-argument", "That chit is not on the table.");
+    if (round.picks[chitId]) fail("already-exists", "Someone else picked that chit first.");
+    if (hand.cards.length >= HAND_SIZE) fail("failed-precondition", "You already have 4 chits.");
+    const { revealed } = bindMovieChits(tx, deps, roomId, round, secret, { [uid]: hand }, [[chitId, uid]], t, false);
+    return { duplicate: false, card: revealed[chitId] };
+  });
+}
+
+/** After the pick deadline, any member may have the server finish the picks at random. */
+export async function autoPickChits(deps: Deps, uid: string, data: unknown) {
+  return deps.db.runTransaction(async (tx) => {
+    const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
+    if (round.status !== "picking") return { assigned: 0 };
+    const t = deps.now();
+    if (t <= round.pickDeadline.toMillis() + DEADLINE_GRACE_MS) {
+      fail("failed-precondition", "Players still have time to pick.");
+    }
+    const snaps = await Promise.all(round.order.map((u) => tx.get(handRef(deps.db, roomId, u))));
+    const hands: Record<string, HandDoc> = {};
+    round.order.forEach((u, i) => (hands[u] = snaps[i].data() as HandDoc));
+    const free = shuffle(round.chits.filter((c) => !round.picks[c]), deps.rng);
+    const assignments: [string, string][] = [];
+    for (const u of round.order) {
+      for (let n = hands[u].cards.length; n < HAND_SIZE; n++) assignments.push([free.pop()!, u]);
+    }
+    bindMovieChits(tx, deps, roomId, round, secret, hands, assignments, t, true);
+    return { assigned: assignments.length };
+  });
+}
+
+function bindCharacterChits(
+  tx: Transaction,
+  deps: Deps,
+  roomId: string,
+  round: RoundDoc,
+  secret: SecretDoc,
+  assignments: [chitId: string, uid: string][],
+  t: number,
+  auto: boolean,
+) {
+  const ts = Timestamp.fromMillis(t);
+  const charPicks = { ...round.charPicks };
+  for (const [chitId, uid] of assignments) {
+    charPicks[chitId] = uid;
+    tx.update(handRef(deps.db, roomId, uid), { character: secret.characters[chitId], updatedAt: ts });
+  }
+  const update: Record<string, unknown> = { charPicks };
+  const complete = Object.keys(charPicks).length === round.charChits.length;
+  // Everyone peeks at their own character privately before the public reveal.
+  if (complete) update.revealAt = Timestamp.fromMillis(t + REVEAL_DELAY_SECONDS * 1000);
+  tx.update(roundRef(deps.db, roomId, round.roundKey), update);
+  tx.create(auditRef(deps.db, roomId), {
+    type: auto ? "autoPickCharacter" : "pickCharacter",
+    roundKey: round.roundKey,
+    picks: Object.fromEntries(assignments),
+    at: ts,
+  });
+}
+
+/** A non-winner picks one folded character chit and privately sees it. */
+export async function pickCharacter(deps: Deps, uid: string, data: unknown) {
+  const chitId = str(data, "chitId");
+  return deps.db.runTransaction(async (tx) => {
+    const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
+    if (round.charPicks?.[chitId] === uid) {
+      return { duplicate: true, character: secret.characters[chitId] };
+    }
+    if (round.status !== "characters" || round.revealAt) {
+      fail("failed-precondition", "Character picking has finished.");
+    }
+    if (!round.order.includes(uid) || round.winner?.uid === uid) {
+      fail("permission-denied", "Only players who did not win pick a character.");
+    }
+    const t = deps.now();
+    if (t < round.charPickOpensAt!.toMillis()) fail("failed-precondition", "The character chits are still being folded.");
+    if (!round.charChits.includes(chitId)) fail("invalid-argument", "That chit is not on the table.");
+    if (round.charPicks[chitId]) fail("already-exists", "Someone else picked that chit first.");
+    if (Object.values(round.charPicks).includes(uid)) fail("failed-precondition", "You already picked a character.");
+    bindCharacterChits(tx, deps, roomId, round, secret, [[chitId, uid]], t, false);
+    return { duplicate: false, character: secret.characters[chitId] };
+  });
+}
+
+/** After the character deadline, any member may finish the picks at random. */
+export async function autoPickCharacters(deps: Deps, uid: string, data: unknown) {
+  return deps.db.runTransaction(async (tx) => {
+    const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
+    if (round.status !== "characters" || round.revealAt) return { assigned: 0 };
+    const t = deps.now();
+    if (t <= round.charPickDeadline!.toMillis() + DEADLINE_GRACE_MS) {
+      fail("failed-precondition", "Players still have time to pick.");
+    }
+    const picked = new Set(Object.values(round.charPicks));
+    const waiting = round.order.filter((u) => u !== round.winner!.uid && !picked.has(u));
+    const free = shuffle(round.charChits.filter((c) => !round.charPicks[c]), deps.rng);
+    const assignments = waiting.map((u) => [free.pop()!, u] as [string, string]);
+    bindCharacterChits(tx, deps, roomId, round, secret, assignments, t, true);
+    return { assigned: assignments.length };
   });
 }
 
@@ -596,6 +823,7 @@ export async function revealRound(deps: Deps, uid: string, data: unknown) {
     if (round!.status === "revealed") return { alreadyRevealed: true };
     if (round!.status !== "characters" || !round!.winner) fail("failed-precondition", "Nothing to reveal yet.");
     const t = now();
+    if (!round!.revealAt) fail("failed-precondition", "Players are still picking their characters.");
     if (t < round!.revealAt!.toMillis() && uid !== room.hostUid) {
       fail("failed-precondition", "The reveal has not started yet.");
     }

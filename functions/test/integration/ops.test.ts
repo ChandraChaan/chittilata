@@ -46,9 +46,36 @@ async function lobby(n: number) {
   return { roomId, code, uids };
 }
 
+/** Every player picks 4 free chits through the real callable. */
+async function pickAll(roomId: string, roundKey: string) {
+  let r = await round(roomId, roundKey);
+  clock = Math.max(clock, r.pickOpensAt.toMillis() + 1);
+  for (const u of r.order) {
+    for (let k = 0; k < 4; k++) {
+      r = await round(roomId, roundKey);
+      const free = r.chits.find((c) => !r.picks[c])!;
+      await ops.pickChit(deps(), u, { roomId, roundKey, chitId: free });
+    }
+  }
+  return round(roomId, roundKey);
+}
+
+/** Non-winners each pick one character chit; returns the round with revealAt. */
+async function pickChars(roomId: string, roundKey: string) {
+  let r = await round(roomId, roundKey);
+  clock = Math.max(clock, r.charPickOpensAt!.toMillis() + 1);
+  for (const u of r.order.filter((x) => x !== r.winner!.uid)) {
+    r = await round(roomId, roundKey);
+    const free = r.charChits.find((c) => !r.charPicks[c])!;
+    await ops.pickCharacter(deps(), u, { roomId, roundKey, chitId: free });
+  }
+  return round(roomId, roundKey);
+}
+
 async function started(n: number) {
   const l = await lobby(n);
   const { roundKey } = await ops.startGame(deps(), l.uids[0], { roomId: l.roomId });
+  await pickAll(l.roomId, roundKey);
   clock += 6000; // past the intro
   return { ...l, roundKey };
 }
@@ -176,7 +203,7 @@ describe("exchange", () => {
   it("rejects out-of-turn, foreign-card and too-early passes", async () => {
     const l = await lobby(4);
     const { roundKey } = await ops.startGame(deps(), "u0", { roomId: l.roomId });
-    const r = await round(l.roomId, roundKey);
+    const r = await pickAll(l.roomId, roundKey);
     const mine = (await hand(l.roomId, r.currentUid)).cards[0].id;
     await expectCode(
       ops.passCard(deps(), r.currentUid, { roomId: l.roomId, roundKey, turnId: 0, cardId: mine, requestId: "e" }),
@@ -259,11 +286,14 @@ describe("full game", () => {
     const orders: string[][] = [];
 
     for (let n = 1; n <= 2; n++) {
+      await pickAll(roomId, roundKey);
       clock += 6000;
       const won = await playUntilWin(roomId, roundKey);
       orders.push(won.order);
       expect(won.status).toBe("characters");
+      expect(won.revealAt).toBeNull();
       const winner = won.winner!.uid;
+      const picked = await pickChars(roomId, roundKey);
       const winHand = await hand(roomId, winner);
       expect(winHand.character).toBeNull();
       const names = new Set<string>();
@@ -283,7 +313,7 @@ describe("full game", () => {
       const nonHost = uids.find((u) => u !== "u0")!;
       await expectCode(ops.revealRound(deps(), nonHost, { roomId, roundKey }), "failed-precondition");
       const before = await room(roomId);
-      clock = won.revealAt!.toMillis() + 1;
+      clock = picked.revealAt!.toMillis() + 1;
       await ops.revealRound(deps(), nonHost, { roomId, roundKey });
       const again = await ops.revealRound(deps(), "u0", { roomId, roundKey });
       expect(again.alreadyRevealed).toBe(true);
@@ -359,8 +389,10 @@ describe("tie-breaker", () => {
     const { roomId, uids } = await lobby(4);
     await ops.updateSettings(deps(), "u0", { roomId, settings: { rounds: 1 } });
     const { roundKey } = await ops.startGame(deps(), "u0", { roomId });
+    await pickAll(roomId, roundKey);
     clock += 6000;
     const won = await playUntilWin(roomId, roundKey);
+    const picked = await pickChars(roomId, roundKey);
     const winner = won.winner!.uid;
     const rival = uids.find((u) => u !== winner)!;
     const rivalChar = (await hand(roomId, rival)).character!.points;
@@ -371,7 +403,7 @@ describe("tie-breaker", () => {
     movieWins[winner] = 1;
     movieWins[rival] = 1;
     await db.doc(`rooms/${roomId}`).update({ totals, movieWins });
-    clock = won.revealAt!.toMillis() + 1;
+    clock = picked.revealAt!.toMillis() + 1;
     await ops.revealRound(deps(), "u0", { roomId, roundKey });
     return { roomId, uids, winner, rival, others: uids.filter((u) => u !== winner && u !== rival) };
   }
@@ -410,6 +442,12 @@ describe("tie-breaker", () => {
     expect(tbRound.tiebreak).toBe(true);
     expect(tbRound.order.slice().sort()).toEqual([winner, rival].sort());
     expect(tbRound.movieNames).toHaveLength(2);
+    expect(tbRound.chits).toHaveLength(8);
+    await expectCode(
+      ops.pickChit(deps(), others[0], { roomId, roundKey: key, chitId: tbRound.chits[0] }),
+      "permission-denied",
+    );
+    await pickAll(roomId, key);
     expect((await hand(roomId, winner)).cards).toHaveLength(4);
     // Spectators keep their old (revealed) hand; they are not dealt in.
     expect((await hand(roomId, others[0])).roundKey).toBe(otherHand.roundKey);
@@ -417,7 +455,8 @@ describe("tie-breaker", () => {
 
     clock += 6000;
     const won = await playUntilWin(roomId, key);
-    clock = won.revealAt!.toMillis() + 1;
+    const picked = await pickChars(roomId, key);
+    clock = picked.revealAt!.toMillis() + 1;
     await ops.revealRound(deps(), others[0], { roomId, roundKey: key }); // a spectator may trigger it
 
     const done = await room(roomId);
@@ -454,3 +493,138 @@ describe("tie-breaker", () => {
     expect(r.tiebreak!.stage).toBe("cancelled");
   });
 });
+
+describe("picking folded chits", () => {
+  async function picking(n = 4) {
+    const l = await lobby(n);
+    const { roundKey } = await ops.startGame(deps(), "u0", { roomId: l.roomId });
+    return { ...l, roundKey, r: await round(l.roomId, roundKey) };
+  }
+
+  it("starts with empty hands, opaque chits on the table and no secrets in public", async () => {
+    const { roomId, roundKey, r, uids } = await picking();
+    expect(r.status).toBe("picking");
+    expect(r.chits).toHaveLength(16);
+    expect(new Set(r.chits).size).toBe(16);
+    for (const u of uids) expect((await hand(roomId, u)).cards).toEqual([]);
+    expect(JSON.stringify(r)).not.toMatch(/"name"|"cards"/);
+    await expectCode(ops.pickChit(deps(), "u1", { roomId, roundKey, chitId: r.chits[0] }), "failed-precondition");
+  });
+
+  it("binds each pick to the player's fair hand; the result obeys the deal rules", async () => {
+    for (let trial = 0; trial < 3; trial++) {
+      const { roomId, roundKey, uids } = await picking();
+      const done = await pickAll(roomId, roundKey);
+      expect(done.status).toBe("exchange");
+      expect(Object.keys(done.picks)).toHaveLength(16);
+      const all: Card[] = [];
+      for (const u of uids) {
+        const h = await hand(roomId, u);
+        expect(h.cards).toHaveLength(4);
+        expect(new Set(h.cards.map((c) => c.name)).size).toBe(4);
+        all.push(...h.cards);
+      }
+      expect(new Set(all.map((c) => c.id)).size).toBe(16);
+      expect(done.introEndsAt.toMillis()).toBeGreaterThan(clock);
+    }
+  });
+
+  it("prevents duplicate picks, foreign picks, extra picks and unknown chits", async () => {
+    const { roomId, roundKey, r } = await picking();
+    clock = r.pickOpensAt.toMillis() + 1;
+    const [a, b, c, d, e, f] = r.chits;
+    const first = await ops.pickChit(deps(), "u1", { roomId, roundKey, chitId: a });
+    expect(first.card).toBeTruthy();
+    // Retried request: same slip back, nothing changes.
+    const retry = await ops.pickChit(deps(), "u1", { roomId, roundKey, chitId: a });
+    expect(retry.duplicate).toBe(true);
+    expect(retry.card).toEqual(first.card);
+    expect((await hand(roomId, "u1")).cards).toHaveLength(1);
+    await expectCode(ops.pickChit(deps(), "u2", { roomId, roundKey, chitId: a }), "already-exists");
+    await expectCode(ops.pickChit(deps(), "outsider", { roomId, roundKey, chitId: b }), "permission-denied");
+    await expectCode(ops.pickChit(deps(), "u1", { roomId, roundKey, chitId: "nope" }), "invalid-argument");
+    for (const chit of [b, c, d]) await ops.pickChit(deps(), "u1", { roomId, roundKey, chitId: chit });
+    await expectCode(ops.pickChit(deps(), "u1", { roomId, roundKey, chitId: e }), "failed-precondition");
+    expect((await hand(roomId, "u1")).cards).toHaveLength(4);
+    expect((await round(roomId, roundKey)).picks[f]).toBeUndefined();
+  });
+
+  it("when everyone grabs the same chit at once, exactly one gets it", async () => {
+    const { roomId, roundKey, r, uids } = await picking();
+    clock = r.pickOpensAt.toMillis() + 1;
+    const results = await Promise.allSettled(
+      uids.map((u) => ops.pickChit(deps(), u, { roomId, roundKey, chitId: r.chits[5] })),
+    );
+    expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    const owners = await Promise.all(uids.map(async (u) => (await hand(roomId, u)).cards.length));
+    expect(owners.reduce((a, b) => a + b, 0)).toBe(1);
+  });
+
+  it("auto-picks for slow players only after the deadline", async () => {
+    const { roomId, roundKey, r, uids } = await picking();
+    clock = r.pickOpensAt.toMillis() + 1;
+    await ops.pickChit(deps(), "u2", { roomId, roundKey, chitId: r.chits[0] });
+    await expectCode(ops.autoPickChits(deps(), "u0", { roomId, roundKey }), "failed-precondition");
+    clock = r.pickDeadline.toMillis() + 1500;
+    expect((await ops.autoPickChits(deps(), "u0", { roomId, roundKey })).assigned).toBe(15);
+    const done = await round(roomId, roundKey);
+    expect(done.status).toBe("exchange");
+    for (const u of uids) {
+      const h = await hand(roomId, u);
+      expect(new Set(h.cards.map((c) => c.name)).size).toBe(4);
+    }
+  });
+
+  it("character chits: one per non-winner, private until the reveal, no double picks", async () => {
+    const { roomId, roundKey, uids } = await picking();
+    await pickAll(roomId, roundKey);
+    clock += 6000;
+    const won = await playUntilWin(roomId, roundKey);
+    const winner = won.winner!.uid;
+    const others = uids.filter((u) => u !== winner);
+    expect(won.charChits).toHaveLength(3);
+    expect(JSON.stringify(won)).not.toMatch(/Queen|Police|Thief/);
+    await expectCode(
+      ops.pickCharacter(deps(), others[0], { roomId, roundKey, chitId: won.charChits[0] }),
+      "failed-precondition",
+    ); // still folding
+    clock = won.charPickOpensAt!.toMillis() + 1;
+    await expectCode(
+      ops.pickCharacter(deps(), winner, { roomId, roundKey, chitId: won.charChits[0] }),
+      "permission-denied",
+    );
+    const mine = await ops.pickCharacter(deps(), others[0], { roomId, roundKey, chitId: won.charChits[0] });
+    expect(["Queen", "Police", "Thief"]).toContain(mine.character!.name);
+    expect((await hand(roomId, others[0])).character).toEqual(mine.character);
+    await expectCode(
+      ops.pickCharacter(deps(), others[0], { roomId, roundKey, chitId: won.charChits[1] }),
+      "failed-precondition",
+    );
+    await expectCode(
+      ops.pickCharacter(deps(), others[1], { roomId, roundKey, chitId: won.charChits[0] }),
+      "already-exists",
+    );
+    // No reveal until everyone has a character.
+    await expectCode(ops.revealRound(deps(), "u0", { roomId, roundKey }), "failed-precondition");
+    await expectCode(ops.autoPickCharacters(deps(), "u0", { roomId, roundKey }), "failed-precondition");
+    clock = won.charPickDeadline!.toMillis() + 1500;
+    expect((await ops.autoPickCharacters(deps(), "u0", { roomId, roundKey })).assigned).toBe(2);
+    const after = await round(roomId, roundKey);
+    expect(after.revealAt).not.toBeNull();
+    const names = await Promise.all(others.map(async (u) => (await hand(roomId, u)).character!.name));
+    expect(names.sort()).toEqual(["Police", "Queen", "Thief"]);
+    expect((await hand(roomId, winner)).character).toBeNull();
+    clock = after.revealAt!.toMillis() + 1;
+    await ops.revealRound(deps(), "u1", { roomId, roundKey });
+    const revealed = await round(roomId, roundKey);
+    expect(revealed.scores![winner]).toBe(1000);
+    expect(Object.values(revealed.scores!).reduce((a, b) => a + b, 0)).toBe(2400);
+  });
+
+  it("leaving while chits are being picked voids the round", async () => {
+    const { roomId, roundKey } = await picking();
+    await ops.leaveRoom(deps(), "u2", { roomId });
+    expect((await round(roomId, roundKey)).status).toBe("aborted");
+  });
+});
+

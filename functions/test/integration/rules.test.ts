@@ -41,6 +41,7 @@ beforeEach(async () => {
       });
     }
     await setDoc(doc(db, `rooms/${ROOM}/audit/a1`), { type: "deal" });
+    await setDoc(doc(db, `rooms/${ROOM}/secrets/g1r01`), { deal: {}, characters: { c1: { name: "Queen" } } });
   });
 });
 
@@ -83,6 +84,13 @@ describe("private hands", () => {
 
   it("the audit log is unreadable", async () => {
     await assertFails(getDoc(doc(as("host"), `rooms/${ROOM}/audit/a1`)));
+  });
+
+  it("undealt slips and sealed character chits are unreadable by everyone", async () => {
+    for (const u of ["host", "alice", "bob"]) {
+      await assertFails(getDoc(doc(as(u), `rooms/${ROOM}/secrets/g1r01`)));
+      await assertFails(setDoc(doc(as(u), `rooms/${ROOM}/secrets/g1r01`), { deal: {} }));
+    }
   });
 });
 
