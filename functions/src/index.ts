@@ -6,6 +6,7 @@ import { logger } from "firebase-functions/v2";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { GameError, secureRng } from "./engine";
 import * as ops from "./game/ops";
+import * as kq from "./game/kq";
 import { ROOM_TTL_HOURS } from "./game/model";
 
 initializeApp();
@@ -54,6 +55,10 @@ export const revealRound = callable("revealRound", ops.revealRound);
 export const playAgain = callable("playAgain", ops.playAgain);
 export const tiebreakVote = callable("tiebreakVote", ops.tiebreakVote);
 export const resolveTiebreakVote = callable("resolveTiebreakVote", ops.resolveTiebreakVote);
+export const kqPickChit = callable("kqPickChit", kq.kqPickChit);
+export const kqAutoPick = callable("kqAutoPick", kq.kqAutoPick);
+export const kqGuess = callable("kqGuess", kq.kqGuess);
+export const kqClaimTimeout = callable("kqClaimTimeout", kq.kqClaimTimeout);
 export const ping = callable("ping", async () => ({}));
 
 export const expireRooms = onSchedule({ schedule: "every 6 hours", timeZone: "Asia/Kolkata" }, async () => {

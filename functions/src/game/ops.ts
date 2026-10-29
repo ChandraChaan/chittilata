@@ -30,7 +30,10 @@ import {
   timeoutCard,
   titleTie,
   validateForStart,
+  KQ_DEFAULT_ROLES,
+  kqChain,
 } from "../engine";
+import * as kq from "./kq";
 import {
   CHAR_CEREMONY_SECONDS,
   CHAR_PICK_SECONDS,
@@ -55,13 +58,13 @@ export interface Deps {
   rng: Rng;
 }
 
-const fail = (code: GameError["code"], msg: string): never => {
+export const fail = (code: GameError["code"], msg: string): never => {
   throw new GameError(code, msg);
 };
 
 // ---------- helpers ----------
 
-const roomRef = (db: Firestore, roomId: string) =>
+export const roomRef = (db: Firestore, roomId: string) =>
   db.collection("rooms").doc(roomId) as DocumentReference<RoomDoc>;
 const roundRef = (db: Firestore, roomId: string, key: string) =>
   db.collection("rooms").doc(roomId).collection("rounds").doc(key) as DocumentReference<RoundDoc>;
@@ -72,19 +75,19 @@ const secretRef = (db: Firestore, roomId: string, key: string) =>
 const auditRef = (db: Firestore, roomId: string) =>
   db.collection("rooms").doc(roomId).collection("audit").doc();
 
-function str(data: unknown, field: string, max = 64): string {
+export function str(data: unknown, field: string, max = 64): string {
   const v = (data as Record<string, unknown> | null)?.[field];
   if (typeof v !== "string" || !v || v.length > max) fail("invalid-argument", `Missing ${field}.`);
   return v as string;
 }
 
-function int(data: unknown, field: string): number {
+export function int(data: unknown, field: string): number {
   const v = (data as Record<string, unknown> | null)?.[field];
   if (typeof v !== "number" || !Number.isInteger(v) || v < 0) fail("invalid-argument", `Missing ${field}.`);
   return v as number;
 }
 
-async function loadRoom(tx: Transaction, db: Firestore, roomId: string) {
+export async function loadRoom(tx: Transaction, db: Firestore, roomId: string) {
   const ref = roomRef(db, roomId);
   const snap = await tx.get(ref);
   if (!snap.exists) fail("not-found", "This room no longer exists.");
@@ -93,11 +96,11 @@ async function loadRoom(tx: Transaction, db: Firestore, roomId: string) {
   return { ref, room };
 }
 
-function requireMember(room: RoomDoc, uid: string) {
+export function requireMember(room: RoomDoc, uid: string) {
   if (!room.memberUids.includes(uid)) fail("permission-denied", "You are not in this room.");
 }
 
-function requireHost(room: RoomDoc, uid: string) {
+export function requireHost(room: RoomDoc, uid: string) {
   requireMember(room, uid);
   if (room.hostUid !== uid) fail("permission-denied", "Only the host can do that.");
 }
@@ -107,13 +110,14 @@ function migrateHost(room: RoomDoc): string {
   return room.memberUids.includes(room.hostUid) ? room.hostUid : (room.memberUids[0] ?? room.hostUid);
 }
 
-function standingsFor(room: RoomDoc) {
+export function standingsFor(room: RoomDoc) {
   return rankPlayers(
     Object.entries(room.players).map(([uid, p]) => ({
       uid,
       name: p.name,
       total: room.totals[uid] ?? 0,
-      movieWins: room.movieWins[uid] ?? 0,
+      // Second ranking key: movie wins, or rounds finished as King.
+      movieWins: (room.mode === "kingQueen" ? room.kingWins?.[uid] : room.movieWins[uid]) ?? 0,
       left: p.left,
       ...(room.tiebreakScores?.[uid] !== undefined ? { tiebreak: room.tiebreakScores[uid] } : {}),
     })),
@@ -142,6 +146,9 @@ function endOfGameUpdate(room: RoomDoc, t: number): Record<string, unknown> {
 
 export async function createRoom(deps: Deps, uid: string, data: unknown) {
   const name = cleanPlayerName((data as Record<string, unknown> | null)?.name);
+  const rawMode = (data as Record<string, unknown> | null)?.mode ?? "movie";
+  if (rawMode !== "movie" && rawMode !== "kingQueen") fail("invalid-argument", "Unknown game mode.");
+  const mode = rawMode as "movie" | "kingQueen";
   const { db, now, rng } = deps;
   for (let attempt = 0; attempt < 6; attempt++) {
     const code = roomCode(rng);
@@ -157,7 +164,10 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
         memberUids: [uid],
         players: { [uid]: { name, joinedAt: now(), ready: true, left: false } },
         banned: [],
+        mode,
         settings: defaultSettings(),
+        kqSettings: kq.defaultKqSettings(),
+        kingWins: {},
         gameNo: 1,
         currentRound: 0,
         currentRoundKey: null,
@@ -174,7 +184,7 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
       tx.create(codeRef, { roomId: ref.id, createdAt: ts });
       return true;
     });
-    if (created) return { roomId: ref.id, code };
+    if (created) return { roomId: ref.id, code, mode };
   }
   return fail("resource-exhausted", "Could not allocate a room code. Try again.");
 }
@@ -229,6 +239,11 @@ export async function updateSettings(deps: Deps, uid: string, data: unknown) {
     const { ref, room } = await loadRoom(tx, deps.db, roomId);
     requireHost(room, uid);
     if (room.status !== "lobby") fail("failed-precondition", "Settings are locked once the game starts.");
+    if (room.mode === "kingQueen") {
+      const kqSettings = kq.mergeKqSettings(room.kqSettings ?? kq.defaultKqSettings(), (data as Record<string, unknown>).kqSettings);
+      tx.update(ref, { kqSettings, updatedAt: Timestamp.fromMillis(deps.now()) });
+      return { kqSettings };
+    }
     const settings = mergeSettings(room.settings, patch);
     tx.update(ref, { settings, updatedAt: Timestamp.fromMillis(deps.now()) });
     return { settings };
@@ -265,13 +280,15 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
     if (!snap.exists) return;
     const room = snap.data() as RoomDoc;
     if (!room.memberUids.includes(uid)) return;
+    const isKq = room.mode === "kingQueen";
     const round =
-      room.status === "playing" && room.currentRoundKey
+      !isKq && room.status === "playing" && room.currentRoundKey
         ? ((await tx.get(roundRef(db, roomId, room.currentRoundKey))).data() as RoundDoc | undefined)
         : undefined;
 
     const ts = Timestamp.fromMillis(now());
     const members = room.memberUids.filter((m) => m !== uid);
+    const kqEffects = isKq ? await kq.kqLeaveEffects(tx, deps, roomId, room, uid, members) : null;
     const next: Partial<RoomDoc> & Record<string, unknown> = { memberUids: members, updatedAt: ts };
 
     if (members.length === 0) {
@@ -300,6 +317,9 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
       // A tied player left: no tie-breaker, the shared titles stand.
       next.status = "finished";
       next.tiebreak = { ...tb!, stage: "cancelled" };
+    } else if (kqEffects) {
+      kqEffects.apply();
+      Object.assign(next, kqEffects.out);
     } else if (room.status === "playing" && members.length > 0 && members.length < MIN_PLAYERS) {
       // Too few players to continue: finish with the scores so far.
       const leftRoom = {
@@ -316,6 +336,11 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
 }
 
 // ---------- rounds ----------
+
+/** Throws a clear error if the room can't play King & Queen with its players. */
+function kqChainCheck(room: RoomDoc) {
+  kqChain(room.kqSettings?.roles ?? KQ_DEFAULT_ROLES, room.memberUids.length);
+}
 
 /**
  * Deals a fresh round inside a transaction. Caller has already read `room`.
@@ -429,16 +454,16 @@ export async function startGame(deps: Deps, uid: string, data: unknown) {
     if (notReady.length) {
       fail("failed-precondition", `Waiting for ${notReady.map((m) => room.players[m].name).join(", ")}.`);
     }
-    validateForStart(room.settings, room.memberUids.length);
     const zero = Object.fromEntries(room.memberUids.map((m) => [m, 0]));
-    const fresh: RoomDoc = { ...room, totals: zero, movieWins: { ...zero }, currentRound: 0 };
-    tx.update(roomRef(deps.db, roomId), {
-      totals: zero,
-      movieWins: zero,
-      final: null,
-      tiebreak: null,
-      tiebreakScores: null,
-    });
+    const reset = { totals: zero, movieWins: zero, kingWins: { ...zero }, final: null, tiebreak: null, tiebreakScores: null };
+    const fresh: RoomDoc = { ...room, ...reset, movieWins: { ...zero }, currentRound: 0 };
+    if (room.mode === "kingQueen") {
+      kqChainCheck(room);
+      tx.update(roomRef(deps.db, roomId), reset);
+      return kq.startKqRoundTx(tx, deps, roomId, fresh);
+    }
+    validateForStart(room.settings, room.memberUids.length);
+    tx.update(roomRef(deps.db, roomId), reset);
     return startRoundTx(tx, deps, roomId, fresh);
   });
   return { roundKey };
@@ -450,6 +475,15 @@ export async function nextRound(deps: Deps, uid: string, data: unknown) {
     const { room } = await loadRoom(tx, deps.db, roomId);
     requireHost(room, uid);
     if (room.status !== "playing") fail("failed-precondition", "The game is not in progress.");
+    if (room.mode === "kingQueen") {
+      const cur = await kq.kqCurrentRound(tx, deps.db, roomId, room.currentRoundKey);
+      if (cur && cur.status !== "revealed" && cur.status !== "aborted") {
+        fail("failed-precondition", "The current round has not finished.");
+      }
+      if (room.currentRound >= (room.kqSettings?.rounds ?? 7)) fail("failed-precondition", "All rounds are complete.");
+      kqChainCheck(room);
+      return kq.startKqRoundTx(tx, deps, roomId, room);
+    }
     const current = room.currentRoundKey
       ? ((await tx.get(roundRef(deps.db, roomId, room.currentRoundKey))).data() as RoundDoc)
       : null;
@@ -881,6 +915,7 @@ export async function playAgain(deps: Deps, uid: string, data: unknown) {
       currentRoundKey: null,
       totals: {},
       movieWins: {},
+      kingWins: {},
       final: null,
       tiebreak: null,
       tiebreakScores: null,

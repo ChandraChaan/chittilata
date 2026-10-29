@@ -42,6 +42,10 @@ beforeEach(async () => {
     }
     await setDoc(doc(db, `rooms/${ROOM}/audit/a1`), { type: "deal" });
     await setDoc(doc(db, `rooms/${ROOM}/secrets/g1r01`), { deal: {}, characters: { c1: { name: "Queen" } } });
+    await setDoc(doc(db, `rooms/${ROOM}/kqRounds/g1r01`), { status: "guessing", guesser: "alice" });
+    for (const uid of ["host", "alice", "bob"]) {
+      await setDoc(doc(db, `rooms/${ROOM}/kqRoles/${uid}`), { index: 1, name: "Queen" });
+    }
   });
 });
 
@@ -91,6 +95,27 @@ describe("private hands", () => {
       await assertFails(getDoc(doc(as(u), `rooms/${ROOM}/secrets/g1r01`)));
       await assertFails(setDoc(doc(as(u), `rooms/${ROOM}/secrets/g1r01`), { deal: {} }));
     }
+  });
+});
+
+describe("King & Queen privacy", () => {
+  it("members read the public round; outsiders cannot", async () => {
+    await assertSucceeds(getDoc(doc(as("bob"), `rooms/${ROOM}/kqRounds/g1r01`)));
+    await assertFails(getDoc(doc(as("mallory"), `rooms/${ROOM}/kqRounds/g1r01`)));
+  });
+
+  it("a secret role is readable only by its owner, never the host", async () => {
+    await assertSucceeds(getDoc(doc(as("alice"), `rooms/${ROOM}/kqRoles/alice`)));
+    await assertFails(getDoc(doc(as("alice"), `rooms/${ROOM}/kqRoles/bob`)));
+    await assertFails(getDoc(doc(as("host"), `rooms/${ROOM}/kqRoles/alice`)));
+    await assertFails(getDoc(doc(as("mallory"), `rooms/${ROOM}/kqRoles/mallory`)));
+  });
+
+  it("clients cannot change roles, guesses or turns", async () => {
+    await assertFails(updateDoc(doc(as("alice"), `rooms/${ROOM}/kqRoles/alice`), { index: 0, name: "King" }));
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/kqRoles/bob`), { index: 3 }));
+    await assertFails(updateDoc(doc(as("alice"), `rooms/${ROOM}/kqRounds/g1r01`), { guesser: "bob" }));
+    await assertFails(updateDoc(doc(as("host"), `rooms/${ROOM}/kqRounds/g1r01`), { status: "revealed" }));
   });
 });
 

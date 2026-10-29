@@ -52,6 +52,18 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // King & Queen: public round state (no hidden roles until the end).
+      match /kqRounds/{roundKey} {
+        allow read: if isMember(roomId);
+        allow write: if false;
+      }
+
+      // King & Queen: each player's own secret role. The host gets no access.
+      match /kqRoles/{uid} {
+        allow read: if signedIn() && request.auth.uid == uid && isMember(roomId);
+        allow write: if false;
+      }
+
       // Server-only debug log (contains card details).
       match /audit/{id} {
         allow read, write: if false;
