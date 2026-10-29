@@ -1,5 +1,11 @@
 # How to play Chittilata — quick guide
 
+Chittilata has two games. Pick one on the home screen: **🎬 Movie Chits** or **👑 King & Queen**. Everyone else taps **Join with a code**.
+
+---
+
+## 🎬 Movie Chits
+
 A two-minute guide for friends and family. The complete rules are in [GAME_RULES.md](GAME_RULES.md). A video walkthrough is in [`media/chittilata-how-to-play.mp4`](media/chittilata-how-to-play.mp4).
 
 ## 1. Get everyone in one room
@@ -42,3 +48,17 @@ After the last round, the top score is **King** and the second is **Queen**. Tap
 - Keep the screen on during a game. Chittilata keeps it awake for you.
 - Turn sound, music and vibration on or off in **Settings**.
 - If your connection drops, just reopen the app. Your seat is saved.
+
+---
+
+## 👑 King & Queen
+
+Full rules and the state model: [KING_QUEEN_RULES.md](KING_QUEEN_RULES.md).
+
+1. **Create a King & Queen room** and share the code. You need 4–10 players. The host can set the rounds, the time per guess and every role's points.
+2. **Pick one folded chit.** It unfolds privately to show your role: King, Queen, Police or Thief, plus Minister, Commander and more in bigger games. Keep a straight face!
+3. **The King is announced** and must find the **Queen**. On your turn, tap the player you suspect and confirm **"Is … the Queen?"**
+4. **Right guess:** you keep your role for good, and the player you found must now find the next role in the chain.
+5. **Wrong guess:** you two **swap roles** and you lose your turn. They now hold your role and keep hunting. Players already ruled out are marked "not the …".
+6. When everyone is found, all roles are revealed and **everyone scores their final role**. After the last round, the top total is King and the next is Queen. Ties go to whoever finished the most rounds as King.
+

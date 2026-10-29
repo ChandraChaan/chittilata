@@ -78,6 +78,24 @@ When the last round is revealed, `titleTie` checks the final standings. If playe
 - During a tie-breaker round, win and character points are **not** added to `totals`/`movieWins`. On reveal they are stored as `room.tiebreakScores`, and the ranking uses them as the third key (after total and movie wins). Then `stage` becomes `"done"`.
 - If a tied player leaves during the vote or the round, `stage` becomes `"cancelled"` and the titles stay shared.
 
+## King & Queen mode
+
+Rooms carry `mode: "movie" | "kingQueen"` (missing means movie, for older rooms) and `kqSettings` (rounds, turnSeconds, role catalogue). Rules and the state model are in [KING_QUEEN_RULES.md](KING_QUEEN_RULES.md). The pure engine is `functions/src/engine/kingqueen.ts` and the transactions are in `functions/src/game/kq.ts`.
+
+| Document | Who can read | Contents |
+|---|---|---|
+| `rooms/{id}/kqRounds/{key}` | members | players, chain names/points, chit ids, picks, step, guesser, locked (uid → final role), excluded, turnId, deadlines, guess history; `revealedRoles` + `scores` **only after the round ends** |
+| `rooms/{id}/kqRoles/{uid}` | **that player only** | their current role (updated privately when a wrong guess swaps it) |
+| `rooms/{id}/secrets/{key}` | nobody | sealed chit → role map and the authoritative uid → role map |
+
+- `kqPickChit` / `kqAutoPick`: one chit per player, one player per chit, transactional and idempotent. When the last chit is taken, the King is announced and `guessing` starts (`guessOpensAt` = now + 4 s).
+- `kqGuess`: only the current guesser, with the current `turnId`, before the deadline, at a current candidate. `requestId` replay protection. Applies the engine transition, including forced resolutions, writes only the changed players' `kqRoles`, and when the round ends reveals roles and scores exactly once (guarded by the status change), adding totals and `kingWins`.
+- `kqClaimTimeout`: any member, after deadline + grace. The server makes a uniformly random guess for the guesser.
+- Leaving mid-round voids it. Fewer than 4 players ends the game. Final ranking uses `kingWins` as the second key, and there is no tie-breaker round.
+- Movie Chits code paths are unchanged. `createRoom` defaults to `movie`, and King & Queen callables refuse non-King & Queen rooms.
+
+**Capacity.** All callables run with `cpu: "gcf_gen1"` (fractional vCPU at 256 MiB) and `maxInstances: 5`, which keeps the project inside the regional Cloud Run CPU quota.
+
 ## Timeout and reveal policy
 
 Clients run a 250 ms ticker for the UI. When a deadline has passed (plus grace and stagger), the client calls `claimTimeout(turnId)`, and the server checks the time itself. The character reveal works the same way after `revealAt`, and the host can also reveal early.

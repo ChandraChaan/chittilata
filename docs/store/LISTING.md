@@ -20,9 +20,9 @@
 
 ## Full description (≤ 4000 characters)
 
-> **Chittilata (చిట్టిలాట)** brings the much-loved Telugu paper-slip game *Chittilu Aata* to your phone. No paper and no scissors needed. Everyone plays on their own phone, and every slip stays secret.
+> **Chittilata (చిట్టిలాట)** brings two much-loved Telugu paper-chit games to your phone: **Movie Chits** (*Chittilu Aata*) and **King & Queen**. No paper and no scissors needed. Everyone plays on their own phone, and every slip stays secret.
 >
-> **How it works**
+> **🎬 Movie Chits (3–10 players)**
 > • One person creates a room and shares the 6-letter code. 3–10 players can join.
 > • Everyone gets four secret slips with movie names.
 > • Pass one slip at a time around a random circle. Keep what you need and pass on what you don't.
@@ -41,7 +41,12 @@
 > • Only you can see your slips. Not even the host can peek.
 > • Lost connection? Reopen the app and you're right back in your seat.
 >
-> Gather the family. Pass the slips. Wear the crown. 👑
+> **👑 King & Queen (4–10 players)**
+> • Pick one folded chit to get your secret role.
+> • The King hunts the Queen, the Queen hunts the Police… guess wrong and you swap roles!
+> • Everyone scores their final role. Most points after all rounds wins.
+>
+> Gather the family. Pick the chits. Wear the crown. 👑
 
 ## Graphics
 
@@ -49,7 +54,7 @@
 |---|---|---|
 | App icon 512×512 | `docs/store/icon-512.png` | |
 | Feature graphic 1024×500 | `docs/store/feature-graphic.png` | |
-| Phone screenshots (1080×2160) | `docs/store/screenshots/01…06-*.png` | Real captures from a live 4-player game on the production backend (3 test players were scripted bots) |
+| Phone screenshots (1080×2160) | `docs/store/screenshots/01…12-*.png` (07–12: King & Queen) | Real captures from a live 4-player game on the production backend (3 test players were scripted bots) |
 | Promo video | `docs/media/chittilata-how-to-play.mp4` | Play needs a YouTube URL, so upload the file to YouTube first |
 
 ## Content rating questionnaire (IARC) — expected answers
