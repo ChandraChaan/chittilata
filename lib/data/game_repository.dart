@@ -56,6 +56,18 @@ abstract class GameRepository {
     String requestId,
   );
   Future<void> claimTimeout(String roomId, String roundKey, int turnId);
+
+  /// Picks a folded movie chit; returns the slip it revealed (yours only).
+  Future<GameCard> pickChit(String roomId, String roundKey, String chitId);
+  Future<void> autoPickChits(String roomId, String roundKey);
+
+  /// Picks a folded character chit; returns the sealed character.
+  Future<CharacterDef> pickCharacter(
+    String roomId,
+    String roundKey,
+    String chitId,
+  );
+  Future<void> autoPickCharacters(String roomId, String roundKey);
   Future<void> revealRound(String roomId, String roundKey);
   Future<void> playAgain(String roomId);
   Future<void> tiebreakVote(String roomId, bool accept);
@@ -237,6 +249,42 @@ class FirebaseGameRepository implements GameRepository {
         'roundKey': roundKey,
         'turnId': turnId,
       });
+
+  @override
+  Future<GameCard> pickChit(
+    String roomId,
+    String roundKey,
+    String chitId,
+  ) async {
+    final r = await _call('pickChit', {
+      'roomId': roomId,
+      'roundKey': roundKey,
+      'chitId': chitId,
+    });
+    return GameCard.fromMap(r['card']);
+  }
+
+  @override
+  Future<void> autoPickChits(String roomId, String roundKey) =>
+      _call('autoPickChits', {'roomId': roomId, 'roundKey': roundKey});
+
+  @override
+  Future<CharacterDef> pickCharacter(
+    String roomId,
+    String roundKey,
+    String chitId,
+  ) async {
+    final r = await _call('pickCharacter', {
+      'roomId': roomId,
+      'roundKey': roundKey,
+      'chitId': chitId,
+    });
+    return CharacterDef.fromMap(r['character']);
+  }
+
+  @override
+  Future<void> autoPickCharacters(String roomId, String roundKey) =>
+      _call('autoPickCharacters', {'roomId': roomId, 'roundKey': roundKey});
 
   @override
   Future<void> revealRound(String roomId, String roundKey) =>

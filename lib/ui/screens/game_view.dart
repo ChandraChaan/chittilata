@@ -65,7 +65,6 @@ class GameView extends StatelessWidget {
           ],
         ),
         if (phase == Phase.intro) _IntroOverlay(ctrl: ctrl, seats: seats),
-        if (phase == Phase.characters) _WinnerOverlay(ctrl: ctrl),
       ],
     );
   }
@@ -523,8 +522,9 @@ class _IntroOverlay extends StatelessWidget {
   }
 }
 
-class _WinnerOverlay extends StatelessWidget {
-  const _WinnerOverlay({required this.ctrl});
+/// Compact winner announcement shown above the character chits.
+class WinnerBanner extends StatelessWidget {
+  const WinnerBanner({super.key, required this.ctrl});
   final RoomController ctrl;
 
   @override
@@ -534,88 +534,33 @@ class _WinnerOverlay extends StatelessWidget {
     final room = ctrl.room!;
     final w = round.winner!;
     final iWon = w.uid == ctrl.uid;
-    final myChar = ctrl.hand?.character;
     final width = MediaQuery.sizeOf(context).width;
-
-    return Positioned.fill(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [c.bgTop, c.bgBottom],
-          ),
-        ),
-        child: Stack(
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        const SizedBox(height: 150, width: double.infinity, child: Confetti()),
+        Column(
           children: [
-            const Positioned.fill(child: Confetti()),
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(Space.xl),
-              child: Column(
-                children: [
-                  const SizedBox(height: Space.lg),
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      iWon
-                          ? 'YOU WIN!'
-                          : '${room.nameOf(w.uid).toUpperCase()} WINS!',
-                      textAlign: TextAlign.center,
-                      style: context.text.displaySmall?.copyWith(
-                        color: c.marigold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: Space.xs),
-                  Text(
-                    'Four matching slips collected!',
-                    style: context.text.titleMedium?.copyWith(color: c.muted),
-                  ),
-                  const SizedBox(height: Space.lg),
-                  _FourOfAKind(name: w.movie, width: min(70, (width - 80) / 4)),
-                  const SizedBox(height: Space.md),
-                  Text(
-                    round.tiebreak
-                        ? 'WINS THE TIE-BREAKER'
-                        : '+${w.points} POINTS',
-                    style: context.text.headlineMedium?.copyWith(color: c.leaf),
-                  ),
-                  const SizedBox(height: Space.xl),
-                  if (!iWon && myChar != null)
-                    _CharacterCard(character: myChar),
-                  if (ctrl.spectating)
-                    Text(
-                      'The tie-breaker is decided!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: c.muted),
-                    ),
-                  if (iWon)
-                    Text(
-                      'The others are getting their secret characters…',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: c.muted),
-                    ),
-                  const SizedBox(height: Space.xl),
-                  Text(
-                    'Revealing all slips in ${ctrl.revealRemainingSeconds}s',
-                    style: TextStyle(
-                      color: c.muted,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (ctrl.isHost) ...[
-                    const SizedBox(height: Space.sm),
-                    TextButton(
-                      onPressed: ctrl.busy ? null : ctrl.revealNow,
-                      child: const Text('Reveal now'),
-                    ),
-                  ],
-                ],
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                iWon ? 'YOU WIN!' : '${room.nameOf(w.uid).toUpperCase()} WINS!',
+                textAlign: TextAlign.center,
+                style: context.text.headlineMedium?.copyWith(color: c.marigold),
               ),
+            ),
+            const SizedBox(height: Space.xs),
+            _FourOfAKind(name: w.movie, width: min(52, (width - 80) / 6)),
+            const SizedBox(height: Space.xs),
+            Text(
+              round.tiebreak
+                  ? 'Wins the tie-breaker'
+                  : 'Four matching slips · +${w.points} points',
+              style: TextStyle(color: c.leaf, fontWeight: FontWeight.w900),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 }

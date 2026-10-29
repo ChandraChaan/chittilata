@@ -11,6 +11,7 @@ import '../data/models.dart';
 enum Phase {
   loading,
   lobby,
+  picking,
   intro,
   exchange,
   characters,
@@ -66,6 +67,13 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   bool roomMissing = false;
   String? selectedCardId;
   bool busy = false;
+
+  /// Chits I tapped that the server has not confirmed yet.
+  final pendingChits = <String>{};
+
+  /// Slips/characters just revealed by my own picks, oldest first; the UI
+  /// plays the unfolding reveal and then calls [consumeReveal].
+  final revealQueue = <Object>[];
 
   final _messages = StreamController<String>.broadcast();
   Stream<String> get messages => _messages.stream;
@@ -132,6 +140,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       return rd.status == RoundStatus.aborted ? Phase.aborted : Phase.results;
     }
     return switch (rd.status) {
+      RoundStatus.picking => Phase.picking,
       RoundStatus.exchange =>
         now.isBefore(rd.introEndsAt) ? Phase.intro : Phase.exchange,
       RoundStatus.characters => Phase.characters,
@@ -224,6 +233,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (rd == null) return;
     final prev = round;
     round = rd;
+    if (prev != null && prev.key == rd.key) _feedbackForOthersPicks(prev, rd);
     if (prev?.turnId != rd.turnId) {
       selectedCardId = null;
       _lastWarnSecond = -1;
@@ -259,6 +269,21 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       feedback.play(Sfx.roundEnd);
     }
     notifyListeners();
+  }
+
+  DateTime _lastPickSound = DateTime(0);
+
+  void _feedbackForOthersPicks(Round prev, Round rd) {
+    final newPicks = [
+      ...rd.picks.entries.where((e) => !prev.picks.containsKey(e.key)),
+      ...rd.charPicks.entries.where((e) => !prev.charPicks.containsKey(e.key)),
+    ].where((e) => e.value != uid);
+    if (newPicks.isEmpty) return;
+    final t = DateTime.now();
+    if (t.difference(_lastPickSound).inMilliseconds < 180) return;
+    _lastPickSound = t;
+    feedback.play(Sfx.pick);
+    feedback.selection();
   }
 
   void _onHand(Hand? h) {
@@ -302,9 +327,26 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       }
       _maybeClaimTimeout(rd, ms);
     }
+    if (rd != null && p == Phase.picking) {
+      _maybeClaim(
+        'autoPick:${rd.key}',
+        rd.pickDeadline,
+        rd,
+        () => repo.autoPickChits(roomId, rd.key),
+      );
+    }
+    if (rd != null && p == Phase.characters && rd.revealAt == null) {
+      _maybeClaim(
+        'autoChar:${rd.key}',
+        rd.charPickDeadline,
+        rd,
+        () => repo.autoPickCharacters(roomId, rd.key),
+      );
+    }
     if (rd != null && p == Phase.characters) _maybeReveal(rd);
     if (p == Phase.tiebreakVote) _maybeCloseVote();
-    if (p == Phase.intro ||
+    if (p == Phase.picking ||
+        p == Phase.intro ||
         p == Phase.exchange ||
         p == Phase.characters ||
         p == Phase.tiebreakVote) {
@@ -321,6 +363,22 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     final key = '${rd.key}:${rd.turnId}';
     if (!_claimedTimeouts.add(key)) return;
     repo.claimTimeout(roomId, rd.key, rd.turnId).catchError((_) {});
+  }
+
+  /// After a picking deadline any member asks the server to finish the
+  /// remaining picks at random; members stagger so calls rarely collide.
+  void _maybeClaim(
+    String key,
+    DateTime? deadline,
+    Round rd,
+    Future<void> Function() call,
+  ) {
+    if (deadline == null) return;
+    final idx = max(0, rd.order.indexOf(uid ?? ''));
+    final at = deadline.add(Duration(milliseconds: _graceMs + 300 + idx * 500));
+    if (now.isBefore(at)) return;
+    if (!_claimedReveals.add(key)) return;
+    call().catchError((_) => _claimedReveals.remove(key));
   }
 
   /// After the vote deadline any member asks the server to close the vote.
@@ -342,7 +400,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
 
   void _maybeReveal(Round rd) {
     final at = rd.revealAt;
-    if (at == null) return;
+    if (at == null) return; // characters are still being picked
     final idx = max(0, rd.order.indexOf(uid ?? ''));
     if (now.isBefore(at.add(Duration(milliseconds: 200 + idx * 500)))) return;
     if (!_claimedReveals.add(rd.key)) return;
@@ -430,6 +488,121 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     } finally {
       busy = false;
       if (!_disposed) notifyListeners();
+    }
+  }
+
+  /// Whether the folded chits can be picked yet (after the shuffle).
+  bool get chitsOpen {
+    final rd = round;
+    return rd != null &&
+        rd.status == RoundStatus.picking &&
+        rd.pickOpensAt != null &&
+        !now.isBefore(rd.pickOpensAt!);
+  }
+
+  bool get characterChitsOpen {
+    final rd = round;
+    return rd != null &&
+        rd.status == RoundStatus.characters &&
+        rd.revealAt == null &&
+        rd.charPickOpensAt != null &&
+        !now.isBefore(rd.charPickOpensAt!);
+  }
+
+  int get myChitCount => hand?.cards.length ?? 0;
+
+  bool get canPickChit =>
+      chitsOpen &&
+      round!.order.contains(uid) &&
+      myChitCount + pendingChits.length < 4;
+
+  bool get canPickCharacter =>
+      characterChitsOpen &&
+      round!.order.contains(uid) &&
+      round!.winner?.uid != uid &&
+      !round!.charPicks.containsValue(uid) &&
+      pendingChits.isEmpty;
+
+  /// Seconds left to pick (movie or character chits).
+  int get pickRemainingSeconds {
+    final rd = round;
+    final d = rd?.status == RoundStatus.picking
+        ? rd?.pickDeadline
+        : rd?.charPickDeadline;
+    if (d == null) return 0;
+    return max(0, (d.difference(now).inMilliseconds / 1000).ceil());
+  }
+
+  Future<void> pickChit(String chitId) async {
+    final rd = round;
+    if (rd == null || !canPickChit || rd.picks.containsKey(chitId)) return;
+    if (!pendingChits.add(chitId)) return;
+    feedback.selection();
+    feedback.play(Sfx.pick);
+    notifyListeners();
+    try {
+      final card = await _retryValue(
+        () => repo.pickChit(roomId, rd.key, chitId),
+      );
+      revealQueue.add(card);
+      feedback.medium();
+    } on GameException catch (e) {
+      _messages.add(
+        e.code == 'already-exists'
+            ? 'Someone grabbed that chit first!'
+            : e.message,
+      );
+    } finally {
+      pendingChits.remove(chitId);
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> pickCharacter(String chitId) async {
+    final rd = round;
+    if (rd == null || !canPickCharacter || rd.charPicks.containsKey(chitId)) {
+      return;
+    }
+    if (!pendingChits.add(chitId)) return;
+    feedback.selection();
+    feedback.play(Sfx.pick);
+    notifyListeners();
+    try {
+      final c = await _retryValue(
+        () => repo.pickCharacter(roomId, rd.key, chitId),
+      );
+      revealQueue.add(c);
+      feedback.medium();
+    } on GameException catch (e) {
+      _messages.add(
+        e.code == 'already-exists'
+            ? 'Someone grabbed that chit first!'
+            : e.message,
+      );
+    } finally {
+      pendingChits.remove(chitId);
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  /// Called by the UI when it has finished playing a reveal.
+  void consumeReveal() {
+    if (revealQueue.isNotEmpty) revealQueue.removeAt(0);
+    notifyListeners();
+  }
+
+  /// Like [_withRetry] for calls that return a value; picks are idempotent.
+  Future<T> _retryValue<T>(Future<T> Function() f) async {
+    try {
+      return await f();
+    } on GameException catch (e) {
+      if (e.code == 'unavailable' ||
+          e.code == 'deadline-exceeded' ||
+          e.code == 'internal') {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        return f();
+      }
+      rethrow;
     }
   }
 

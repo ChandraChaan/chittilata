@@ -97,6 +97,22 @@ write("fanfare.wav", mix(
         tone(E6, 0.18, 0.4, "bell"), tone(G6, 0.7, 0.45, "bell", release=0.9)),
     seq(tone(C5, 0.42, 0.2, "sine"), tone(E5, 0.88, 0.2, "sine", release=0.9))))
 
+# Paper sounds: crinkles are bursts of band-limited noise.
+def crinkle(dur, vol=0.35, bursts=6, lowpass=0.35):
+    out = [0.0] * int(RATE * dur)
+    for _ in range(bursts):
+        start = random.uniform(0, dur * 0.8)
+        b = noise(random.uniform(0.02, 0.07), vol * random.uniform(0.5, 1.0), lowpass)
+        o = int(RATE * start)
+        for i, v in enumerate(b):
+            if o + i < len(out): out[o + i] += v
+    return out
+
+write("fold.wav", mix(crinkle(0.28, 0.4, 5, 0.45), tone(320, 0.08, 0.12, "sine", bend=-0.3)))
+write("shuffle.wav", mix(crinkle(1.0, 0.32, 22, 0.3), delay(noise(0.5, 0.08, 0.05), 0.25)))
+write("pick.wav", mix(noise(0.05, 0.45, 0.7), delay(tone(1500, 0.04, 0.2, "sine", release=0.1), 0.01)))
+write("unfold.wav", mix(crinkle(0.35, 0.3, 6, 0.4), delay(tone(E6, 0.45, 0.22, "bell", release=0.9), 0.28)))
+
 # Gentle pentatonic music loop (~13 s), plucked melody over soft drone.
 scale = [C5 / 2, D5 / 2, E5 / 2, G5 / 2, A5 / 2, C5, D5, E5, G5, A5]
 melody = [5, 7, 8, 7, 5, 4, 3, 4, 5, 7, 9, 8, 7, 5, 4, 5,

@@ -18,11 +18,13 @@ const ruleSections = [
   ),
   RuleSection(
     Icons.style_rounded,
-    'Get your secret slips',
-    'Each round uses one movie name per player, with 4 slips of each name. '
-        'Everyone gets 4 slips, and the opening deal always gives you '
-        'different names, so nobody starts close to winning. With 3 players '
-        'you get three names, one of them twice. Only you can see your slips.',
+    'Pick 4 folded chits',
+    'Each round, the movie names are written on paper, folded, shuffled '
+        'and scattered on the mat: 4 chits per name. Tap any 4 chits and '
+        'each one unfolds just for you. The server deals everyone a fair hand '
+        'of different names, so which chit you pick never changes your '
+        'chances and nobody starts close to winning. Only you can see your '
+        'slips.',
   ),
   RuleSection(
     Icons.autorenew_rounded,
@@ -52,9 +54,10 @@ const ruleSections = [
   RuleSection(
     Icons.theater_comedy_rounded,
     'Secret characters',
-    'Everyone else gets a secret character card, such as Queen 800, '
-        'Police 500 or Thief 100. With more players there are more '
-        'characters. You see only your own until the reveal.',
+    'Everyone else picks one folded character chit, such as Queen 800, '
+        'Police 500 or Thief 100. The character inside is exactly what you '
+        'get, and only you see it until the reveal. With more players there '
+        'are more characters.',
   ),
   RuleSection(
     Icons.visibility_rounded,

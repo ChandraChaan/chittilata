@@ -11,6 +11,7 @@ import '../widgets/common.dart';
 import 'final_view.dart';
 import 'game_view.dart';
 import 'lobby_view.dart';
+import 'picking_view.dart';
 import 'results_view.dart';
 import 'tiebreak_view.dart';
 
@@ -138,10 +139,18 @@ class _RoomScreenState extends State<RoomScreen> {
                   action: BigButton(label: 'Back to home', onPressed: _home),
                 ),
                 Phase.lobby => LobbyView(ctrl: ctrl, onLeave: _confirmLeave),
-                Phase.intro || Phase.exchange || Phase.characters => GameView(
+                Phase.picking => PickingView(
                   ctrl: ctrl,
                   onLeave: _confirmLeave,
                 ),
+                Phase.characters => CharacterPickView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                  winnerBanner: WinnerBanner(ctrl: ctrl),
+                  characterIcon: characterIcon,
+                ),
+                Phase.intro ||
+                Phase.exchange => GameView(ctrl: ctrl, onLeave: _confirmLeave),
                 Phase.results || Phase.aborted => ResultsView(
                   ctrl: ctrl,
                   onLeave: _confirmLeave,
@@ -182,7 +191,9 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   String _viewKey(Phase p, RoomController c) => switch (p) {
-    Phase.intro || Phase.exchange || Phase.characters => 'game-${c.round?.key}',
+    Phase.picking => 'picking-${c.round?.key}',
+    Phase.characters => 'characters-${c.round?.key}',
+    Phase.intro || Phase.exchange => 'game-${c.round?.key}',
     Phase.results || Phase.aborted => 'results-${c.round?.key}',
     _ => p.name,
   };

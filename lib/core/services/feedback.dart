@@ -15,6 +15,10 @@ enum Sfx {
   reveal,
   roundEnd,
   fanfare,
+  fold,
+  shuffle,
+  pick,
+  unfold,
 }
 
 /// Sound effects, background music and haptics, each gated by the player's
@@ -40,6 +44,10 @@ class GameFeedback {
     Sfx.reveal: 'reveal.wav',
     Sfx.roundEnd: 'round_end.wav',
     Sfx.fanfare: 'fanfare.wav',
+    Sfx.fold: 'fold.wav',
+    Sfx.shuffle: 'shuffle.wav',
+    Sfx.pick: 'pick.wav',
+    Sfx.unfold: 'unfold.wav',
   };
 
   Future<void> play(Sfx s) async {

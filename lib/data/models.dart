@@ -269,7 +269,7 @@ class Room {
   }
 }
 
-enum RoundStatus { exchange, characters, revealed, aborted }
+enum RoundStatus { picking, exchange, characters, revealed, aborted }
 
 class LastAction {
   const LastAction(this.type, this.fromUid, this.toUid, this.turnId);
@@ -300,6 +300,14 @@ class Round {
     required this.nextUid,
     required this.timed,
     required this.turnSeconds,
+    this.chits = const [],
+    this.picks = const {},
+    this.pickOpensAt,
+    this.pickDeadline,
+    this.charChits = const [],
+    this.charPicks = const {},
+    this.charPickOpensAt,
+    this.charPickDeadline,
     required this.introEndsAt,
     required this.turnDeadline,
     required this.movieNames,
@@ -326,6 +334,18 @@ class Round {
   final String nextUid;
   final bool timed;
   final int turnSeconds;
+
+  /// Folded movie chits on the table (opaque ids) and who picked each.
+  final List<String> chits;
+  final Map<String, String> picks;
+  final DateTime? pickOpensAt;
+  final DateTime? pickDeadline;
+
+  /// Folded character chits (opaque ids) and who picked each.
+  final List<String> charChits;
+  final Map<String, String> charPicks;
+  final DateTime? charPickOpensAt;
+  final DateTime? charPickDeadline;
   final DateTime introEndsAt;
   final DateTime turnDeadline;
   final List<String> movieNames;
@@ -356,6 +376,14 @@ class Round {
       nextUid: m['nextUid'] as String,
       timed: m['timed'] != false,
       turnSeconds: _int(m['turnSeconds'], 20),
+      chits: List<String>.from(m['chits'] as List? ?? const []),
+      picks: _map(m['picks'], (v) => v as String),
+      pickOpensAt: _time(m['pickOpensAt']),
+      pickDeadline: _time(m['pickDeadline']),
+      charChits: List<String>.from(m['charChits'] as List? ?? const []),
+      charPicks: _map(m['charPicks'], (v) => v as String),
+      charPickOpensAt: _time(m['charPickOpensAt']),
+      charPickDeadline: _time(m['charPickDeadline']),
       introEndsAt: _time(m['introEndsAt']) ?? DateTime.now(),
       turnDeadline: _time(m['turnDeadline']) ?? DateTime.now(),
       movieNames: List<String>.from(m['movieNames'] as List? ?? const []),

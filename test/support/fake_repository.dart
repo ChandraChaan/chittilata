@@ -110,6 +110,39 @@ class FakeGameRepository implements GameRepository {
   @override
   Future<void> claimTimeout(String roomId, String roundKey, int turnId) =>
       _record('timeout:$turnId');
+
+  /// What the next pickChit / pickCharacter returns.
+  GameCard nextPickCard = const GameCard(id: 'p1', name: 'RRR');
+  CharacterDef nextCharacter = const CharacterDef('Queen', 800);
+
+  @override
+  Future<GameCard> pickChit(
+    String roomId,
+    String roundKey,
+    String chitId,
+  ) async {
+    await _record('pick:$chitId');
+    return nextPickCard;
+  }
+
+  @override
+  Future<void> autoPickChits(String roomId, String roundKey) =>
+      _record('autoPick');
+
+  @override
+  Future<CharacterDef> pickCharacter(
+    String roomId,
+    String roundKey,
+    String chitId,
+  ) async {
+    await _record('pickCharacter:$chitId');
+    return nextCharacter;
+  }
+
+  @override
+  Future<void> autoPickCharacters(String roomId, String roundKey) =>
+      _record('autoPickCharacters');
+
   @override
   Future<void> revealRound(String roomId, String roundKey) => _record('reveal');
   @override
@@ -175,6 +208,14 @@ Room makeRoom({
 
 Round makeRound({
   RoundStatus status = RoundStatus.exchange,
+  List<String> chits = const [],
+  Map<String, String> picks = const {},
+  DateTime? pickOpensAt,
+  DateTime? pickDeadline,
+  List<String> charChits = const [],
+  Map<String, String> charPicks = const {},
+  DateTime? charPickOpensAt,
+  DateTime? charPickDeadline,
   List<String> order = const ['me', 'v', 's', 'k'],
   bool tiebreak = false,
   String current = 'me',
@@ -194,6 +235,14 @@ Round makeRound({
   tiebreak: tiebreak,
   status: status,
   order: order,
+  chits: chits,
+  picks: picks,
+  pickOpensAt: pickOpensAt,
+  pickDeadline: pickDeadline,
+  charChits: charChits,
+  charPicks: charPicks,
+  charPickOpensAt: charPickOpensAt,
+  charPickDeadline: charPickDeadline,
   turnId: turnId,
   currentUid: current,
   nextUid: next,

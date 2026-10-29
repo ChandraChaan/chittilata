@@ -263,7 +263,155 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('winner announcement and my private character', (tester) async {
+  final chitIds = [for (var i = 0; i < 16; i++) 'chit$i'];
+  DateTime ago(int s) => DateTime.now().subtract(Duration(seconds: s));
+  DateTime later(int s) => DateTime.now().add(Duration(seconds: s));
+
+  testWidgets(
+    'picking: tap a folded chit, watch it unfold, see it in my tray',
+    (tester) async {
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(
+        makeRound(
+          status: RoundStatus.picking,
+          chits: chitIds,
+          pickOpensAt: ago(2),
+          pickDeadline: later(20),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: [],
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      repo.nextPickCard = const GameCard(id: 'x1', name: 'Devara');
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Pick 4 more chits'), findsOneWidget);
+      expect(find.bySemanticsLabel('Folded chit'), findsNWidgets(16));
+
+      await tester.tap(find.bySemanticsLabel('Folded chit').first);
+      await tester.pump();
+      expect(repo.calls, ['pick:chit0']);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('You picked…'), findsOneWidget);
+
+      // The server confirms: the chit leaves the table and lands in my tray.
+      repo.emitRound(
+        makeRound(
+          status: RoundStatus.picking,
+          chits: chitIds,
+          picks: const {'chit0': 'me'},
+          pickOpensAt: ago(3),
+          pickDeadline: later(19),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: [GameCard(id: 'x1', name: 'Devara')],
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(find.text('You picked…'), findsNothing);
+      expect(find.text('1 / 4'), findsOneWidget);
+      expect(find.text('Pick 3 more chits'), findsOneWidget);
+      expect(find.bySemanticsLabel('Slip: Devara'), findsWidgets);
+      await unmount(tester);
+    },
+  );
+
+  testWidgets(
+    'picking: chits cannot be picked while being folded and shuffled',
+    (tester) async {
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(
+        makeRound(
+          status: RoundStatus.picking,
+          chits: chitIds,
+          pickOpensAt: later(3),
+          pickDeadline: later(28),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: [],
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Making the chits'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 2400));
+      final chits = find.bySemanticsLabel('Folded chit');
+      if (chits.evaluate().isNotEmpty) {
+        await tester.tap(chits.first, warnIfMissed: false);
+      }
+      await tester.pump();
+      expect(repo.calls.where((c) => c.startsWith('pick')), isEmpty);
+      await unmount(tester);
+    },
+  );
+
+  testWidgets(
+    'picking: after the deadline a client asks the server to finish',
+    (tester) async {
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(
+        makeRound(
+          status: RoundStatus.picking,
+          chits: chitIds,
+          pickOpensAt: ago(30),
+          pickDeadline: ago(4),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: [],
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(repo.calls, contains('autoPick'));
+      await unmount(tester);
+    },
+  );
+
+  testWidgets('characters: a non-winner picks a chit and privately sees it', (
+    tester,
+  ) async {
     repo.emitRoom(
       makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'),
     );
@@ -271,9 +419,29 @@ void main() {
       makeRound(
         status: RoundStatus.characters,
         winner: const RoundWinner('v', 'RRR', 1000),
-        revealAt: DateTime.now().add(const Duration(seconds: 6)),
+        charChits: const ['ca', 'cb', 'cc'],
+        charPickOpensAt: ago(1),
+        charPickDeadline: later(19),
       ),
     );
+    repo.emitHand(
+      const Hand(
+        roundKey: 'g1r01',
+        cards: myCards,
+        incomingCardId: null,
+        character: null,
+      ),
+    );
+    repo.nextCharacter = const CharacterDef('Police', 500);
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('VASAVI WINS!'), findsOneWidget);
+    expect(find.text('Pick one chit to find your character'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Folded chit').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(repo.calls, ['pickCharacter:ca']);
+    expect(find.text('Your secret character is…'), findsOneWidget);
+
     repo.emitHand(
       const Hand(
         roundKey: 'g1r01',
@@ -282,13 +450,52 @@ void main() {
         character: CharacterDef('Police', 500),
       ),
     );
+    repo.emitRound(
+      makeRound(
+        status: RoundStatus.characters,
+        winner: const RoundWinner('v', 'RRR', 1000),
+        charChits: const ['ca', 'cb', 'cc'],
+        charPicks: const {'ca': 'me'},
+        charPickOpensAt: ago(2),
+        charPickDeadline: later(18),
+      ),
+    );
+    for (var i = 0; i < 14; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.text('You are the Police · +500'), findsOneWidget);
+    expect(find.text('Waiting for the others to pick…'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('characters: the winner watches and cannot pick', (tester) async {
+    repo.emitRoom(
+      makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'),
+    );
+    repo.emitRound(
+      makeRound(
+        status: RoundStatus.characters,
+        winner: const RoundWinner('me', 'RRR', 1000),
+        charChits: const ['ca', 'cb', 'cc'],
+        charPickOpensAt: ago(1),
+        charPickDeadline: later(19),
+      ),
+    );
+    repo.emitHand(
+      const Hand(
+        roundKey: 'g1r01',
+        cards: myCards,
+        incomingCardId: null,
+        character: null,
+      ),
+    );
     await pumpApp(tester, const RoomScreen(roomId: 'room1'));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('VASAVI WINS!'), findsOneWidget);
-    expect(find.text('+1000 POINTS'), findsOneWidget);
-    expect(find.text('YOUR SECRET CHARACTER'), findsOneWidget);
-    expect(find.text('Police'), findsOneWidget);
-    expect(find.text('Reveal now'), findsOneWidget); // I am host
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('YOU WIN!'), findsOneWidget);
+    expect(find.text('The others are picking characters'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Folded chit').first);
+    await tester.pump();
+    expect(repo.calls, isEmpty);
     await unmount(tester);
   });
 
