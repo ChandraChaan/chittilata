@@ -49,12 +49,22 @@ class LobbyView extends StatelessWidget {
                 children: [
                   Text('Players', style: context.text.titleMedium),
                   const SizedBox(width: Space.sm),
-                  Text('$count / 10',
-                      style: TextStyle(color: c.muted, fontWeight: FontWeight.w700)),
+                  Text(
+                    '$count / 10',
+                    style: TextStyle(
+                      color: c.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const Spacer(),
                   if (count < 3)
-                    Text('Need ${3 - count} more',
-                        style: TextStyle(color: c.kumkum, fontWeight: FontWeight.w700)),
+                    Text(
+                      'Need ${3 - count} more',
+                      style: TextStyle(
+                        color: c.kumkum,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: Space.sm),
@@ -64,7 +74,10 @@ class LobbyView extends StatelessWidget {
                   children: [
                     for (final p in players)
                       ListTile(
-                        leading: PlayerAvatar(name: p.name, online: ctrl.isOnline(p.uid)),
+                        leading: PlayerAvatar(
+                          name: p.name,
+                          online: ctrl.isOnline(p.uid),
+                        ),
                         title: Text(
                           p.uid == ctrl.uid ? '${p.name} (you)' : p.name,
                           style: const TextStyle(fontWeight: FontWeight.w800),
@@ -73,10 +86,10 @@ class LobbyView extends StatelessWidget {
                           p.uid == room.hostUid
                               ? 'Host'
                               : ctrl.isAway(p.uid)
-                                  ? 'App in background'
-                                  : ctrl.isOnline(p.uid)
-                                      ? 'Online'
-                                      : 'Offline',
+                              ? 'App in background'
+                              : ctrl.isOnline(p.uid)
+                              ? 'Online'
+                              : 'Offline',
                           style: TextStyle(color: c.muted),
                         ),
                         trailing: Row(
@@ -130,7 +143,9 @@ class LobbyView extends StatelessWidget {
               : SizedBox(
                   width: double.infinity,
                   child: BigButton(
-                    label: me?.ready == true ? "I'm ready ✓  (tap to undo)" : "I'm ready",
+                    label: me?.ready == true
+                        ? "I'm ready ✓  (tap to undo)"
+                        : "I'm ready",
                     icon: me?.ready == true ? null : Icons.check_circle_rounded,
                     secondary: me?.ready == true,
                     busy: ctrl.busy,
@@ -149,8 +164,14 @@ class LobbyView extends StatelessWidget {
         title: Text('Remove ${p.name}?'),
         content: const Text('They will not be able to rejoin this room.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
         ],
       ),
     );
@@ -165,22 +186,28 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Space.sm, vertical: Space.xs),
-        child: Row(
-          children: [
-            IconButton(
-              tooltip: 'Leave room',
-              icon: const Icon(Icons.arrow_back_rounded),
-              onPressed: onLeave,
-            ),
-            Expanded(
-              child: Text(title,
-                  textAlign: TextAlign.center, style: context.text.titleMedium),
-            ),
-            const SizedBox(width: 48),
-          ],
+    padding: const EdgeInsets.symmetric(
+      horizontal: Space.sm,
+      vertical: Space.xs,
+    ),
+    child: Row(
+      children: [
+        IconButton(
+          tooltip: 'Leave room',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: onLeave,
         ),
-      );
+        Expanded(
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: context.text.titleMedium,
+          ),
+        ),
+        const SizedBox(width: 48),
+      ],
+    ),
+  );
 }
 
 class _CodeCard extends StatelessWidget {
@@ -194,23 +221,40 @@ class _CodeCard extends StatelessWidget {
       color: c.surfaceHigh,
       child: Column(
         children: [
-          Text('ROOM CODE',
-              style: TextStyle(
-                  color: c.muted, letterSpacing: 2, fontWeight: FontWeight.w800, fontSize: 12)),
+          Text(
+            'ROOM CODE',
+            style: TextStyle(
+              color: c.muted,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
           const SizedBox(height: Space.xs),
           Semantics(
             label: 'Room code ${code.split('').join(' ')}',
             excludeSemantics: true,
-            child: Text(code,
-                style: context.text.displaySmall?.copyWith(
-                    color: c.marigold, letterSpacing: 8, fontFeatures: const [])),
+            child: Text(
+              code,
+              style: context.text.displaySmall?.copyWith(
+                color: c.marigold,
+                letterSpacing: 8,
+                fontFeatures: const [],
+              ),
+            ),
           ),
           const SizedBox(height: Space.sm),
           OutlinedButton.icon(
             onPressed: () {
-              Clipboard.setData(ClipboardData(
-                  text: 'Join my Chittilata game! Room code: $code'));
-              showGameSnack(context, 'Invite copied — paste it in your group chat');
+              Clipboard.setData(
+                ClipboardData(
+                  text: 'Join my Chittilata game! Room code: $code',
+                ),
+              );
+              showGameSnack(
+                context,
+                'Invite copied — paste it in your group chat',
+              );
             },
             icon: const Icon(Icons.copy_rounded, size: 18),
             label: const Text('Copy invite'),
@@ -234,9 +278,14 @@ class _ReadyChip extends StatelessWidget {
         color: ready ? c.leaf.withValues(alpha: 0.2) : c.outline,
         borderRadius: BorderRadius.circular(99),
       ),
-      child: Text(ready ? 'Ready' : 'Not ready',
-          style: TextStyle(
-              color: ready ? c.leaf : c.muted, fontWeight: FontWeight.w800, fontSize: 12)),
+      child: Text(
+        ready ? 'Ready' : 'Not ready',
+        style: TextStyle(
+          color: ready ? c.leaf : c.muted,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
     );
   }
 }
@@ -261,7 +310,7 @@ class _SettingsSummary extends StatelessWidget {
         s.characters
             .take((ctrl.room!.memberUids.length - 1).clamp(2, 9))
             .map((c) => '${c.name} ${c.points}')
-            .join(' · ')
+            .join(' · '),
       ),
     ];
     return Panel(
@@ -293,17 +342,26 @@ class _SettingsSummary extends StatelessWidget {
                 children: [
                   Icon(r.$1, size: 18, color: c.muted),
                   const SizedBox(width: Space.sm),
-                  SizedBox(width: 92, child: Text(r.$2, style: TextStyle(color: c.muted))),
+                  SizedBox(
+                    width: 92,
+                    child: Text(r.$2, style: TextStyle(color: c.muted)),
+                  ),
                   Expanded(
-                      child: Text(r.$3, style: const TextStyle(fontWeight: FontWeight.w700))),
+                    child: Text(
+                      r.$3,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
                 ],
               ),
             ),
           if (!ctrl.isHost)
             Padding(
               padding: const EdgeInsets.only(top: Space.sm),
-              child: Text('Only the host can change settings.',
-                  style: TextStyle(color: c.muted, fontSize: 12)),
+              child: Text(
+                'Only the host can change settings.',
+                style: TextStyle(color: c.muted, fontSize: 12),
+              ),
             ),
         ],
       ),
@@ -312,9 +370,42 @@ class _SettingsSummary extends StatelessWidget {
 }
 
 const _customPresets = {
-  'Countries': ['India', 'Japan', 'Brazil', 'Canada', 'Egypt', 'France', 'Kenya', 'Mexico', 'Norway', 'Peru'],
-  'Cities': ['Hyderabad', 'Vizag', 'Vijayawada', 'Tirupati', 'Warangal', 'Chennai', 'Bengaluru', 'Mumbai', 'Delhi', 'Guntur'],
-  'Fruits': ['Mango', 'Banana', 'Guava', 'Jackfruit', 'Papaya', 'Grapes', 'Orange', 'Pomegranate', 'Watermelon', 'Sapota'],
+  'Countries': [
+    'India',
+    'Japan',
+    'Brazil',
+    'Canada',
+    'Egypt',
+    'France',
+    'Kenya',
+    'Mexico',
+    'Norway',
+    'Peru',
+  ],
+  'Cities': [
+    'Hyderabad',
+    'Vizag',
+    'Vijayawada',
+    'Tirupati',
+    'Warangal',
+    'Chennai',
+    'Bengaluru',
+    'Mumbai',
+    'Delhi',
+    'Guntur',
+  ],
+  'Fruits': [
+    'Mango',
+    'Banana',
+    'Guava',
+    'Jackfruit',
+    'Papaya',
+    'Grapes',
+    'Orange',
+    'Pomegranate',
+    'Watermelon',
+    'Sapota',
+  ],
 };
 
 /// Host-only settings editor. Changes are validated again on the server.
@@ -338,7 +429,10 @@ class _SettingsSheetState extends State<SettingsSheet> {
   late final _roundsCtl = TextEditingController(text: '$rounds');
   late List<(TextEditingController, TextEditingController)> chars = [
     for (final c in s.characters)
-      (TextEditingController(text: c.name), TextEditingController(text: '${c.points}')),
+      (
+        TextEditingController(text: c.name),
+        TextEditingController(text: '${c.points}'),
+      ),
   ];
 
   @override
@@ -359,14 +453,21 @@ class _SettingsSheetState extends State<SettingsSheet> {
         .where((e) => e.isNotEmpty)
         .toList();
     final players = widget.ctrl.room!.memberUids.length;
-    if (category == Category.custom && customNames.length < players.clamp(3, 10)) {
-      showGameSnack(context, 'Add at least ${players.clamp(3, 10)} custom names (one per player).');
+    if (category == Category.custom &&
+        customNames.length < players.clamp(3, 10)) {
+      showGameSnack(
+        context,
+        'Add at least ${players.clamp(3, 10)} custom names (one per player).',
+      );
       return;
     }
     final characters = [
       for (final c in chars)
         if (c.$1.text.trim().isNotEmpty)
-          {'name': c.$1.text.trim(), 'points': int.tryParse(c.$2.text.trim()) ?? 0},
+          {
+            'name': c.$1.text.trim(),
+            'points': int.tryParse(c.$2.text.trim()) ?? 0,
+          },
     ];
     final ok = await widget.ctrl.updateSettings({
       'category': category.name,
@@ -382,9 +483,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
   }
 
   Widget _label(String t) => Padding(
-        padding: const EdgeInsets.only(top: Space.lg, bottom: Space.sm),
-        child: Text(t, style: context.text.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-      );
+    padding: const EdgeInsets.only(top: Space.lg, bottom: Space.sm),
+    child: Text(
+      t,
+      style: context.text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -422,7 +526,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       for (final e in _customPresets.entries)
                         ActionChip(
                           label: Text('Use ${e.key}'),
-                          onPressed: () => setState(() => _custom.text = e.value.join('\n')),
+                          onPressed: () =>
+                              setState(() => _custom.text = e.value.join('\n')),
                         ),
                     ],
                   ),
@@ -431,30 +536,36 @@ class _SettingsSheetState extends State<SettingsSheet> {
                     controller: _custom,
                     minLines: 4,
                     maxLines: 8,
-                    decoration: const InputDecoration(hintText: 'Names, cities, celebrities…'),
+                    decoration: const InputDecoration(
+                      hintText: 'Names, cities, celebrities…',
+                    ),
                   ),
                 ],
                 _label('Difficulty'),
                 SegmentedButton<Difficulty>(
                   segments: [
                     for (final d in Difficulty.values)
-                      ButtonSegment(value: d, label: Text(difficultyLabels[d]!)),
+                      ButtonSegment(
+                        value: d,
+                        label: Text(difficultyLabels[d]!),
+                      ),
                   ],
                   selected: {difficulty},
                   onSelectionChanged: (v) => setState(() {
                     difficulty = v.first;
-                    turnSeconds = GameSettings.difficultyTurnSeconds[difficulty]!;
+                    turnSeconds =
+                        GameSettings.difficultyTurnSeconds[difficulty]!;
                   }),
                 ),
                 const SizedBox(height: Space.xs),
-                Text(
-                  switch (difficulty) {
-                    Difficulty.easy => 'Well-known titles and a relaxed 30s timer.',
-                    Difficulty.normal => 'Well-known plus recent titles, 20s timer.',
-                    Difficulty.challenging => 'The full catalogue and a quick 10s timer.',
-                  },
-                  style: TextStyle(color: c.muted, fontSize: 13),
-                ),
+                Text(switch (difficulty) {
+                  Difficulty.easy =>
+                    'Well-known titles and a relaxed 30s timer.',
+                  Difficulty.normal =>
+                    'Well-known plus recent titles, 20s timer.',
+                  Difficulty.challenging =>
+                    'The full catalogue and a quick 10s timer.',
+                }, style: TextStyle(color: c.muted, fontSize: 13)),
                 _label('Turn timer'),
                 Wrap(
                   spacing: Space.sm,
@@ -507,10 +618,14 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       child: TextField(
                         controller: _roundsCtl,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Custom', isDense: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Custom',
+                          isDense: true,
+                        ),
                         onChanged: (v) {
                           final n = int.tryParse(v);
-                          if (n != null && n >= 1 && n <= 30) setState(() => rounds = n);
+                          if (n != null && n >= 1 && n <= 30)
+                            setState(() => rounds = n);
                         },
                       ),
                     ),
@@ -543,7 +658,10 @@ class _SettingsSheetState extends State<SettingsSheet> {
                             controller: chars[i].$1,
                             maxLength: 16,
                             decoration: InputDecoration(
-                                isDense: true, counterText: '', labelText: 'Character ${i + 1}'),
+                              isDense: true,
+                              counterText: '',
+                              labelText: 'Character ${i + 1}',
+                            ),
                           ),
                         ),
                         const SizedBox(width: Space.sm),
@@ -552,7 +670,10 @@ class _SettingsSheetState extends State<SettingsSheet> {
                           child: TextField(
                             controller: chars[i].$2,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(isDense: true, labelText: 'Points'),
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              labelText: 'Points',
+                            ),
                           ),
                         ),
                         IconButton(
@@ -567,8 +688,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
                   ),
                 if (chars.length < 9)
                   TextButton.icon(
-                    onPressed: () => setState(() => chars.add(
-                        (TextEditingController(), TextEditingController(text: '100')))),
+                    onPressed: () => setState(
+                      () => chars.add((
+                        TextEditingController(),
+                        TextEditingController(text: '100'),
+                      )),
+                    ),
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Add character'),
                   ),
@@ -578,13 +703,20 @@ class _SettingsSheetState extends State<SettingsSheet> {
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(
-                Space.xl, Space.sm, Space.xl, Space.lg + MediaQuery.of(context).viewInsets.bottom),
+              Space.xl,
+              Space.sm,
+              Space.xl,
+              Space.lg + MediaQuery.of(context).viewInsets.bottom,
+            ),
             child: SizedBox(
               width: double.infinity,
               child: ListenableBuilder(
                 listenable: widget.ctrl,
                 builder: (_, _) => BigButton(
-                    label: 'Save settings', busy: widget.ctrl.busy, onPressed: _save),
+                  label: 'Save settings',
+                  busy: widget.ctrl.busy,
+                  onPressed: _save,
+                ),
               ),
             ),
           ),

@@ -76,14 +76,22 @@ class PaperSlip extends StatelessWidget {
             ),
             child: Padding(
               padding: EdgeInsets.fromLTRB(
-                  width * 0.1, width * 0.2, width * 0.1, width * 0.1),
+                width * 0.1,
+                width * 0.2,
+                width * 0.1,
+                width * 0.1,
+              ),
               child: state == SlipState.faceDown
                   ? Center(
-                      child: Text('చిట్టి',
-                          style: TextStyle(
-                              color: c.ink.withValues(alpha: 0.35),
-                              fontWeight: FontWeight.w800,
-                              fontSize: width * 0.18)))
+                      child: Text(
+                        'చిట్టి',
+                        style: TextStyle(
+                          color: c.ink.withValues(alpha: 0.35),
+                          fontWeight: FontWeight.w800,
+                          fontSize: width * 0.18,
+                        ),
+                      ),
+                    )
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -97,13 +105,15 @@ class PaperSlip extends StatelessWidget {
                               style: TextStyle(
                                 color: c.ink,
                                 fontWeight: FontWeight.w900,
+                                letterSpacing: 0,
                                 height: 1.1,
-                                fontSize: width *
-                                    (label.length > 18
-                                        ? 0.13
-                                        : label.length > 10
-                                            ? 0.155
-                                            : 0.19),
+                                fontSize: _fitFontSize(
+                                  label,
+                                  maxWidth: width * 0.8 - 6,
+                                  start: width * 0.19,
+                                  minimum: width * 0.1,
+                                  scaler: MediaQuery.textScalerOf(context),
+                                ),
                               ),
                             ),
                           ),
@@ -123,6 +133,41 @@ class PaperSlip extends StatelessWidget {
   }
 }
 
+/// Largest font size (from [start] down to [minimum]) at which the longest
+/// word fits on one line, so titles never break mid-word.
+double _fitFontSize(
+  String label, {
+  required double maxWidth,
+  required double start,
+  required double minimum,
+  required TextScaler scaler,
+}) {
+  final words = label.split(RegExp(r'\s+'));
+  final longest = words.fold('', (a, b) => b.length > a.length ? b : a);
+  // Long multi-word titles also step down so they fit in about four lines.
+  var size = label.length > 18 ? start * 0.75 : start;
+  final painter = TextPainter(
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+    textScaler: scaler,
+  );
+  while (size > minimum) {
+    painter.text = TextSpan(
+      text: longest,
+      style: TextStyle(
+        fontSize: size,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 0,
+      ),
+    );
+    painter.layout();
+    if (painter.width <= maxWidth) break;
+    size -= 0.5;
+  }
+  painter.dispose();
+  return size;
+}
+
 class _Tag extends StatelessWidget {
   const _Tag({required this.text, required this.color});
   final String text;
@@ -130,18 +175,21 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(99),
-        ),
-        child: Text(text,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1,
+      ),
+    ),
+  );
 }
 
 class _SlipPainter extends CustomPainter {
@@ -189,22 +237,29 @@ class _SlipPainter extends CustomPainter {
     final flap = Path()
       ..moveTo(size.width - fold, 0)
       ..lineTo(size.width - fold, fold * 0.8)
-      ..quadraticBezierTo(size.width - fold, fold, size.width - fold * 0.8, fold)
+      ..quadraticBezierTo(
+        size.width - fold,
+        fold,
+        size.width - fold * 0.8,
+        fold,
+      )
       ..lineTo(size.width, fold)
       ..close();
     canvas.drawPath(flap, Paint()..color = edge);
     canvas.drawPath(
-        flap,
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.08)
-          ..style = PaintingStyle.stroke);
+      flap,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.08)
+        ..style = PaintingStyle.stroke,
+    );
 
     canvas.drawPath(
-        body,
-        Paint()
-          ..color = border
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = borderWidth);
+      body,
+      Paint()
+        ..color = border
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = borderWidth,
+    );
   }
 
   @override

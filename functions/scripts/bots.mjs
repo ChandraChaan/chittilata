@@ -1,0 +1,230 @@
+#!/usr/bin/env node
+/**
+ * Bot players for testing Chittilata with real clients against the deployed
+ * (or emulated) backend. Bots use the same callables and security rules as
+ * the app, so they can only see their own hand.
+ *
+ *   Join an existing room:   node scripts/bots.mjs --code ABC234 --count 3
+ *   Host a full bot game:    node scripts/bots.mjs --create --count 4 --rounds 2
+ *   Against emulators:       add --emulator
+ *
+ * The Firebase web config below is a public client identifier, not a secret.
+ */
+import { initializeApp } from "firebase/app";
+import { connectAuthEmulator, getAuth, signInAnonymously } from "firebase/auth";
+import {
+  connectFirestoreEmulator,
+  doc,
+  getFirestore,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
+import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
+
+const config = {
+  apiKey: "AIzaSyAqDOkRHoBltek9PnNJ13feWIOy8X96CMk",
+  authDomain: "chittilata-game.firebaseapp.com",
+  projectId: "chittilata-game",
+  appId: "1:158543185837:web:4c0ab9efab5850dde50324",
+};
+
+const args = process.argv.slice(2);
+const flag = (name) => args.includes(`--${name}`);
+const opt = (name, fallback) => {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 ? args[i + 1] : fallback;
+};
+
+const COUNT = Number(opt("count", 3));
+const DELAY = Number(opt("delay", 1800));
+const ROUNDS = Number(opt("rounds", 2));
+const NAMES = ["Vasavi", "Swetha", "Sai", "Ravi", "Lata", "Kiran", "Anu", "Meena", "Gopi"];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const log = (who, ...m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${who}:`, ...m);
+
+function makeClient(i) {
+  const app = initializeApp(config, `bot${i}`);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const fns = getFunctions(app, "asia-south1");
+  if (flag("emulator")) {
+    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    connectFunctionsEmulator(fns, "127.0.0.1", 5001);
+  }
+  const call = async (name, data) => (await httpsCallable(fns, name)(data)).data;
+  return { auth, db, call };
+}
+
+/** Pass a slip of the name we hold fewest of (keeps building a set). */
+function chooseCard(cards) {
+  const counts = {};
+  for (const c of cards) counts[c.name] = (counts[c.name] ?? 0) + 1;
+  return [...cards].sort((a, b) => counts[a.name] - counts[b.name] || (Math.random() - 0.5))[0];
+}
+
+async function runBot(i, { code, roomId: knownRoomId, host }) {
+  const name = host ? "HostBot" : NAMES[i % NAMES.length];
+  const { auth, db, call } = makeClient(i);
+  const { user } = await signInAnonymously(auth);
+  const uid = user.uid;
+
+  let roomId = knownRoomId;
+  if (host) {
+    const r = await call("createRoom", { name });
+    roomId = r.roomId;
+    code = r.code;
+    await call("updateSettings", { roomId, settings: { rounds: ROUNDS, turnSeconds: 15 } });
+    log(name, `created room ${code}`);
+  } else {
+    roomId = (await call("joinRoom", { code, name })).roomId;
+    await call("setReady", { roomId, ready: true });
+    log(name, `joined ${code} and is ready`);
+  }
+
+  // Presence heartbeat, exactly as the app writes it.
+  const beat = () =>
+    setDoc(doc(db, `rooms/${roomId}/presence/${uid}`), {
+      lastSeen: serverTimestamp(),
+      state: "foreground",
+    }).catch(() => {});
+  beat();
+  setInterval(beat, 20000).unref();
+
+  let hand = null;
+  let round = null;
+  let room = null;
+  let acting = null;
+  let handUnsub = null;
+  let roundUnsub = null;
+  let watchingKey = null;
+  const revealed = new Set();
+  const advanced = new Set();
+  const actedTurns = new Set();
+
+  handUnsub = onSnapshot(doc(db, `rooms/${roomId}/hands/${uid}`), (s) => {
+    hand = s.data() ?? null;
+    tick();
+  });
+
+  const done = new Promise((resolve) => {
+    onSnapshot(doc(db, `rooms/${roomId}`), (s) => {
+      room = s.data();
+      if (!room) return;
+      if (room.status === "finished" && !advanced.has("final")) {
+        advanced.add("final");
+        const king = room.final.filter((p) => p.title === "King").map((p) => p.name);
+        log(name, `game finished. King: ${king.join(" & ")}`);
+        setTimeout(resolve, 1500);
+      }
+      if (room.currentRoundKey && room.currentRoundKey !== watchingKey) {
+        watchingKey = room.currentRoundKey;
+        roundUnsub?.();
+        roundUnsub = onSnapshot(doc(db, `rooms/${roomId}/rounds/${watchingKey}`), (rs) => {
+          round = rs.data() ?? null;
+          tick();
+        });
+      }
+      tick();
+    });
+  });
+
+  async function tick() {
+    if (!room || !round || acting) return;
+    const key = `${round.roundKey}:${round.turnId}`;
+    if (
+      round.status === "exchange" &&
+      round.currentUid === uid &&
+      hand?.roundKey === round.roundKey &&
+      !actedTurns.has(key)
+    ) {
+      acting = key;
+      actedTurns.add(key);
+      const wait = Math.max(0, round.introEndsAt.toMillis() - Date.now()) + DELAY + Math.random() * 800;
+      await sleep(wait);
+      const card = chooseCard(hand.cards);
+      try {
+        const r = await call("passCard", {
+          roomId,
+          roundKey: round.roundKey,
+          turnId: round.turnId,
+          cardId: card.id,
+          requestId: `${uid}-${key}`,
+        });
+        if (r.duplicate) log(name, "retry was de-duplicated by the server");
+        else log(name, `passed a slip${r.winner === uid ? " and WON the round!" : ""}`);
+      } catch (e) {
+        log(name, `pass rejected: ${e.message}`);
+      }
+      acting = null;
+      return;
+    }
+    if (round.status === "characters" && !revealed.has(round.roundKey)) {
+      revealed.add(round.roundKey);
+      if (hand?.character) log(name, `secret character: ${hand.character.name} (+${hand.character.points})`);
+      await sleep(Math.max(0, round.revealAt.toMillis() - Date.now()) + 1500 + i * 400);
+      await call("revealRound", { roomId, roundKey: round.roundKey }).catch(() => {});
+      return;
+    }
+    if (host && round.status === "revealed" && room.status === "playing" && !advanced.has(round.roundKey)) {
+      advanced.add(round.roundKey);
+      log(name, `round ${round.roundNo} scores: ${JSON.stringify(round.scores)}`);
+      // Conservation check: every slip still exists exactly once, 4 per name.
+      const all = Object.values(round.revealedHands).flat();
+      const perName = {};
+      for (const c of all) perName[c.name] = (perName[c.name] ?? 0) + 1;
+      const ok =
+        all.length === 4 * round.order.length &&
+        new Set(all.map((c) => c.id)).size === all.length &&
+        Object.values(perName).every((n) => n === 4);
+      log(name, `round ${round.roundNo} card check: ${ok ? "OK" : "FAILED"} (${all.length} slips)`);
+      if (!ok) process.exitCode = 2;
+      await sleep(2500);
+      await call("nextRound", { roomId }).catch((e) => log(name, `nextRound: ${e.message}`));
+    }
+  }
+
+  /** Resolves once `n` members are in the room and all are ready. */
+  const allReady = (n) =>
+    new Promise((resolve) => {
+      const check = setInterval(() => {
+        if (!room) return;
+        const ready = room.memberUids.every((u) => u === room.hostUid || room.players[u].ready);
+        if (room.memberUids.length >= n && ready) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 500);
+    });
+
+  return { code, roomId, done, allReady, start: () => call("startGame", { roomId }) };
+}
+
+async function main() {
+  if (flag("create")) {
+    const host = await runBot(0, { host: true });
+    const others = [];
+    for (let i = 1; i < COUNT; i++) others.push(await runBot(i, { code: host.code }));
+    const waitFor = Number(opt("wait-for", COUNT));
+    if (waitFor > COUNT) log("HostBot", `room ${host.code}: waiting for ${waitFor - COUNT} more player(s) to join and tap Ready`);
+    await host.allReady(waitFor);
+    await sleep(1000);
+    await host.start();
+    log("HostBot", "game started");
+    await Promise.all([host.done, ...others.map((o) => o.done)]);
+  } else {
+    const code = opt("code");
+    if (!code) throw new Error("Pass --code ROOMCODE or --create");
+    const bots = [];
+    for (let i = 0; i < COUNT; i++) bots.push(await runBot(i, { code: code.toUpperCase() }));
+    log("bots", `${COUNT} bots are in room ${code}; start the game from the app.`);
+    await Promise.all(bots.map((b) => b.done));
+  }
+  process.exit(0);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

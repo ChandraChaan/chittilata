@@ -35,7 +35,8 @@ class _RoomScreenState extends State<RoomScreen> {
     super.didChangeDependencies();
     if (_ctrl != null) return;
     final s = Services.of(context);
-    _ctrl = widget.controller ??
+    _ctrl =
+        widget.controller ??
         RoomController(
           repo: s.repo,
           roomId: widget.roomId,
@@ -61,25 +62,33 @@ class _RoomScreenState extends State<RoomScreen> {
   Future<void> _confirmLeave() async {
     final ctrl = _ctrl!;
     final p = ctrl.phase;
-    final midGame = p != Phase.lobby && p != Phase.finished && p != Phase.closed && p != Phase.removed;
+    final midGame =
+        p != Phase.lobby &&
+        p != Phase.finished &&
+        p != Phase.closed &&
+        p != Phase.removed;
     final ok = p == Phase.closed || p == Phase.removed
         ? true
         : await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
               title: const Text('Leave the room?'),
-              content: Text(midGame
-                  ? 'The game is in progress. If you leave during passing, the '
-                      'round is cancelled for everyone, and you cannot rejoin '
-                      'this game.'
-                  : 'You can join again later with the room code.'),
+              content: Text(
+                midGame
+                    ? 'The game is in progress. If you leave during passing, the '
+                          'round is cancelled for everyone, and you cannot rejoin '
+                          'this game.'
+                    : 'You can join again later with the room code.',
+              ),
               actions: [
                 TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Stay')),
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Stay'),
+                ),
                 FilledButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Leave')),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Leave'),
+                ),
               ],
             ),
           );
@@ -109,32 +118,40 @@ class _RoomScreenState extends State<RoomScreen> {
               final phase = ctrl.phase;
               final Widget body = switch (phase) {
                 Phase.loading => const _Centered(
-                    icon: null, title: 'Loading room…', body: null),
+                  icon: null,
+                  title: 'Loading room…',
+                  body: null,
+                ),
                 Phase.closed => _Centered(
-                    icon: Icons.door_back_door_rounded,
-                    title: 'This room has closed',
-                    body: 'Rooms close when everyone leaves or after 24 hours '
-                        'without play.',
-                    action: BigButton(label: 'Back to home', onPressed: _home),
-                  ),
+                  icon: Icons.door_back_door_rounded,
+                  title: 'This room has closed',
+                  body:
+                      'Rooms close when everyone leaves or after 24 hours '
+                      'without play.',
+                  action: BigButton(label: 'Back to home', onPressed: _home),
+                ),
                 Phase.removed => _Centered(
-                    icon: Icons.person_off_rounded,
-                    title: "You're no longer in this room",
-                    body: 'You left, or the host removed you.',
-                    action: BigButton(label: 'Back to home', onPressed: _home),
-                  ),
+                  icon: Icons.person_off_rounded,
+                  title: "You're no longer in this room",
+                  body: 'You left, or the host removed you.',
+                  action: BigButton(label: 'Back to home', onPressed: _home),
+                ),
                 Phase.lobby => LobbyView(ctrl: ctrl, onLeave: _confirmLeave),
-                Phase.intro ||
-                Phase.exchange ||
-                Phase.characters =>
-                  GameView(ctrl: ctrl, onLeave: _confirmLeave),
-                Phase.results ||
-                Phase.aborted =>
-                  ResultsView(ctrl: ctrl, onLeave: _confirmLeave),
-                Phase.finished => FinalView(ctrl: ctrl, onHome: () async {
+                Phase.intro || Phase.exchange || Phase.characters => GameView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                ),
+                Phase.results || Phase.aborted => ResultsView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                ),
+                Phase.finished => FinalView(
+                  ctrl: ctrl,
+                  onHome: () async {
                     await ctrl.leave();
                     if (context.mounted) Navigator.of(context).pop();
-                  }),
+                  },
+                ),
               };
               return SafeArea(
                 child: Column(
@@ -160,14 +177,19 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   String _viewKey(Phase p, RoomController c) => switch (p) {
-        Phase.intro || Phase.exchange || Phase.characters => 'game-${c.round?.key}',
-        Phase.results || Phase.aborted => 'results-${c.round?.key}',
-        _ => p.name,
-      };
+    Phase.intro || Phase.exchange || Phase.characters => 'game-${c.round?.key}',
+    Phase.results || Phase.aborted => 'results-${c.round?.key}',
+    _ => p.name,
+  };
 }
 
 class _Centered extends StatelessWidget {
-  const _Centered({required this.icon, required this.title, this.body, this.action});
+  const _Centered({
+    required this.icon,
+    required this.title,
+    this.body,
+    this.action,
+  });
   final IconData? icon;
   final String title;
   final String? body;
@@ -187,10 +209,18 @@ class _Centered extends StatelessWidget {
             else
               Icon(icon, size: 64, color: c.muted),
             const SizedBox(height: Space.lg),
-            Text(title, textAlign: TextAlign.center, style: context.text.titleLarge),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: context.text.titleLarge,
+            ),
             if (body != null) ...[
               const SizedBox(height: Space.sm),
-              Text(body!, textAlign: TextAlign.center, style: TextStyle(color: c.muted)),
+              Text(
+                body!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.muted),
+              ),
             ],
             if (action != null) ...[const SizedBox(height: Space.xl), action!],
           ],

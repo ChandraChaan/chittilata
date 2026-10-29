@@ -52,8 +52,10 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Theme',
-                          style: TextStyle(fontWeight: FontWeight.w800)),
+                      const Text(
+                        'Theme',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
                       const SizedBox(height: Space.sm),
                       SegmentedButton<String>(
                         segments: const [
@@ -72,8 +74,10 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('About',
-                          style: TextStyle(fontWeight: FontWeight.w800)),
+                      const Text(
+                        'About',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
                       const SizedBox(height: Space.sm),
                       Text(
                         'Chittilata (చిట్టిలాట) brings the traditional Telugu '

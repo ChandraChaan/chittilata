@@ -9,8 +9,18 @@ class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   @override
@@ -29,13 +39,21 @@ class HistoryScreen extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.history_toggle_off_rounded, size: 64, color: c.muted),
+                        Icon(
+                          Icons.history_toggle_off_rounded,
+                          size: 64,
+                          color: c.muted,
+                        ),
                         const SizedBox(height: Space.md),
-                        Text('No finished games yet',
-                            style: context.text.titleMedium),
+                        Text(
+                          'No finished games yet',
+                          style: context.text.titleMedium,
+                        ),
                         const SizedBox(height: Space.sm),
-                        Text('Games you finish will appear here.',
-                            style: TextStyle(color: c.muted)),
+                        Text(
+                          'Games you finish will appear here.',
+                          style: TextStyle(color: c.muted),
+                        ),
                       ],
                     ),
                   ),
@@ -57,19 +75,28 @@ class HistoryScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.workspace_premium_rounded, color: c.marigold),
+                              Icon(
+                                Icons.workspace_premium_rounded,
+                                color: c.marigold,
+                              ),
                               const SizedBox(width: Space.sm),
                               Expanded(
-                                child: Text('King: $king',
-                                    style: context.text.titleMedium),
+                                child: Text(
+                                  'King: $king',
+                                  style: context.text.titleMedium,
+                                ),
                               ),
-                              Text('${d.day} ${_months[d.month - 1]}',
-                                  style: TextStyle(color: c.muted)),
+                              Text(
+                                '${d.day} ${_months[d.month - 1]}',
+                                style: TextStyle(color: c.muted),
+                              ),
                             ],
                           ),
                           const SizedBox(height: Space.xs),
-                          Text('${h.rounds} rounds · ${h.category}',
-                              style: TextStyle(color: c.muted, fontSize: 13)),
+                          Text(
+                            '${h.rounds} rounds · ${h.category}',
+                            style: TextStyle(color: c.muted, fontSize: 13),
+                          ),
                           const Divider(height: Space.xl),
                           for (final s in h.standings)
                             Padding(
@@ -77,13 +104,19 @@ class HistoryScreen extends StatelessWidget {
                               child: Row(
                                 children: [
                                   SizedBox(
-                                      width: 28,
-                                      child: Text('#${s['rank']}',
-                                          style: TextStyle(color: c.muted))),
+                                    width: 28,
+                                    child: Text(
+                                      '#${s['rank']}',
+                                      style: TextStyle(color: c.muted),
+                                    ),
+                                  ),
                                   Expanded(child: Text('${s['name']}')),
-                                  Text('${s['total']}',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w800)),
+                                  Text(
+                                    '${s['total']}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),

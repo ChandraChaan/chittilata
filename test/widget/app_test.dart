@@ -19,10 +19,16 @@ Future<void> pumpApp(WidgetTester tester, Widget home) async {
   tester.view.physicalSize = const Size(1080, 2400);
   tester.view.devicePixelRatio = 2.6;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(ChittilataApp(
-    services: AppServices(repo: repo, prefs: prefs, feedback: GameFeedback(prefs)),
-    home: home,
-  ));
+  await tester.pumpWidget(
+    ChittilataApp(
+      services: AppServices(
+        repo: repo,
+        prefs: prefs,
+        feedback: GameFeedback(prefs),
+      ),
+      home: home,
+    ),
+  );
   await tester.pump();
 }
 
@@ -39,7 +45,9 @@ void main() {
     repo = FakeGameRepository();
   });
 
-  testWidgets('creating a room requires a name, then opens the lobby', (tester) async {
+  testWidgets('creating a room requires a name, then opens the lobby', (
+    tester,
+  ) async {
     repo.emitRoom(makeRoom());
     await pumpApp(tester, const HomeScreen());
     await tester.tap(find.text('Create a room'));
@@ -57,7 +65,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('joining validates the code and shows server errors', (tester) async {
+  testWidgets('joining validates the code and shows server errors', (
+    tester,
+  ) async {
     await pumpApp(tester, const HomeScreen());
     await tester.enterText(find.byType(TextField), 'Vasavi');
     await tester.tap(find.text('Join with a code'));
@@ -75,7 +85,9 @@ void main() {
     expect(find.text('No room with that code.'), findsOneWidget);
   });
 
-  testWidgets('lobby: host sees code, players, readiness and a gated Start', (tester) async {
+  testWidgets('lobby: host sees code, players, readiness and a gated Start', (
+    tester,
+  ) async {
     repo.emitRoom(makeRoom(ready: {'v': true, 's': true}));
     await pumpApp(tester, const RoomScreen(roomId: 'room1'));
     await tester.pump();
@@ -96,7 +108,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('lobby: non-host can toggle ready but not edit settings', (tester) async {
+  testWidgets('lobby: non-host can toggle ready but not edit settings', (
+    tester,
+  ) async {
     repo = FakeGameRepository(me: 'v');
     repo.emitRoom(makeRoom());
     await pumpApp(tester, const RoomScreen(roomId: 'room1'));
@@ -109,67 +123,138 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('my turn: only my cards shown; select then pass to the next player',
-      (tester) async {
-    repo.emitRoom(makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'));
-    repo.emitRound(makeRound());
-    repo.emitHand(const Hand(roundKey: 'g1r01', cards: myCards, incomingCardId: null, character: null));
-    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
-    await tester.pump(const Duration(milliseconds: 700));
+  testWidgets(
+    'my turn: only my cards shown; select then pass to the next player',
+    (tester) async {
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(makeRound());
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: myCards,
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      await tester.pump(const Duration(milliseconds: 700));
 
-    expect(find.text('Your turn'), findsOneWidget);
-    expect(find.text('Your slips · only you can see these'), findsOneWidget);
-    for (final c in myCards) {
-      expect(find.bySemanticsLabel('Slip: ${c.name}'), findsWidgets);
-    }
-    expect(find.text('Tap a slip to choose it'), findsOneWidget);
+      expect(find.text('Your turn'), findsOneWidget);
+      expect(find.text('Your slips · only you can see these'), findsOneWidget);
+      for (final c in myCards) {
+        expect(find.bySemanticsLabel('Slip: ${c.name}'), findsWidgets);
+      }
+      expect(find.text('Tap a slip to choose it'), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('Slip: Devara').last);
-    await tester.pump();
-    expect(find.text('Pass to Vasavi'), findsOneWidget);
-    await tester.tap(find.text('Pass to Vasavi'));
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(repo.calls, ['pass:0:c2']);
-    await unmount(tester);
-  });
+      await tester.tap(find.bySemanticsLabel('Slip: Devara').last);
+      await tester.pump();
+      expect(find.text('Pass to Vasavi'), findsOneWidget);
+      await tester.tap(find.text('Pass to Vasavi'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(repo.calls, ['pass:0:c2']);
+      await unmount(tester);
+    },
+  );
 
-  testWidgets('not my turn: cards are locked and the countdown names the player',
-      (tester) async {
-    repo.emitRoom(makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'));
-    repo.emitRound(makeRound(current: 's', next: 'k', turnId: 2,
-        deadline: DateTime.now().add(const Duration(seconds: 4))));
-    repo.emitHand(const Hand(roundKey: 'g1r01', cards: myCards, incomingCardId: null, character: null));
-    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
-    await tester.pump(const Duration(milliseconds: 700));
-    expect(find.text('Swetha is choosing'), findsOneWidget);
-    expect(find.text('Wait for your turn'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'^\d seconds left$')), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Slip: RRR').last);
-    await tester.pump();
-    expect(repo.calls, isEmpty);
-    await unmount(tester);
-  });
+  testWidgets(
+    'not my turn: cards are locked and the countdown names the player',
+    (tester) async {
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(
+        makeRound(
+          current: 's',
+          next: 'k',
+          turnId: 2,
+          deadline: DateTime.now().add(const Duration(seconds: 4)),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: myCards,
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(find.text('Swetha is choosing'), findsOneWidget);
+      expect(find.text('Wait for your turn'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp(r'^\d seconds left$')),
+        findsOneWidget,
+      );
+      await tester.tap(find.bySemanticsLabel('Slip: RRR').last);
+      await tester.pump();
+      expect(repo.calls, isEmpty);
+      await unmount(tester);
+    },
+  );
 
-  testWidgets('expired turn: a client asks the server to apply the timeout once',
-      (tester) async {
-    repo = FakeGameRepository(me: 'k'); // Sai is next after Swetha
-    repo.emitRoom(makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'));
-    repo.emitRound(makeRound(current: 's', next: 'k', turnId: 3,
-        deadline: DateTime.now().subtract(const Duration(seconds: 3))));
-    repo.emitHand(const Hand(roundKey: 'g1r01', cards: myCards, incomingCardId: null, character: null));
-    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 250));
-    }
-    expect(find.text("Time's up!"), findsOneWidget);
-    expect(repo.calls, ['timeout:3']);
-    await unmount(tester);
-  });
+  testWidgets(
+    'expired turn: a client asks the server to apply the timeout once',
+    (tester) async {
+      repo = FakeGameRepository(me: 'k'); // Sai is next after Swetha
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(
+        makeRound(
+          current: 's',
+          next: 'k',
+          turnId: 3,
+          deadline: DateTime.now().subtract(const Duration(seconds: 3)),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: myCards,
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(find.text("Time's up!"), findsOneWidget);
+      expect(repo.calls, ['timeout:3']);
+      await unmount(tester);
+    },
+  );
 
   testWidgets('round intro shows the circular order', (tester) async {
-    repo.emitRoom(makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'));
-    repo.emitRound(makeRound(introEndsAt: DateTime.now().add(const Duration(seconds: 4))));
-    repo.emitHand(const Hand(roundKey: 'g1r01', cards: myCards, incomingCardId: null, character: null));
+    repo.emitRoom(
+      makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'),
+    );
+    repo.emitRound(
+      makeRound(introEndsAt: DateTime.now().add(const Duration(seconds: 4))),
+    );
+    repo.emitHand(
+      const Hand(
+        roundKey: 'g1r01',
+        cards: myCards,
+        incomingCardId: null,
+        character: null,
+      ),
+    );
     await pumpApp(tester, const RoomScreen(roomId: 'room1'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('ROUND 1'), findsOneWidget);
@@ -179,17 +264,24 @@ void main() {
   });
 
   testWidgets('winner announcement and my private character', (tester) async {
-    repo.emitRoom(makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'));
-    repo.emitRound(makeRound(
-      status: RoundStatus.characters,
-      winner: const RoundWinner('v', 'RRR', 1000),
-      revealAt: DateTime.now().add(const Duration(seconds: 6)),
-    ));
-    repo.emitHand(const Hand(
+    repo.emitRoom(
+      makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'),
+    );
+    repo.emitRound(
+      makeRound(
+        status: RoundStatus.characters,
+        winner: const RoundWinner('v', 'RRR', 1000),
+        revealAt: DateTime.now().add(const Duration(seconds: 6)),
+      ),
+    );
+    repo.emitHand(
+      const Hand(
         roundKey: 'g1r01',
         cards: myCards,
         incomingCardId: null,
-        character: CharacterDef('Police', 500)));
+        character: CharacterDef('Police', 500),
+      ),
+    );
     await pumpApp(tester, const RoomScreen(roomId: 'room1'));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('VASAVI WINS!'), findsOneWidget);
@@ -200,32 +292,40 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('results reveal all hands, characters and the leaderboard', (tester) async {
-    repo.emitRoom(makeRoom(
-      status: RoomStatus.playing,
-      currentRound: 1,
-      roundKey: 'g1r01',
-      totals: {'me': 500, 'v': 1000, 's': 800, 'k': 100},
-    ));
-    repo.emitRound(makeRound(
-      status: RoundStatus.revealed,
-      winner: const RoundWinner('v', 'RRR', 1000),
-      revealed: {
-        'me': myCards,
-        'v': const [
-          GameCard(id: 'a', name: 'RRR'), GameCard(id: 'b', name: 'RRR'),
-          GameCard(id: 'c', name: 'RRR'), GameCard(id: 'd', name: 'RRR'),
-        ],
-        's': myCards,
-        'k': myCards,
-      },
-      characters: const {
-        'me': CharacterDef('Police', 500),
-        's': CharacterDef('Queen', 800),
-        'k': CharacterDef('Thief', 100),
-      },
-      scores: const {'me': 500, 'v': 1000, 's': 800, 'k': 100},
-    ));
+  testWidgets('results reveal all hands, characters and the leaderboard', (
+    tester,
+  ) async {
+    repo.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        totals: {'me': 500, 'v': 1000, 's': 800, 'k': 100},
+      ),
+    );
+    repo.emitRound(
+      makeRound(
+        status: RoundStatus.revealed,
+        winner: const RoundWinner('v', 'RRR', 1000),
+        revealed: {
+          'me': myCards,
+          'v': const [
+            GameCard(id: 'a', name: 'RRR'),
+            GameCard(id: 'b', name: 'RRR'),
+            GameCard(id: 'c', name: 'RRR'),
+            GameCard(id: 'd', name: 'RRR'),
+          ],
+          's': myCards,
+          'k': myCards,
+        },
+        characters: const {
+          'me': CharacterDef('Police', 500),
+          's': CharacterDef('Queen', 800),
+          'k': CharacterDef('Thief', 100),
+        },
+        scores: const {'me': 500, 'v': 1000, 's': 800, 'k': 100},
+      ),
+    );
     await pumpApp(tester, const RoomScreen(roomId: 'room1'));
     await tester.pump(const Duration(seconds: 2));
     expect(find.text('Round results'), findsOneWidget);
@@ -240,20 +340,58 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('final ceremony crowns King and Queen and saves history', (tester) async {
-    repo.emitRoom(makeRoom(status: RoomStatus.playing, currentRound: 7, roundKey: 'g1r07'));
+  testWidgets('final ceremony crowns King and Queen and saves history', (
+    tester,
+  ) async {
+    repo.emitRoom(
+      makeRoom(status: RoomStatus.playing, currentRound: 7, roundKey: 'g1r07'),
+    );
     await pumpApp(tester, const RoomScreen(roomId: 'room1'));
-    repo.emitRoom(makeRoom(
-      status: RoomStatus.finished,
-      currentRound: 7,
-      roundKey: 'g1r07',
-      standings: const [
-        Standing(uid: 'v', name: 'Vasavi', total: 6000, movieWins: 3, rank: 1, title: 'King', left: false),
-        Standing(uid: 'me', name: 'Chandra', total: 5200, movieWins: 2, rank: 2, title: 'Queen', left: false),
-        Standing(uid: 's', name: 'Swetha', total: 4000, movieWins: 1, rank: 3, title: null, left: false),
-        Standing(uid: 'k', name: 'Sai', total: 3000, movieWins: 1, rank: 4, title: null, left: false),
-      ],
-    ));
+    repo.emitRoom(
+      makeRoom(
+        status: RoomStatus.finished,
+        currentRound: 7,
+        roundKey: 'g1r07',
+        standings: const [
+          Standing(
+            uid: 'v',
+            name: 'Vasavi',
+            total: 6000,
+            movieWins: 3,
+            rank: 1,
+            title: 'King',
+            left: false,
+          ),
+          Standing(
+            uid: 'me',
+            name: 'Chandra',
+            total: 5200,
+            movieWins: 2,
+            rank: 2,
+            title: 'Queen',
+            left: false,
+          ),
+          Standing(
+            uid: 's',
+            name: 'Swetha',
+            total: 4000,
+            movieWins: 1,
+            rank: 3,
+            title: null,
+            left: false,
+          ),
+          Standing(
+            uid: 'k',
+            name: 'Sai',
+            total: 3000,
+            movieWins: 1,
+            rank: 4,
+            title: null,
+            left: false,
+          ),
+        ],
+      ),
+    );
     await tester.pump(const Duration(seconds: 2));
     expect(find.text('KING'), findsOneWidget);
     expect(find.text('QUEEN'), findsOneWidget);

@@ -48,8 +48,13 @@ abstract class GameRepository {
   Future<void> leaveRoom(String roomId);
   Future<void> startGame(String roomId);
   Future<void> nextRound(String roomId);
-  Future<void> passCard(String roomId, String roundKey, int turnId,
-      String cardId, String requestId);
+  Future<void> passCard(
+    String roomId,
+    String roundKey,
+    int turnId,
+    String cardId,
+    String requestId,
+  );
   Future<void> claimTimeout(String roomId, String roundKey, int turnId);
   Future<void> revealRound(String roomId, String roundKey);
   Future<void> playAgain(String roomId);
@@ -60,9 +65,9 @@ class FirebaseGameRepository implements GameRepository {
     FirebaseAuth? auth,
     FirebaseFirestore? db,
     FirebaseFunctions? functions,
-  })  : _auth = auth ?? FirebaseAuth.instance,
-        _db = db ?? FirebaseFirestore.instance,
-        _fn = functions ?? FirebaseFunctions.instanceFor(region: 'asia-south1');
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _db = db ?? FirebaseFirestore.instance,
+       _fn = functions ?? FirebaseFunctions.instanceFor(region: 'asia-south1');
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _db;
@@ -87,12 +92,16 @@ class FirebaseGameRepository implements GameRepository {
       _db.collection('rooms').doc(id);
 
   Future<Map<String, dynamic>> _call(
-      String name, Map<String, Object?> data) async {
+    String name,
+    Map<String, Object?> data,
+  ) async {
     final sent = DateTime.now();
     try {
       final res = await _fn
-          .httpsCallable(name,
-              options: HttpsCallableOptions(timeout: const Duration(seconds: 20)))
+          .httpsCallable(
+            name,
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+          )
           .call<Map<String, dynamic>>(data);
       final got = DateTime.now();
       final out = Map<String, dynamic>.from(res.data);
@@ -111,14 +120,14 @@ class FirebaseGameRepository implements GameRepository {
   }
 
   @override
-  Stream<Room?> watchRoom(String roomId) => _room(roomId)
-      .snapshots()
-      .map((s) => s.exists ? Room.fromSnapshot(s) : null);
+  Stream<Room?> watchRoom(String roomId) => _room(
+    roomId,
+  ).snapshots().map((s) => s.exists ? Room.fromSnapshot(s) : null);
 
   @override
-  Stream<bool> watchConnected(String roomId) => _room(roomId)
-      .snapshots(includeMetadataChanges: true)
-      .map((s) => !s.metadata.isFromCache);
+  Stream<bool> watchConnected(String roomId) => _room(
+    roomId,
+  ).snapshots(includeMetadataChanges: true).map((s) => !s.metadata.isFromCache);
 
   @override
   Stream<Round?> watchRound(String roomId, String roundKey) => _room(roomId)
@@ -135,21 +144,24 @@ class FirebaseGameRepository implements GameRepository {
       .map((s) => s.exists ? Hand.fromSnapshot(s) : null);
 
   @override
-  Stream<Map<String, Presence>> watchPresence(String roomId) =>
-      _room(roomId).collection('presence').snapshots().map((q) => {
-            for (final d in q.docs)
-              d.id: Presence(
-                (d.data()['lastSeen'] as Timestamp?)?.toDate(),
-                d.data()['state'] as String? ?? 'foreground',
-              ),
-          });
+  Stream<Map<String, Presence>> watchPresence(String roomId) => _room(roomId)
+      .collection('presence')
+      .snapshots()
+      .map(
+        (q) => {
+          for (final d in q.docs)
+            d.id: Presence(
+              (d.data()['lastSeen'] as Timestamp?)?.toDate(),
+              d.data()['state'] as String? ?? 'foreground',
+            ),
+        },
+      );
 
   @override
   Future<List<Round>> loadRounds(String roomId, int gameNo) async {
-    final q = await _room(roomId)
-        .collection('rounds')
-        .where('gameNo', isEqualTo: gameNo)
-        .get();
+    final q = await _room(
+      roomId,
+    ).collection('rounds').where('gameNo', isEqualTo: gameNo).get();
     final rounds = q.docs.map((d) => Round.fromMap(d.id, d.data())).toList()
       ..sort((a, b) => a.roundNo.compareTo(b.roundNo));
     return rounds;
@@ -170,7 +182,9 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<({String roomId, String code})> joinRoom(
-      String code, String name) async {
+    String code,
+    String name,
+  ) async {
     final r = await _call('joinRoom', {'code': code, 'name': name});
     return (roomId: r['roomId'] as String, code: r['code'] as String);
   }
@@ -200,20 +214,27 @@ class FirebaseGameRepository implements GameRepository {
       _call('nextRound', {'roomId': roomId});
 
   @override
-  Future<void> passCard(String roomId, String roundKey, int turnId,
-          String cardId, String requestId) =>
-      _call('passCard', {
-        'roomId': roomId,
-        'roundKey': roundKey,
-        'turnId': turnId,
-        'cardId': cardId,
-        'requestId': requestId,
-      });
+  Future<void> passCard(
+    String roomId,
+    String roundKey,
+    int turnId,
+    String cardId,
+    String requestId,
+  ) => _call('passCard', {
+    'roomId': roomId,
+    'roundKey': roundKey,
+    'turnId': turnId,
+    'cardId': cardId,
+    'requestId': requestId,
+  });
 
   @override
   Future<void> claimTimeout(String roomId, String roundKey, int turnId) =>
-      _call('claimTimeout',
-          {'roomId': roomId, 'roundKey': roundKey, 'turnId': turnId});
+      _call('claimTimeout', {
+        'roomId': roomId,
+        'roundKey': roundKey,
+        'turnId': turnId,
+      });
 
   @override
   Future<void> revealRound(String roomId, String roundKey) =>

@@ -55,7 +55,8 @@ class CircleOrder extends StatelessWidget {
     final order = seats.map((s) => s.name).join(', then ');
 
     return Semantics(
-      label: 'Passing order: $order, then back to ${seats.first.name}.'
+      label:
+          'Passing order: $order, then back to ${seats.first.name}.'
           '${current >= 0 ? ' Now: ${seats[current].name}.' : ''}',
       child: SizedBox(
         width: size,
@@ -75,8 +76,11 @@ class CircleOrder extends StatelessWidget {
               ),
             ),
             Center(
-              child: Icon(Icons.autorenew_rounded,
-                  size: size * 0.16, color: c.muted.withValues(alpha: 0.35)),
+              child: Icon(
+                Icons.autorenew_rounded,
+                size: size * 0.16,
+                color: c.muted.withValues(alpha: 0.35),
+              ),
             ),
             for (var i = 0; i < n; i++)
               Positioned(
@@ -145,14 +149,22 @@ class _Seat extends StatelessWidget {
                 right: 0,
                 top: 0,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: c.paper,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text('${seat.cards}',
-                      style: TextStyle(
-                          color: c.ink, fontSize: 11, fontWeight: FontWeight.w900)),
+                  child: Text(
+                    '${seat.cards}',
+                    style: TextStyle(
+                      color: c.ink,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -169,12 +181,15 @@ class _Seat extends StatelessWidget {
           ),
         ),
         if (isNext)
-          Text('NEXT',
-              style: TextStyle(
-                  fontSize: 9,
-                  letterSpacing: 1,
-                  fontWeight: FontWeight.w900,
-                  color: c.teal)),
+          Text(
+            'NEXT',
+            style: TextStyle(
+              fontSize: 9,
+              letterSpacing: 1,
+              fontWeight: FontWeight.w900,
+              color: c.teal,
+            ),
+          ),
       ],
     );
   }
@@ -227,8 +242,14 @@ class _ArrowsPainter extends CustomPainter {
       final normal = Offset(-t.dy, t.dx);
       final head = Path()
         ..moveTo(end.dx, end.dy)
-        ..lineTo(end.dx - t.dx * 9 + normal.dx * 5, end.dy - t.dy * 9 + normal.dy * 5)
-        ..lineTo(end.dx - t.dx * 9 - normal.dx * 5, end.dy - t.dy * 9 - normal.dy * 5)
+        ..lineTo(
+          end.dx - t.dx * 9 + normal.dx * 5,
+          end.dy - t.dy * 9 + normal.dy * 5,
+        )
+        ..lineTo(
+          end.dx - t.dx * 9 - normal.dx * 5,
+          end.dy - t.dy * 9 - normal.dy * 5,
+        )
         ..close();
       canvas.drawPath(head, Paint()..color = paint.color);
     }
@@ -236,7 +257,9 @@ class _ArrowsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ArrowsPainter old) =>
-      old.active != active || old.points.length != points.length || old.color != color;
+      old.active != active ||
+      old.points.length != points.length ||
+      old.color != color;
 }
 
 /// A large numeric countdown with a draining ring.

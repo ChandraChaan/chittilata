@@ -48,7 +48,9 @@ class GameView extends StatelessWidget {
                     const SizedBox(height: Space.sm),
                     CircleOrder(
                       seats: seats,
-                      currentUid: phase == Phase.exchange ? round.currentUid : null,
+                      currentUid: phase == Phase.exchange
+                          ? round.currentUid
+                          : null,
                       nextUid: phase == Phase.exchange ? round.nextUid : null,
                       progress: round.timed ? ctrl.turnProgress : null,
                       size: circleSize,
@@ -91,14 +93,19 @@ class _GameTopBar extends StatelessWidget {
           Expanded(
             child: Column(
               children: [
-                Text('ROUND ${room.currentRound} OF ${room.settings.rounds}',
-                    style: TextStyle(
-                        color: c.muted,
-                        letterSpacing: 1.5,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12)),
-                Text('${room.totals[me] ?? 0} pts',
-                    style: context.text.titleMedium?.copyWith(color: c.marigold)),
+                Text(
+                  'ROUND ${room.currentRound} OF ${room.settings.rounds}',
+                  style: TextStyle(
+                    color: c.muted,
+                    letterSpacing: 1.5,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  '${room.totals[me] ?? 0} pts',
+                  style: context.text.titleMedium?.copyWith(color: c.marigold),
+                ),
               ],
             ),
           ),
@@ -136,8 +143,14 @@ class _MovieStrip extends StatelessWidget {
             color: c.surfaceHigh,
             borderRadius: BorderRadius.circular(99),
           ),
-          child: Text(names[i],
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c.onSurface)),
+          child: Text(
+            names[i],
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: c.onSurface,
+            ),
+          ),
         ),
       ),
     );
@@ -163,15 +176,15 @@ class _TurnBanner extends StatelessWidget {
     final title = expired
         ? "Time's up!"
         : mine
-            ? 'Your turn'
-            : '$who is choosing';
+        ? 'Your turn'
+        : '$who is choosing';
     final subtitle = expired
         ? 'Passing a slip automatically…'
         : mine
-            ? 'Pick one slip to pass to $next'
-            : round.nextUid == ctrl.uid
-                ? 'Get ready, a slip is coming to you'
-                : 'Then passes to $next';
+        ? 'Pick one slip to pass to $next'
+        : round.nextUid == ctrl.uid
+        ? 'Get ready, a slip is coming to you'
+        : 'Then passes to $next';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Space.lg),
@@ -179,14 +192,23 @@ class _TurnBanner extends StatelessWidget {
         duration: Motion.of(context, Motion.medium),
         padding: const EdgeInsets.all(Space.md),
         decoration: BoxDecoration(
-          color: mine ? c.marigold.withValues(alpha: 0.16) : c.surface.withValues(alpha: 0.8),
+          color: mine
+              ? c.marigold.withValues(alpha: 0.16)
+              : c.surface.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: mine ? c.marigold : c.outline, width: mine ? 2 : 1),
+          border: Border.all(
+            color: mine ? c.marigold : c.outline,
+            width: mine ? 2 : 1,
+          ),
         ),
         child: Row(
           children: [
             if (round.timed)
-              CountdownBadge(seconds: secs, progress: ctrl.turnProgress, size: 56)
+              CountdownBadge(
+                seconds: secs,
+                progress: ctrl.turnProgress,
+                size: 56,
+              )
             else
               Icon(Icons.hourglass_empty_rounded, color: c.muted, size: 40),
             const SizedBox(width: Space.md),
@@ -196,9 +218,12 @@ class _TurnBanner extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: context.text.titleLarge
-                            ?.copyWith(color: expired ? c.kumkum : (mine ? c.marigold : null))),
+                    Text(
+                      title,
+                      style: context.text.titleLarge?.copyWith(
+                        color: expired ? c.kumkum : (mine ? c.marigold : null),
+                      ),
+                    ),
                     Text(subtitle, style: TextStyle(color: c.muted)),
                   ],
                 ),
@@ -249,12 +274,22 @@ class _HandAreaState extends State<_HandArea> {
     final four = matchingName(hand.cards);
     final canAct = ctrl.myTurn && !ctrl.busy && ctrl.turnRemainingMs > 0;
     final width = MediaQuery.sizeOf(context).width;
-    final slipWidth = min(84.0, (width - 2 * Space.lg - 4 * 8) / max(4, hand.cards.length));
-    final nextName = round.nextUid == ctrl.uid ? 'you' : room.nameOf(round.nextUid);
+    final slipWidth = min(
+      84.0,
+      (width - 2 * Space.lg - 4 * 8) / max(4, hand.cards.length),
+    );
+    final nextName = round.nextUid == ctrl.uid
+        ? 'you'
+        : room.nameOf(round.nextUid);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(Space.lg, Space.lg, Space.lg, Space.lg),
+      padding: const EdgeInsets.fromLTRB(
+        Space.lg,
+        Space.lg,
+        Space.lg,
+        Space.lg,
+      ),
       decoration: BoxDecoration(
         color: c.surface.withValues(alpha: 0.92),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -268,20 +303,30 @@ class _HandAreaState extends State<_HandArea> {
               Icon(Icons.lock_rounded, size: 14, color: c.muted),
               const SizedBox(width: 4),
               Expanded(
-                child: Text('Your slips · only you can see these',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: c.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                child: Text(
+                  'Your slips · only you can see these',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: c.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-              Text('${hand.cards.length} slips',
-                  style: TextStyle(color: c.muted, fontSize: 12)),
+              Text(
+                '${hand.cards.length} slips',
+                style: TextStyle(color: c.muted, fontSize: 12),
+              ),
             ],
           ),
           if (four != null && hand.cards.length == 5 && ctrl.myTurn)
             Padding(
               padding: const EdgeInsets.only(top: Space.sm),
-              child: Text('Four $four! Pass the odd slip to win.',
-                  style: TextStyle(color: c.leaf, fontWeight: FontWeight.w900)),
+              child: Text(
+                'Four $four! Pass the odd slip to win.',
+                style: TextStyle(color: c.leaf, fontWeight: FontWeight.w900),
+              ),
             ),
           const SizedBox(height: Space.lg + 18),
           Row(
@@ -299,10 +344,10 @@ class _HandAreaState extends State<_HandArea> {
                     state: card.id == ctrl.selectedCardId
                         ? SlipState.selected
                         : card.id == hand.incomingCardId
-                            ? SlipState.incoming
-                            : (counts[card.name] ?? 0) >= 3
-                                ? SlipState.matching
-                                : SlipState.normal,
+                        ? SlipState.incoming
+                        : (counts[card.name] ?? 0) >= 3
+                        ? SlipState.matching
+                        : SlipState.normal,
                     onTap: canAct ? () => ctrl.select(card.id) : null,
                   ),
                 ),
@@ -315,9 +360,11 @@ class _HandAreaState extends State<_HandArea> {
               label: !ctrl.myTurn
                   ? 'Wait for your turn'
                   : ctrl.selectedCardId == null
-                      ? 'Tap a slip to choose it'
-                      : 'Pass to $nextName',
-              icon: ctrl.myTurn && ctrl.selectedCardId != null ? Icons.send_rounded : null,
+                  ? 'Tap a slip to choose it'
+                  : 'Pass to $nextName',
+              icon: ctrl.myTurn && ctrl.selectedCardId != null
+                  ? Icons.send_rounded
+                  : null,
               busy: ctrl.busy,
               secondary: !ctrl.myTurn,
               onPressed: canAct && ctrl.selectedCardId != null ? _pass : null,
@@ -371,7 +418,9 @@ class _AnimatedSlip extends StatelessWidget {
             width: width,
             state: state,
             onTap: onTap,
-            semanticsHint: onTap == null ? null : 'Double tap to choose this slip',
+            semanticsHint: onTap == null
+                ? null
+                : 'Double tap to choose this slip',
           ),
         ),
       ),
@@ -392,17 +441,31 @@ class _IntroOverlay extends StatelessWidget {
     final first = room.nameOf(round.order.first);
     return Positioned.fill(
       child: Container(
-        color: c.bgBottom.withValues(alpha: 0.94),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [c.bgTop, c.bgBottom],
+          ),
+        ),
         padding: const EdgeInsets.all(Space.xl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('ROUND ${round.roundNo}',
-                style: context.text.displaySmall?.copyWith(color: c.marigold)),
+            Text(
+              'ROUND ${round.roundNo}',
+              style: context.text.displaySmall?.copyWith(color: c.marigold),
+            ),
             const SizedBox(height: Space.sm),
-            Text('This round\'s passing circle', style: TextStyle(color: c.muted)),
+            Text(
+              'This round\'s passing circle',
+              style: TextStyle(color: c.muted),
+            ),
             const SizedBox(height: Space.lg),
-            CircleOrder(seats: seats, size: min(MediaQuery.sizeOf(context).width - 48, 300)),
+            CircleOrder(
+              seats: seats,
+              size: min(MediaQuery.sizeOf(context).width - 48, 300),
+            ),
             const SizedBox(height: Space.lg),
             Text(
               '${round.order.map((u) => u == ctrl.uid ? 'You' : room.nameOf(u)).join(' → ')} → '
@@ -412,12 +475,16 @@ class _IntroOverlay extends StatelessWidget {
             ),
             const SizedBox(height: Space.xl),
             Text(
-              round.order.first == ctrl.uid ? 'You pass first!' : '$first passes first',
+              round.order.first == ctrl.uid
+                  ? 'You pass first!'
+                  : '$first passes first',
               style: context.text.titleMedium,
             ),
             const SizedBox(height: Space.sm),
-            Text('Starting in ${ctrl.introRemainingSeconds}…',
-                style: context.text.headlineSmall?.copyWith(color: c.teal)),
+            Text(
+              'Starting in ${ctrl.introRemainingSeconds}…',
+              style: context.text.headlineSmall?.copyWith(color: c.teal),
+            ),
           ],
         ),
       ),
@@ -441,7 +508,13 @@ class _WinnerOverlay extends StatelessWidget {
 
     return Positioned.fill(
       child: Container(
-        color: c.bgBottom.withValues(alpha: 0.95),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [c.bgTop, c.bgBottom],
+          ),
+        ),
         child: Stack(
           children: [
             const Positioned.fill(child: Confetti()),
@@ -453,27 +526,44 @@ class _WinnerOverlay extends StatelessWidget {
                   Semantics(
                     liveRegion: true,
                     child: Text(
-                      iWon ? 'YOU WIN!' : '${room.nameOf(w.uid).toUpperCase()} WINS!',
+                      iWon
+                          ? 'YOU WIN!'
+                          : '${room.nameOf(w.uid).toUpperCase()} WINS!',
                       textAlign: TextAlign.center,
-                      style: context.text.displaySmall?.copyWith(color: c.marigold),
+                      style: context.text.displaySmall?.copyWith(
+                        color: c.marigold,
+                      ),
                     ),
                   ),
                   const SizedBox(height: Space.xs),
-                  Text('Four matching slips collected!',
-                      style: context.text.titleMedium?.copyWith(color: c.muted)),
+                  Text(
+                    'Four matching slips collected!',
+                    style: context.text.titleMedium?.copyWith(color: c.muted),
+                  ),
                   const SizedBox(height: Space.lg),
                   _FourOfAKind(name: w.movie, width: min(70, (width - 80) / 4)),
                   const SizedBox(height: Space.md),
-                  Text('+${w.points} POINTS',
-                      style: context.text.headlineMedium?.copyWith(color: c.leaf)),
+                  Text(
+                    '+${w.points} POINTS',
+                    style: context.text.headlineMedium?.copyWith(color: c.leaf),
+                  ),
                   const SizedBox(height: Space.xl),
-                  if (!iWon && myChar != null) _CharacterCard(character: myChar),
+                  if (!iWon && myChar != null)
+                    _CharacterCard(character: myChar),
                   if (iWon)
-                    Text('The others are getting their secret characters…',
-                        textAlign: TextAlign.center, style: TextStyle(color: c.muted)),
+                    Text(
+                      'The others are getting their secret characters…',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: c.muted),
+                    ),
                   const SizedBox(height: Space.xl),
-                  Text('Revealing all slips in ${ctrl.revealRemainingSeconds}s',
-                      style: TextStyle(color: c.muted, fontWeight: FontWeight.w700)),
+                  Text(
+                    'Revealing all slips in ${ctrl.revealRemainingSeconds}s',
+                    style: TextStyle(
+                      color: c.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   if (ctrl.isHost) ...[
                     const SizedBox(height: Space.sm),
                     TextButton(
@@ -514,7 +604,11 @@ class _FourOfAKind extends StatelessWidget {
                   angle: (i - 1.5) * 0.08 * t,
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 3 * t),
-                    child: PaperSlip(label: name, width: width, state: SlipState.winning),
+                    child: PaperSlip(
+                      label: name,
+                      width: width,
+                      state: SlipState.winning,
+                    ),
                   ),
                 ),
               ),
@@ -530,17 +624,17 @@ class _CharacterCard extends StatelessWidget {
   final CharacterDef character;
 
   static IconData iconFor(String name) => switch (name.toLowerCase()) {
-        'queen' => Icons.diamond_rounded,
-        'police' => Icons.local_police_rounded,
-        'thief' => Icons.directions_run_rounded,
-        'minister' => Icons.account_balance_rounded,
-        'commander' => Icons.shield_rounded,
-        'merchant' => Icons.storefront_rounded,
-        'poet' => Icons.history_edu_rounded,
-        'farmer' => Icons.agriculture_rounded,
-        'jester' => Icons.theater_comedy_rounded,
-        _ => Icons.star_rounded,
-      };
+    'queen' => Icons.diamond_rounded,
+    'police' => Icons.local_police_rounded,
+    'thief' => Icons.directions_run_rounded,
+    'minister' => Icons.account_balance_rounded,
+    'commander' => Icons.shield_rounded,
+    'merchant' => Icons.storefront_rounded,
+    'poet' => Icons.history_edu_rounded,
+    'farmer' => Icons.agriculture_rounded,
+    'jester' => Icons.theater_comedy_rounded,
+    _ => Icons.star_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -567,15 +661,23 @@ class _CharacterCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text('YOUR SECRET CHARACTER',
-                style: TextStyle(
-                    color: c.teal, fontSize: 11, letterSpacing: 1.5, fontWeight: FontWeight.w900)),
+            Text(
+              'YOUR SECRET CHARACTER',
+              style: TextStyle(
+                color: c.teal,
+                fontSize: 11,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
             const SizedBox(height: Space.md),
             Icon(iconFor(character.name), size: 56, color: c.marigold),
             const SizedBox(height: Space.sm),
             Text(character.name, style: context.text.headlineMedium),
-            Text('+${character.points} points',
-                style: context.text.titleMedium?.copyWith(color: c.leaf)),
+            Text(
+              '+${character.points} points',
+              style: context.text.titleMedium?.copyWith(color: c.leaf),
+            ),
           ],
         ),
       ),

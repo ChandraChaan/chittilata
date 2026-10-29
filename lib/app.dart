@@ -8,7 +8,11 @@ import 'ui/screens/splash_screen.dart';
 
 /// App-wide dependencies, provided to the widget tree.
 class AppServices {
-  AppServices({required this.repo, required this.prefs, required this.feedback});
+  AppServices({
+    required this.repo,
+    required this.prefs,
+    required this.feedback,
+  });
   final GameRepository repo;
   final Preferences prefs;
   final GameFeedback feedback;
@@ -57,19 +61,21 @@ class ChittilataApp extends StatelessWidget {
 
 /// Fade+slide page route used for every screen change.
 Route<T> gameRoute<T>(Widget page) => PageRouteBuilder<T>(
-      transitionDuration: Motion.medium,
-      reverseTransitionDuration: Motion.fast,
-      pageBuilder: (_, _, _) => page,
-      transitionsBuilder: (context, anim, _, child) {
-        if (MediaQuery.of(context).disableAnimations) return child;
-        final curved = CurvedAnimation(parent: anim, curve: Motion.curve);
-        return FadeTransition(
-          opacity: curved,
-          child: SlideTransition(
-            position: Tween(begin: const Offset(0, 0.04), end: Offset.zero)
-                .animate(curved),
-            child: child,
-          ),
-        );
-      },
+  transitionDuration: Motion.medium,
+  reverseTransitionDuration: Motion.fast,
+  pageBuilder: (_, _, _) => page,
+  transitionsBuilder: (context, anim, _, child) {
+    if (MediaQuery.of(context).disableAnimations) return child;
+    final curved = CurvedAnimation(parent: anim, curve: Motion.curve);
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween(
+          begin: const Offset(0, 0.04),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
     );
+  },
+);

@@ -30,14 +30,20 @@ class ResultsView extends StatelessWidget {
           child: Row(
             children: [
               IconButton(
-                  tooltip: 'Leave game',
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: onLeave),
+                tooltip: 'Leave game',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: onLeave,
+              ),
               Expanded(
-                child: Text('ROUND ${round.roundNo} OF ${room.settings.rounds}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: c.muted, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
+                child: Text(
+                  'ROUND ${round.roundNo} OF ${room.settings.rounds}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: c.muted,
+                    letterSpacing: 1.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
               const SizedBox(width: 48),
             ],
@@ -55,19 +61,28 @@ class ResultsView extends StatelessWidget {
                       const SizedBox(height: Space.sm),
                       Text('Round cancelled', style: context.text.titleLarge),
                       const SizedBox(height: Space.xs),
-                      Text('${round.abortedReason ?? 'A player left.'} No points this round.',
-                          textAlign: TextAlign.center, style: TextStyle(color: c.muted)),
+                      Text(
+                        '${round.abortedReason ?? 'A player left.'} No points this round.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: c.muted),
+                      ),
                     ],
                   ),
                 )
               else ...[
-                Text('Round results',
-                    textAlign: TextAlign.center, style: context.text.headlineSmall),
+                Text(
+                  'Round results',
+                  textAlign: TextAlign.center,
+                  style: context.text.headlineSmall,
+                ),
                 const SizedBox(height: Space.xs),
                 Text(
                   '${room.nameOf(round.winner!.uid)} collected four × ${round.winner!.movie}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: c.marigold, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color: c.marigold,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: Space.lg),
                 for (final uid in round.order)
@@ -100,13 +115,16 @@ class ResultsView extends StatelessWidget {
             width: double.infinity,
             child: ctrl.isHost
                 ? BigButton(
-                    label: moreRounds ? 'Start round ${room.currentRound + 1}' : 'See final results',
+                    label: moreRounds
+                        ? 'Start round ${room.currentRound + 1}'
+                        : 'See final results',
                     icon: Icons.arrow_forward_rounded,
                     busy: ctrl.busy,
                     onPressed: moreRounds ? ctrl.nextRound : null,
                   )
                 : BigButton(
-                    label: 'Waiting for ${room.nameOf(room.hostUid)} to start round ${room.currentRound + 1}',
+                    label:
+                        'Waiting for ${room.nameOf(room.hostUid)} to start round ${room.currentRound + 1}',
                     secondary: true,
                     onPressed: null,
                   ),
@@ -118,7 +136,11 @@ class ResultsView extends StatelessWidget {
 }
 
 class _RevealRow extends StatelessWidget {
-  const _RevealRow({required this.ctrl, required this.round, required this.uid});
+  const _RevealRow({
+    required this.ctrl,
+    required this.round,
+    required this.uid,
+  });
   final RoomController ctrl;
   final Round round;
   final String uid;
@@ -147,21 +169,29 @@ class _RevealRow extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(uid == ctrl.uid ? '${room.nameOf(uid)} (you)' : room.nameOf(uid),
-                          style: const TextStyle(fontWeight: FontWeight.w800)),
+                      Text(
+                        uid == ctrl.uid
+                            ? '${room.nameOf(uid)} (you)'
+                            : room.nameOf(uid),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
                       Row(
                         children: [
                           Icon(
-                              isWinner
-                                  ? Icons.emoji_events_rounded
-                                  : characterIcon(char?.name ?? ''),
-                              size: 16,
-                              color: isWinner ? c.marigold : c.teal),
+                            isWinner
+                                ? Icons.emoji_events_rounded
+                                : characterIcon(char?.name ?? ''),
+                            size: 16,
+                            color: isWinner ? c.marigold : c.teal,
+                          ),
                           const SizedBox(width: 4),
-                          Text(isWinner ? 'Movie winner' : (char?.name ?? '—'),
-                              style: TextStyle(
-                                  color: isWinner ? c.marigold : c.teal,
-                                  fontWeight: FontWeight.w700)),
+                          Text(
+                            isWinner ? 'Movie winner' : (char?.name ?? '—'),
+                            style: TextStyle(
+                              color: isWinner ? c.marigold : c.teal,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -169,9 +199,14 @@ class _RevealRow extends StatelessWidget {
                 ),
                 TweenAnimationBuilder<int>(
                   tween: IntTween(begin: 0, end: pts),
-                  duration: Motion.of(context, const Duration(milliseconds: 900)),
-                  builder: (_, v, _) => Text('+$v',
-                      style: context.text.titleLarge?.copyWith(color: c.leaf)),
+                  duration: Motion.of(
+                    context,
+                    const Duration(milliseconds: 900),
+                  ),
+                  builder: (_, v, _) => Text(
+                    '+$v',
+                    style: context.text.titleLarge?.copyWith(color: c.leaf),
+                  ),
                 ),
               ],
             ),
@@ -217,22 +252,30 @@ class _LeaderRow extends StatelessWidget {
     return ListTile(
       leading: SizedBox(
         width: 32,
-        child: Text('#$rank',
-            style: TextStyle(
-                fontWeight: FontWeight.w900, color: rank == 1 ? c.marigold : c.muted)),
+        child: Text(
+          '#$rank',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: rank == 1 ? c.marigold : c.muted,
+          ),
+        ),
       ),
-      title: Text(isMe ? '$name (you)' : name,
-          style: const TextStyle(fontWeight: FontWeight.w700)),
+      title: Text(
+        isMe ? '$name (you)' : name,
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (gained != null)
-            Text('+$gained  ', style: TextStyle(color: c.leaf, fontWeight: FontWeight.w700)),
+            Text(
+              '+$gained  ',
+              style: TextStyle(color: c.leaf, fontWeight: FontWeight.w700),
+            ),
           TweenAnimationBuilder<int>(
             tween: IntTween(begin: total - (gained ?? 0), end: total),
             duration: Motion.of(context, const Duration(milliseconds: 900)),
-            builder: (_, v, _) =>
-                Text('$v', style: context.text.titleMedium),
+            builder: (_, v, _) => Text('$v', style: context.text.titleMedium),
           ),
         ],
       ),

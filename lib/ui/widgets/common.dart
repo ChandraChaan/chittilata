@@ -44,13 +44,19 @@ class _SlipsPainter extends CustomPainter {
     final p = Paint()..color = color.withValues(alpha: 0.035);
     for (var i = 0; i < 14; i++) {
       canvas.save();
-      canvas.translate(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height);
+      canvas.translate(
+        rnd.nextDouble() * size.width,
+        rnd.nextDouble() * size.height,
+      );
       canvas.rotate((rnd.nextDouble() - 0.5) * 0.9);
       final w = 30 + rnd.nextDouble() * 40;
       canvas.drawRRect(
-          RRect.fromRectAndRadius(
-              Rect.fromLTWH(0, 0, w, w * 1.4), const Radius.circular(6)),
-          p);
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, w, w * 1.4),
+          const Radius.circular(6),
+        ),
+        p,
+      );
       canvas.restore();
     }
   }
@@ -101,7 +107,10 @@ class BigButton extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 58),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
@@ -110,16 +119,23 @@ class BigButton extends StatelessWidget {
                       SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.5, color: fg),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: fg,
+                        ),
                       )
                     else if (icon != null)
                       Icon(icon, color: fg),
                     if (busy || icon != null) const SizedBox(width: 10),
                     Flexible(
-                      child: Text(label,
-                          textAlign: TextAlign.center,
-                          style: context.text.titleMedium?.copyWith(
-                              color: fg, fontWeight: FontWeight.w900)),
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: context.text.titleMedium?.copyWith(
+                          color: fg,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -150,15 +166,23 @@ class PlayerAvatar extends StatelessWidget {
   final bool dimmed;
 
   static const _hues = [
-    Color(0xFFFF8A5B), Color(0xFF4CC9F0), Color(0xFFB794F4), Color(0xFF58D68D),
-    Color(0xFFFFC75F), Color(0xFFF15BB5), Color(0xFF00BBF9), Color(0xFF9BDE7E),
-    Color(0xFFFF6F91), Color(0xFF845EC2),
+    Color(0xFFFF8A5B),
+    Color(0xFF4CC9F0),
+    Color(0xFFB794F4),
+    Color(0xFF58D68D),
+    Color(0xFFFFC75F),
+    Color(0xFFF15BB5),
+    Color(0xFF00BBF9),
+    Color(0xFF9BDE7E),
+    Color(0xFFFF6F91),
+    Color(0xFF845EC2),
   ];
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final hue = _hues[name.codeUnits.fold<int>(0, (a, b) => a + b) % _hues.length];
+    final hue =
+        _hues[name.codeUnits.fold<int>(0, (a, b) => a + b) % _hues.length];
     final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
     return Opacity(
       opacity: dimmed ? 0.45 : 1,
@@ -179,11 +203,14 @@ class PlayerAvatar extends StatelessWidget {
                 border: Border.all(color: ring ?? Colors.transparent, width: 3),
               ),
               alignment: Alignment.center,
-              child: Text(initial,
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: size * 0.42)),
+              child: Text(
+                initial,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: size * 0.42,
+                ),
+              ),
             ),
             if (online != null)
               Positioned(
@@ -249,19 +276,29 @@ class ConnectionBanner extends StatelessWidget {
               child: Container(
                 width: double.infinity,
                 color: c.kumkum,
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 6,
+                  horizontal: 12,
+                ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white)),
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
                     SizedBox(width: 8),
-                    Text('Reconnecting… your seat is saved',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w700)),
+                    Text(
+                      'Reconnecting… your seat is saved',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),

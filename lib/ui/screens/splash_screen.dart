@@ -18,8 +18,9 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1100))
-    ..forward();
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..forward();
   String? _error;
 
   @override
@@ -38,8 +39,10 @@ class _SplashScreenState extends State<SplashScreen>
       ]);
     } catch (_) {
       if (mounted) {
-        setState(() => _error =
-            'Could not connect. Chittilata needs the internet to play with friends.');
+        setState(
+          () => _error =
+              'Could not connect. Chittilata needs the internet to play with friends.',
+        );
       }
       return;
     }
@@ -97,11 +100,14 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                           Opacity(
                             opacity: _anim.value,
-                            child: Text('చి',
-                                style: TextStyle(
-                                    color: c.kumkum,
-                                    fontSize: 46,
-                                    fontWeight: FontWeight.w900)),
+                            child: Text(
+                              'చి',
+                              style: TextStyle(
+                                color: c.kumkum,
+                                fontSize: 46,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -109,30 +115,42 @@ class _SplashScreenState extends State<SplashScreen>
                   },
                 ),
                 const SizedBox(height: Space.xl),
-                Text('Chittilata',
-                    style: context.text.displaySmall?.copyWith(color: c.marigold)),
-                Text('చిట్టిలాట',
-                    style: context.text.headlineSmall?.copyWith(color: c.onSurface)),
+                Text(
+                  'Chittilata',
+                  style: context.text.displaySmall?.copyWith(color: c.marigold),
+                ),
+                Text(
+                  'చిట్టిలాట',
+                  style: context.text.headlineSmall?.copyWith(
+                    color: c.onSurface,
+                  ),
+                ),
                 const SizedBox(height: Space.sm),
-                Text('The paper-slip game, now on every phone',
-                    style: TextStyle(color: c.muted)),
+                Text(
+                  'The paper-slip game, now on every phone',
+                  style: TextStyle(color: c.muted),
+                ),
                 const SizedBox(height: Space.xxl),
                 if (_error == null)
                   SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(color: c.marigold))
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(color: c.marigold),
+                  )
                 else ...[
                   Icon(Icons.wifi_off_rounded, color: c.kumkum, size: 36),
                   const SizedBox(height: Space.sm),
-                  Text(_error!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: c.onSurface)),
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: c.onSurface),
+                  ),
                   const SizedBox(height: Space.lg),
                   BigButton(
-                      label: 'Try again',
-                      icon: Icons.refresh_rounded,
-                      onPressed: _boot),
+                    label: 'Try again',
+                    icon: Icons.refresh_rounded,
+                    onPressed: _boot,
+                  ),
                 ],
               ],
             ),

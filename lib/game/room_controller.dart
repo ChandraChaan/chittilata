@@ -95,8 +95,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   /// The private hand, but only if it belongs to the round on screen.
   Hand? get hand =>
       (_hand != null && round != null && _hand!.roundKey == round!.key)
-          ? _hand
-          : null;
+      ? _hand
+      : null;
 
   bool get myTurn =>
       phase == Phase.exchange && round?.currentUid == uid && hand != null;
@@ -136,7 +136,10 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   int get introRemainingSeconds {
     final rd = round;
     if (rd == null) return 0;
-    return max(0, (rd.introEndsAt.difference(now).inMilliseconds / 1000).ceil());
+    return max(
+      0,
+      (rd.introEndsAt.difference(now).inMilliseconds / 1000).ceil(),
+    );
   }
 
   int get revealRemainingSeconds {
@@ -177,7 +180,9 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       _roundSub?.cancel();
       round = null;
       selectedCardId = null;
-      _roundSub = repo.watchRound(roomId, key).listen(_onRound, onError: (_) {});
+      _roundSub = repo
+          .watchRound(roomId, key)
+          .listen(_onRound, onError: (_) {});
     }
     if (r.status == RoomStatus.finished &&
         previous?.status != RoomStatus.finished) {
@@ -205,9 +210,11 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       _lastActionKey = laKey;
       if (la.isTimeout) {
         feedback.play(Sfx.timeout);
-        _messages.add(la.fromUid == uid
-            ? "Time's up! A card was passed for you."
-            : "Time's up for ${room?.nameOf(la.fromUid)} — a card was auto-passed.");
+        _messages.add(
+          la.fromUid == uid
+              ? "Time's up! A card was passed for you."
+              : "Time's up for ${room?.nameOf(la.fromUid)} — a card was auto-passed.",
+        );
       } else if (la.fromUid != uid && la.toUid != uid) {
         feedback.play(Sfx.tap);
       }
@@ -272,9 +279,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       _maybeClaimTimeout(rd, ms);
     }
     if (rd != null && p == Phase.characters) _maybeReveal(rd);
-    if (p == Phase.intro ||
-        p == Phase.exchange ||
-        p == Phase.characters) {
+    if (p == Phase.intro || p == Phase.exchange || p == Phase.characters) {
       notifyListeners();
     }
   }
@@ -337,7 +342,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     feedback.play(Sfx.pass);
     try {
       await _withRetry(
-          () => repo.passCard(roomId, rd.key, rd.turnId, cardId, requestId));
+        () => repo.passCard(roomId, rd.key, rd.turnId, cardId, requestId),
+      );
     } on GameException catch (e) {
       _messages.add(e.message);
     } finally {
@@ -352,7 +358,9 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await f();
     } on GameException catch (e) {
-      if (e.code == 'unavailable' || e.code == 'deadline-exceeded' || e.code == 'internal') {
+      if (e.code == 'unavailable' ||
+          e.code == 'deadline-exceeded' ||
+          e.code == 'internal') {
         await Future<void>.delayed(const Duration(milliseconds: 600));
         await f();
       } else {
@@ -383,11 +391,11 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> setReady(bool v) => run(() => repo.setReady(roomId, v));
   Future<bool> updateSettings(Map<String, Object?> patch) =>
       run(() => repo.updateSettings(roomId, patch));
-  Future<bool> kick(String player) => run(() => repo.kickPlayer(roomId, player));
+  Future<bool> kick(String player) =>
+      run(() => repo.kickPlayer(roomId, player));
   Future<bool> startGame() => run(() => repo.startGame(roomId));
   Future<bool> nextRound() => run(() => repo.nextRound(roomId));
-  Future<bool> revealNow() =>
-      run(() => repo.revealRound(roomId, round!.key));
+  Future<bool> revealNow() => run(() => repo.revealRound(roomId, round!.key));
   Future<bool> playAgain() => run(() => repo.playAgain(roomId));
 
   Future<void> leave() async {
@@ -402,13 +410,15 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   void _saveHistory(Room r) {
     final standings = r.finalStandings;
     if (standings == null) return;
-    prefs.addHistory(MatchRecord(
-      key: '${r.id}-${r.gameNo}',
-      playedAt: DateTime.now(),
-      rounds: r.currentRound,
-      category: r.settings.category.name,
-      standings: standings.map((s) => s.toJson()).toList(),
-    ));
+    prefs.addHistory(
+      MatchRecord(
+        key: '${r.id}-${r.gameNo}',
+        playedAt: DateTime.now(),
+        rounds: r.currentRound,
+        category: r.settings.category.name,
+        standings: standings.map((s) => s.toJson()).toList(),
+      ),
+    );
   }
 
   @override

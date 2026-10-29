@@ -57,14 +57,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     const Spacer(),
                     TextButton(
                       onPressed: _finish,
-                      child: Text(widget.firstRun ? 'Skip' : 'Done',
-                          style: TextStyle(color: c.muted)),
+                      child: Text(
+                        widget.firstRun ? 'Skip' : 'Done',
+                        style: TextStyle(color: c.muted),
+                      ),
                     ),
                   ],
                 ),
               ),
-              Text('How to play',
-                  style: context.text.titleLarge?.copyWith(color: c.marigold)),
+              Text(
+                'How to play',
+                style: context.text.titleLarge?.copyWith(color: c.marigold),
+              ),
               Expanded(
                 child: PageView.builder(
                   controller: _page,
@@ -88,16 +92,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             child: Icon(r.icon, size: 56, color: c.marigold),
                           ),
                           const SizedBox(height: Space.xl),
-                          Text('${i + 1}. ${r.title}',
-                              textAlign: TextAlign.center,
-                              style: context.text.headlineSmall),
+                          Text(
+                            '${i + 1}. ${r.title}',
+                            textAlign: TextAlign.center,
+                            style: context.text.headlineSmall,
+                          ),
                           const SizedBox(height: Space.lg),
                           Flexible(
                             child: SingleChildScrollView(
-                              child: Text(r.body,
-                                  textAlign: TextAlign.center,
-                                  style: context.text.bodyLarge
-                                      ?.copyWith(color: c.muted, height: 1.45)),
+                              child: Text(
+                                r.body,
+                                textAlign: TextAlign.center,
+                                style: context.text.bodyLarge?.copyWith(
+                                  color: c.muted,
+                                  height: 1.45,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -128,12 +138,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   width: double.infinity,
                   child: BigButton(
                     label: last ? "Let's play" : 'Next',
-                    icon: last ? Icons.play_arrow_rounded : Icons.arrow_forward_rounded,
+                    icon: last
+                        ? Icons.play_arrow_rounded
+                        : Icons.arrow_forward_rounded,
                     onPressed: last
                         ? _finish
                         : () => _page.nextPage(
                             duration: Motion.of(context, Motion.medium),
-                            curve: Motion.curve),
+                            curve: Motion.curve,
+                          ),
                   ),
                 ),
               ),

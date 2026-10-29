@@ -6,7 +6,11 @@ import '../../core/theme/app_theme.dart';
 
 /// Lightweight paper-confetti burst. Skipped entirely under reduced motion.
 class Confetti extends StatefulWidget {
-  const Confetti({super.key, this.pieces = 70, this.duration = const Duration(seconds: 3)});
+  const Confetti({
+    super.key,
+    this.pieces = 70,
+    this.duration = const Duration(seconds: 3),
+  });
   final int pieces;
   final Duration duration;
 
@@ -14,9 +18,12 @@ class Confetti extends StatefulWidget {
   State<Confetti> createState() => _ConfettiState();
 }
 
-class _ConfettiState extends State<Confetti> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: widget.duration)..forward();
+class _ConfettiState extends State<Confetti>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+  )..forward();
   late final List<_Piece> _pieces;
 
   @override
@@ -44,7 +51,8 @@ class _ConfettiState extends State<Confetti> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.of(context).disableAnimations) return const SizedBox.shrink();
+    if (MediaQuery.of(context).disableAnimations)
+      return const SizedBox.shrink();
     final c = context.colors;
     final colors = [c.marigold, c.kumkum, c.teal, c.paper];
     return IgnorePointer(
@@ -91,7 +99,11 @@ class _ConfettiPainter extends CustomPainter {
       canvas.translate(x, y);
       canvas.rotate(p.spin * local);
       canvas.drawRect(
-        Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size * 0.6),
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: p.size,
+          height: p.size * 0.6,
+        ),
         Paint()..color = colors[p.hue].withValues(alpha: fade),
       );
       canvas.restore();

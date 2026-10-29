@@ -17,8 +17,10 @@ class FinalView extends StatefulWidget {
 }
 
 class _FinalViewState extends State<FinalView> {
-  late final Future<List<Round>> _rounds =
-      widget.ctrl.repo.loadRounds(widget.ctrl.roomId, widget.ctrl.room!.gameNo);
+  late final Future<List<Round>> _rounds = widget.ctrl.repo.loadRounds(
+    widget.ctrl.roomId,
+    widget.ctrl.room!.gameNo,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -31,15 +33,22 @@ class _FinalViewState extends State<FinalView> {
 
     return Stack(
       children: [
-        const Positioned.fill(child: Confetti(pieces: 110, duration: Duration(seconds: 4))),
+        const Positioned.fill(
+          child: Confetti(pieces: 110, duration: Duration(seconds: 4)),
+        ),
         ListView(
           padding: const EdgeInsets.all(Space.lg),
           children: [
             const SizedBox(height: Space.md),
-            Text('GAME OVER',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: c.muted, letterSpacing: 3, fontWeight: FontWeight.w900)),
+            Text(
+              'GAME OVER',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: c.muted,
+                letterSpacing: 3,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
             const SizedBox(height: Space.lg),
             if (kings.isNotEmpty)
               _Crowned(
@@ -67,15 +76,24 @@ class _FinalViewState extends State<FinalView> {
                 children: [
                   for (final s in standings)
                     ListTile(
-                      leading: PlayerAvatar(name: s.name, size: 36, dimmed: s.left),
+                      leading: PlayerAvatar(
+                        name: s.name,
+                        size: 36,
+                        dimmed: s.left,
+                      ),
                       title: Text(
-                          '#${s.rank}  ${s.name}${s.uid == ctrl.uid ? ' (you)' : ''}'
-                          '${s.left ? ' · left' : ''}',
-                          style: const TextStyle(fontWeight: FontWeight.w800)),
+                        '#${s.rank}  ${s.name}${s.uid == ctrl.uid ? ' (you)' : ''}'
+                        '${s.left ? ' · left' : ''}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
                       subtitle: Text(
-                          '${s.movieWins} movie win${s.movieWins == 1 ? '' : 's'}',
-                          style: TextStyle(color: c.muted)),
-                      trailing: Text('${s.total}', style: context.text.titleLarge),
+                        '${s.movieWins} movie win${s.movieWins == 1 ? '' : 's'}',
+                        style: TextStyle(color: c.muted),
+                      ),
+                      trailing: Text(
+                        '${s.total}',
+                        style: context.text.titleLarge,
+                      ),
                     ),
                 ],
               ),
@@ -92,7 +110,11 @@ class _FinalViewState extends State<FinalView> {
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-                return _RoundTable(room: room, rounds: snap.data!, standings: standings);
+                return _RoundTable(
+                  room: room,
+                  rounds: snap.data!,
+                  standings: standings,
+                );
               },
             ),
             const SizedBox(height: Space.sm),
@@ -109,8 +131,11 @@ class _FinalViewState extends State<FinalView> {
                 onPressed: ctrl.playAgain,
               )
             else
-              Text('The host can start a new game with everyone here.',
-                  textAlign: TextAlign.center, style: TextStyle(color: c.muted)),
+              Text(
+                'The host can start a new game with everyone here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.muted),
+              ),
             const SizedBox(height: Space.md),
             BigButton(
               label: 'Return to home',
@@ -147,7 +172,8 @@ class _Crowned extends StatelessWidget {
       tween: Tween(begin: 0, end: 1),
       duration: Motion.of(context, Duration(milliseconds: big ? 900 : 1300)),
       curve: Curves.elasticOut,
-      builder: (_, t, child) => Transform.scale(scale: 0.6 + 0.4 * t, child: child),
+      builder: (_, t, child) =>
+          Transform.scale(scale: 0.6 + 0.4 * t, child: child),
       child: Semantics(
         liveRegion: big,
         label: '$title: $names with $points points',
@@ -173,18 +199,29 @@ class _Crowned extends StatelessWidget {
                   size: big ? 72 : 48,
                 ),
               ),
-              Text(title,
-                  style: TextStyle(
-                      color: color,
-                      letterSpacing: 4,
-                      fontWeight: FontWeight.w900,
-                      fontSize: big ? 18 : 14)),
+              Text(
+                title,
+                style: TextStyle(
+                  color: color,
+                  letterSpacing: 4,
+                  fontWeight: FontWeight.w900,
+                  fontSize: big ? 18 : 14,
+                ),
+              ),
               const SizedBox(height: Space.xs),
-              Text(names,
-                  textAlign: TextAlign.center,
-                  style: (big ? context.text.displaySmall : context.text.headlineSmall)
-                      ?.copyWith(color: c.onSurface)),
-              Text('$points points', style: TextStyle(color: c.muted, fontWeight: FontWeight.w700)),
+              Text(
+                names,
+                textAlign: TextAlign.center,
+                style:
+                    (big
+                            ? context.text.displaySmall
+                            : context.text.headlineSmall)
+                        ?.copyWith(color: c.onSurface),
+              ),
+              Text(
+                '$points points',
+                style: TextStyle(color: c.muted, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),
@@ -194,7 +231,11 @@ class _Crowned extends StatelessWidget {
 }
 
 class _RoundTable extends StatelessWidget {
-  const _RoundTable({required this.room, required this.rounds, required this.standings});
+  const _RoundTable({
+    required this.room,
+    required this.rounds,
+    required this.standings,
+  });
   final Room room;
   final List<Round> rounds;
   final List<Standing> standings;
@@ -205,36 +246,54 @@ class _RoundTable extends StatelessWidget {
     final cell = TextStyle(color: c.onSurface, fontWeight: FontWeight.w600);
     return Panel(
       padding: const EdgeInsets.all(Space.sm),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columnSpacing: 18,
-          headingRowHeight: 36,
-          dataRowMinHeight: 36,
-          dataRowMaxHeight: 40,
-          columns: [
-            const DataColumn(label: Text('Player')),
-            for (final r in rounds) DataColumn(numeric: true, label: Text('R${r.roundNo}')),
-            const DataColumn(numeric: true, label: Text('Total')),
-          ],
-          rows: [
-            for (final s in standings)
-              DataRow(cells: [
-                DataCell(Text(s.name, style: cell)),
+      child: LayoutBuilder(
+        builder: (context, box) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: box.maxWidth),
+            child: DataTable(
+              columnSpacing: 18,
+              headingRowHeight: 36,
+              dataRowMinHeight: 36,
+              dataRowMaxHeight: 40,
+              columns: [
+                const DataColumn(label: Text('Player')),
                 for (final r in rounds)
-                  DataCell(Text(
-                    r.status == RoundStatus.aborted ? '—' : '${r.scores?[s.uid] ?? 0}',
-                    style: r.winner?.uid == s.uid
-                        ? cell.copyWith(color: c.marigold, fontWeight: FontWeight.w900)
-                        : cell,
-                  )),
-                DataCell(Text('${s.total}',
-                    style: cell.copyWith(fontWeight: FontWeight.w900))),
-              ]),
-          ],
+                  DataColumn(numeric: true, label: Text('R${r.roundNo}')),
+                const DataColumn(numeric: true, label: Text('Total')),
+              ],
+              rows: [
+                for (final s in standings)
+                  DataRow(
+                    cells: [
+                      DataCell(Text(s.name, style: cell)),
+                      for (final r in rounds)
+                        DataCell(
+                          Text(
+                            r.status == RoundStatus.aborted
+                                ? '—'
+                                : '${r.scores?[s.uid] ?? 0}',
+                            style: r.winner?.uid == s.uid
+                                ? cell.copyWith(
+                                    color: c.marigold,
+                                    fontWeight: FontWeight.w900,
+                                  )
+                                : cell,
+                          ),
+                        ),
+                      DataCell(
+                        Text(
+                          '${s.total}',
+                          style: cell.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
-

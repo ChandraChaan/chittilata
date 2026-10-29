@@ -28,11 +28,13 @@ Future<void> main() async {
 
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final prefs = await Preferences.load();
-  runApp(ChittilataApp(
-    services: AppServices(
-      repo: FirebaseGameRepository(),
-      prefs: prefs,
-      feedback: GameFeedback(prefs),
+  runApp(
+    ChittilataApp(
+      services: AppServices(
+        repo: FirebaseGameRepository(),
+        prefs: prefs,
+        feedback: GameFeedback(prefs),
+      ),
     ),
-  ));
+  );
 }

@@ -87,13 +87,14 @@ void main() {
     const a = GameCard(id: '1', name: 'A');
     expect(matchingName([a, a, a, const GameCard(id: '2', name: 'B')]), isNull);
     expect(
-        matchingName(const [
-          GameCard(id: '1', name: 'A'),
-          GameCard(id: '2', name: 'A'),
-          GameCard(id: '3', name: 'A'),
-          GameCard(id: '4', name: 'A'),
-          GameCard(id: '5', name: 'B'),
-        ]),
-        'A');
+      matchingName(const [
+        GameCard(id: '1', name: 'A'),
+        GameCard(id: '2', name: 'A'),
+        GameCard(id: '3', name: 'A'),
+        GameCard(id: '4', name: 'A'),
+        GameCard(id: '5', name: 'B'),
+      ]),
+      'A',
+    );
   });
 }

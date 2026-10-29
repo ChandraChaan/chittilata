@@ -4,7 +4,18 @@ import 'package:flutter/services.dart';
 
 import 'preferences.dart';
 
-enum Sfx { tap, select, receive, pass, tick, timeout, win, reveal, roundEnd, fanfare }
+enum Sfx {
+  tap,
+  select,
+  receive,
+  pass,
+  tick,
+  timeout,
+  win,
+  reveal,
+  roundEnd,
+  fanfare,
+}
 
 /// Sound effects, background music and haptics, each gated by the player's
 /// preferences. Audio is never required to follow the game.

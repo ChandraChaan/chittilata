@@ -87,18 +87,18 @@ class MatchRecord {
   final List<Map<String, dynamic>> standings;
 
   factory MatchRecord.fromJson(Map<String, dynamic> j) => MatchRecord(
-        key: j['key'] as String,
-        playedAt: DateTime.parse(j['playedAt'] as String),
-        rounds: j['rounds'] as int,
-        category: j['category'] as String,
-        standings: List<Map<String, dynamic>>.from(j['standings'] as List),
-      );
+    key: j['key'] as String,
+    playedAt: DateTime.parse(j['playedAt'] as String),
+    rounds: j['rounds'] as int,
+    category: j['category'] as String,
+    standings: List<Map<String, dynamic>>.from(j['standings'] as List),
+  );
 
   Map<String, dynamic> toJson() => {
-        'key': key,
-        'playedAt': playedAt.toIso8601String(),
-        'rounds': rounds,
-        'category': category,
-        'standings': standings,
-      };
+    'key': key,
+    'playedAt': playedAt.toIso8601String(),
+    'rounds': rounds,
+    'category': category,
+    'standings': standings,
+  };
 }

@@ -192,7 +192,10 @@ ThemeData buildTheme(Brightness brightness) {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: c.surfaceHigh,
-      contentTextStyle: TextStyle(color: c.onSurface, fontWeight: FontWeight.w600),
+      contentTextStyle: TextStyle(
+        color: c.onSurface,
+        fontWeight: FontWeight.w600,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
     bottomSheetTheme: BottomSheetThemeData(

@@ -6,10 +6,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 int _int(Object? v, [int fallback = 0]) => v is num ? v.toInt() : fallback;
 
 DateTime? _time(Object? v) => switch (v) {
-      Timestamp t => t.toDate(),
-      int ms => DateTime.fromMillisecondsSinceEpoch(ms),
-      _ => null,
-    };
+  Timestamp t => t.toDate(),
+  int ms => DateTime.fromMillisecondsSinceEpoch(ms),
+  _ => null,
+};
 
 Map<String, T> _map<T>(Object? v, T Function(Object? e) f) =>
     (v as Map?)?.map((k, e) => MapEntry(k as String, f(e))) ?? {};
@@ -79,19 +79,21 @@ class GameSettings {
   };
 
   factory GameSettings.fromMap(Map m) => GameSettings(
-        category: Category.values.byName(m['category'] as String? ?? 'telugu'),
-        customNames: List<String>.from(m['customNames'] as List? ?? const []),
-        rounds: _int(m['rounds'], 7),
-        turnSeconds: _int(m['turnSeconds'], 20),
-        difficulty:
-            Difficulty.values.byName(m['difficulty'] as String? ?? 'normal'),
-        timeoutPolicy: TimeoutPolicy.values
-            .byName(m['timeoutPolicy'] as String? ?? 'passIncoming'),
-        winPoints: _int(m['winPoints'], 1000),
-        characters: (m['characters'] as List? ?? const [])
-            .map(CharacterDef.fromMap)
-            .toList(),
-      );
+    category: Category.values.byName(m['category'] as String? ?? 'telugu'),
+    customNames: List<String>.from(m['customNames'] as List? ?? const []),
+    rounds: _int(m['rounds'], 7),
+    turnSeconds: _int(m['turnSeconds'], 20),
+    difficulty: Difficulty.values.byName(
+      m['difficulty'] as String? ?? 'normal',
+    ),
+    timeoutPolicy: TimeoutPolicy.values.byName(
+      m['timeoutPolicy'] as String? ?? 'passIncoming',
+    ),
+    winPoints: _int(m['winPoints'], 1000),
+    characters: (m['characters'] as List? ?? const [])
+        .map(CharacterDef.fromMap)
+        .toList(),
+  );
 }
 
 class PlayerInfo {
@@ -141,14 +143,14 @@ class Standing {
   }
 
   Map<String, Object?> toJson() => {
-        'uid': uid,
-        'name': name,
-        'total': total,
-        'movieWins': movieWins,
-        'rank': rank,
-        'title': title,
-        'left': left,
-      };
+    'uid': uid,
+    'name': name,
+    'total': total,
+    'movieWins': movieWins,
+    'rank': rank,
+    'title': title,
+    'left': left,
+  };
 }
 
 enum RoomStatus { lobby, playing, finished, closed }
@@ -313,17 +315,26 @@ class Round {
       handSizes: _map(m['handSizes'], _int),
       lastAction: la == null
           ? null
-          : LastAction(la['type'] as String, la['fromUid'] as String,
-              la['toUid'] as String, _int(la['turnId'])),
+          : LastAction(
+              la['type'] as String,
+              la['fromUid'] as String,
+              la['toUid'] as String,
+              _int(la['turnId']),
+            ),
       winner: w == null
           ? null
           : RoundWinner(
-              w['uid'] as String, w['movie'] as String, _int(w['points'])),
+              w['uid'] as String,
+              w['movie'] as String,
+              _int(w['points']),
+            ),
       revealAt: _time(m['revealAt']),
       revealedHands: m['revealedHands'] == null
           ? null
-          : _map(m['revealedHands'],
-              (v) => (v as List).map(GameCard.fromMap).toList()),
+          : _map(
+              m['revealedHands'],
+              (v) => (v as List).map(GameCard.fromMap).toList(),
+            ),
       characters: m['characters'] == null
           ? null
           : _map(m['characters'], CharacterDef.fromMap),
@@ -351,8 +362,9 @@ class Hand {
       roundKey: m['roundKey'] as String,
       cards: (m['cards'] as List).map(GameCard.fromMap).toList(),
       incomingCardId: m['incomingCardId'] as String?,
-      character:
-          m['character'] == null ? null : CharacterDef.fromMap(m['character']),
+      character: m['character'] == null
+          ? null
+          : CharacterDef.fromMap(m['character']),
     );
   }
 }

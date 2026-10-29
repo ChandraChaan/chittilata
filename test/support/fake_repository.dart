@@ -77,13 +77,17 @@ class FakeGameRepository implements GameRepository {
   }
 
   @override
-  Future<({String roomId, String code})> joinRoom(String code, String name) async {
+  Future<({String roomId, String code})> joinRoom(
+    String code,
+    String name,
+  ) async {
     await _record('joinRoom:$code:$name');
     return (roomId: 'room1', code: code);
   }
 
   @override
-  Future<void> setReady(String roomId, bool ready) => _record('setReady:$ready');
+  Future<void> setReady(String roomId, bool ready) =>
+      _record('setReady:$ready');
   @override
   Future<void> updateSettings(String roomId, Map<String, Object?> patch) =>
       _record('updateSettings');
@@ -96,15 +100,18 @@ class FakeGameRepository implements GameRepository {
   @override
   Future<void> nextRound(String roomId) => _record('nextRound');
   @override
-  Future<void> passCard(String roomId, String roundKey, int turnId,
-          String cardId, String requestId) =>
-      _record('pass:$turnId:$cardId');
+  Future<void> passCard(
+    String roomId,
+    String roundKey,
+    int turnId,
+    String cardId,
+    String requestId,
+  ) => _record('pass:$turnId:$cardId');
   @override
   Future<void> claimTimeout(String roomId, String roundKey, int turnId) =>
       _record('timeout:$turnId');
   @override
-  Future<void> revealRound(String roomId, String roundKey) =>
-      _record('reveal');
+  Future<void> revealRound(String roomId, String roundKey) => _record('reveal');
   @override
   Future<void> playAgain(String roomId) => _record('playAgain');
 }
@@ -134,30 +141,30 @@ Room makeRoom({
   String? roundKey,
   Map<String, int> totals = const {},
   List<Standing>? standings,
-}) =>
-    Room(
-      id: 'room1',
-      code: 'ABC234',
-      hostUid: host,
-      status: status,
-      memberUids: names.keys.toList(),
-      players: {
-        for (final e in names.entries)
-          e.key: PlayerInfo(
-              uid: e.key,
-              name: e.value,
-              ready: ready[e.key] ?? false,
-              left: false,
-              joinedAt: 0),
-      },
-      settings: defaultSettings,
-      gameNo: 1,
-      currentRound: currentRound,
-      currentRoundKey: roundKey,
-      totals: totals,
-      movieWins: const {},
-      finalStandings: standings,
-    );
+}) => Room(
+  id: 'room1',
+  code: 'ABC234',
+  hostUid: host,
+  status: status,
+  memberUids: names.keys.toList(),
+  players: {
+    for (final e in names.entries)
+      e.key: PlayerInfo(
+        uid: e.key,
+        name: e.value,
+        ready: ready[e.key] ?? false,
+        left: false,
+        joinedAt: 0,
+      ),
+  },
+  settings: defaultSettings,
+  gameNo: 1,
+  currentRound: currentRound,
+  currentRoundKey: roundKey,
+  totals: totals,
+  movieWins: const {},
+  finalStandings: standings,
+);
 
 Round makeRound({
   RoundStatus status = RoundStatus.exchange,
@@ -171,30 +178,30 @@ Round makeRound({
   Map<String, List<GameCard>>? revealed,
   Map<String, CharacterDef>? characters,
   Map<String, int>? scores,
-}) =>
-    Round(
-      key: 'g1r01',
-      gameNo: 1,
-      roundNo: 1,
-      status: status,
-      order: const ['me', 'v', 's', 'k'],
-      turnId: turnId,
-      currentUid: current,
-      nextUid: next,
-      timed: true,
-      turnSeconds: 20,
-      introEndsAt: introEndsAt ?? DateTime.now().subtract(const Duration(seconds: 1)),
-      turnDeadline: deadline ?? DateTime.now().add(const Duration(seconds: 20)),
-      movieNames: const ['RRR', 'Devara', 'Salaar', 'Pushpa 2'],
-      handSizes: const {'me': 4, 'v': 4, 's': 4, 'k': 4},
-      lastAction: null,
-      winner: winner,
-      revealAt: revealAt,
-      revealedHands: revealed,
-      characters: characters,
-      scores: scores,
-      abortedReason: null,
-    );
+}) => Round(
+  key: 'g1r01',
+  gameNo: 1,
+  roundNo: 1,
+  status: status,
+  order: const ['me', 'v', 's', 'k'],
+  turnId: turnId,
+  currentUid: current,
+  nextUid: next,
+  timed: true,
+  turnSeconds: 20,
+  introEndsAt:
+      introEndsAt ?? DateTime.now().subtract(const Duration(seconds: 1)),
+  turnDeadline: deadline ?? DateTime.now().add(const Duration(seconds: 20)),
+  movieNames: const ['RRR', 'Devara', 'Salaar', 'Pushpa 2'],
+  handSizes: const {'me': 4, 'v': 4, 's': 4, 'k': 4},
+  lastAction: null,
+  winner: winner,
+  revealAt: revealAt,
+  revealedHands: revealed,
+  characters: characters,
+  scores: scores,
+  abortedReason: null,
+);
 
 const myCards = [
   GameCard(id: 'c1', name: 'RRR'),

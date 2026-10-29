@@ -109,26 +109,38 @@ class _HomeScreenState extends State<HomeScreen> {
                           tooltip: 'Match history',
                           icon: const Icon(Icons.history_rounded),
                           onPressed: () => Navigator.push(
-                              context, gameRoute(const HistoryScreen())),
+                            context,
+                            gameRoute(const HistoryScreen()),
+                          ),
                         ),
                         IconButton(
                           tooltip: 'Settings',
                           icon: const Icon(Icons.tune_rounded),
                           onPressed: () => Navigator.push(
-                              context, gameRoute(const SettingsScreen())),
+                            context,
+                            gameRoute(const SettingsScreen()),
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: Space.lg),
                     const _Hero(),
                     const SizedBox(height: Space.xl),
-                    Text('Chittilata',
-                        textAlign: TextAlign.center,
-                        style: context.text.displaySmall
-                            ?.copyWith(color: c.marigold)),
-                    Text('చిట్టిలాట · collect four of a kind',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: c.muted, fontWeight: FontWeight.w600)),
+                    Text(
+                      'Chittilata',
+                      textAlign: TextAlign.center,
+                      style: context.text.displaySmall?.copyWith(
+                        color: c.marigold,
+                      ),
+                    ),
+                    Text(
+                      'చిట్టిలాట · collect four of a kind',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: c.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: Space.xxl),
                     TextField(
                       controller: _name,
@@ -158,10 +170,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: Space.lg),
                     TextButton.icon(
                       onPressed: () => Navigator.push(
-                          context, gameRoute(const OnboardingScreen())),
+                        context,
+                        gameRoute(const OnboardingScreen()),
+                      ),
                       icon: Icon(Icons.menu_book_rounded, color: c.teal),
-                      label: Text('How to play',
-                          style: TextStyle(color: c.teal, fontWeight: FontWeight.w800)),
+                      label: Text(
+                        'How to play',
+                        style: TextStyle(
+                          color: c.teal,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -249,15 +268,21 @@ class _JoinSheetState extends State<JoinSheet> {
     final c = context.colors;
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          Space.xl, 0, Space.xl, MediaQuery.of(context).viewInsets.bottom + Space.xl),
+        Space.xl,
+        0,
+        Space.xl,
+        MediaQuery.of(context).viewInsets.bottom + Space.xl,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('Join a room', style: context.text.titleLarge),
           const SizedBox(height: Space.sm),
-          Text('Ask the host for the 6-character room code.',
-              style: TextStyle(color: c.muted)),
+          Text(
+            'Ask the host for the 6-character room code.',
+            style: TextStyle(color: c.muted),
+          ),
           const SizedBox(height: Space.lg),
           TextField(
             controller: _code,
@@ -268,7 +293,8 @@ class _JoinSheetState extends State<JoinSheet> {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
               TextInputFormatter.withFunction(
-                  (_, v) => v.copyWith(text: v.text.toUpperCase())),
+                (_, v) => v.copyWith(text: v.text.toUpperCase()),
+              ),
             ],
             onSubmitted: (_) => _submit(),
             style: context.text.headlineMedium?.copyWith(letterSpacing: 10),
@@ -280,7 +306,11 @@ class _JoinSheetState extends State<JoinSheet> {
           ),
           const SizedBox(height: Space.lg),
           BigButton(
-              label: 'Join', icon: Icons.login_rounded, busy: _busy, onPressed: _submit),
+            label: 'Join',
+            icon: Icons.login_rounded,
+            busy: _busy,
+            onPressed: _submit,
+          ),
         ],
       ),
     );
