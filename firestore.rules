@@ -1,0 +1,65 @@
+rules_version = '2';
+
+// Chittilata security model
+// - Every game mutation goes through Cloud Functions (Admin SDK bypasses rules).
+// - Clients may READ only what they are entitled to and WRITE only their own
+//   presence heartbeat.
+// - Active hands and secret characters are per-player documents readable only
+//   by their owner. The host has no extra read access.
+// - Round documents contain no card identities until the server reveals them.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function room(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data;
+    }
+
+    function isMember(roomId) {
+      return signedIn() && request.auth.uid in room(roomId).memberUids;
+    }
+
+    // Code -> room lookup is server-only so rooms cannot be enumerated.
+    match /roomCodes/{code} {
+      allow read, write: if false;
+    }
+
+    match /rooms/{roomId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+      allow write: if false;
+
+      match /rounds/{roundKey} {
+        allow read: if isMember(roomId);
+        allow write: if false;
+      }
+
+      match /hands/{uid} {
+        allow read: if signedIn() && request.auth.uid == uid && isMember(roomId);
+        allow write: if false;
+      }
+
+      match /presence/{uid} {
+        allow read: if isMember(roomId);
+        allow create, update: if signedIn()
+          && request.auth.uid == uid
+          && isMember(roomId)
+          && request.resource.data.keys().hasOnly(['lastSeen', 'state'])
+          && request.resource.data.lastSeen == request.time
+          && request.resource.data.state in ['foreground', 'background'];
+        allow delete: if false;
+      }
+
+      // Server-only debug log (contains card details).
+      match /audit/{id} {
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
