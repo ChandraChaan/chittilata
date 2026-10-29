@@ -12,6 +12,8 @@ enum Phase {
   loading,
   lobby,
   picking,
+  kqPicking,
+  kqGuessing,
   intro,
   exchange,
   characters,
@@ -81,6 +83,13 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription<Room?>? _roomSub;
   StreamSubscription<Round?>? _roundSub;
   StreamSubscription<Hand?>? _handSub;
+  StreamSubscription<KqRound?>? _kqRoundSub;
+  StreamSubscription<KqMyRole?>? _kqRoleSub;
+
+  /// King & Queen: the public round, my secret role, and who I'm about to guess.
+  KqRound? kqRound;
+  KqMyRole? _kqRole;
+  String? kqSelectedTarget;
   StreamSubscription<Map<String, Presence>>? _presenceSub;
   StreamSubscription<bool>? _connSub;
   Timer? _heartbeat;
@@ -131,6 +140,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (r.status == RoomStatus.lobby) return Phase.lobby;
     if (r.status == RoomStatus.finished) return Phase.finished;
     if (r.status == RoomStatus.tiebreakVote) return Phase.tiebreakVote;
+    if (r.isKq) return _kqPhase(r);
     final rd = round;
     if (rd == null) return Phase.loading;
     // The host started a new round but its document hasn't arrived yet:
@@ -147,6 +157,190 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       RoundStatus.revealed => Phase.results,
       RoundStatus.aborted => Phase.aborted,
     };
+  }
+
+  Phase _kqPhase(Room r) {
+    final kr = kqRound;
+    if (kr == null) return Phase.loading;
+    if (kr.key != r.currentRoundKey) {
+      // Next round requested but not yet loaded: keep the finished round.
+      if (kr.gameNo != r.gameNo) return Phase.loading;
+      return kr.status == KqStatus.aborted ? Phase.aborted : Phase.results;
+    }
+    return switch (kr.status) {
+      KqStatus.picking => Phase.kqPicking,
+      KqStatus.guessing => Phase.kqGuessing,
+      KqStatus.revealed => Phase.results,
+      KqStatus.aborted => Phase.aborted,
+    };
+  }
+
+  /// My King & Queen role, only if it belongs to the round on screen.
+  KqMyRole? get kqRole =>
+      (_kqRole != null &&
+          kqRound != null &&
+          _kqRole!.roundKey == kqRound!.key &&
+          _kqRole!.name != null)
+      ? _kqRole
+      : null;
+
+  bool get kqMyTurn =>
+      phase == Phase.kqGuessing &&
+      kqRound?.guesser == uid &&
+      !now.isBefore(kqRound!.guessOpensAt ?? now) &&
+      kqTurnRemainingMs > -_graceMs;
+
+  int get kqTurnRemainingMs {
+    final d = kqRound?.turnDeadline;
+    return d == null ? 0 : d.difference(now).inMilliseconds;
+  }
+
+  double get kqTurnProgress {
+    final kr = kqRound;
+    if (kr == null || kr.turnSeconds == 0) return 0;
+    return (kqTurnRemainingMs / (kr.turnSeconds * 1000)).clamp(0.0, 1.0);
+  }
+
+  int get kqAnnounceRemainingSeconds {
+    final o = kqRound?.guessOpensAt;
+    if (o == null) return 0;
+    return max(0, (o.difference(now).inMilliseconds / 1000).ceil());
+  }
+
+  bool get kqChitsOpen {
+    final kr = kqRound;
+    return kr != null &&
+        kr.status == KqStatus.picking &&
+        kr.pickOpensAt != null &&
+        !now.isBefore(kr.pickOpensAt!);
+  }
+
+  bool get canKqPick =>
+      kqChitsOpen &&
+      kqRound!.players.contains(uid) &&
+      !kqRound!.picks.containsValue(uid) &&
+      pendingChits.isEmpty;
+
+  int get kqPickRemainingSeconds {
+    final d = kqRound?.pickDeadline;
+    return d == null
+        ? 0
+        : max(0, (d.difference(now).inMilliseconds / 1000).ceil());
+  }
+
+  void _onKqRound(KqRound? kr) {
+    if (kr == null) return;
+    final prev = kqRound;
+    kqRound = kr;
+    if (prev?.turnId != kr.turnId) kqSelectedTarget = null;
+    if (prev != null && prev.key == kr.key) {
+      if (kr.picks.length > prev.picks.length) {
+        feedback.play(Sfx.pick);
+        feedback.selection();
+      }
+      for (final h in kr.history.skip(prev.history.length)) {
+        final who = room?.nameOf(h.guesser) ?? 'Someone';
+        final whom = h.target == uid
+            ? 'you'
+            : (room?.nameOf(h.target) ?? 'someone');
+        final role = kr.chain[(h.step + 1).clamp(0, kr.chain.length - 1)];
+        if (h.correct) {
+          feedback.play(h.kind == 'forced' ? Sfx.pick : Sfx.reveal);
+          feedback.medium();
+          _messages.add(
+            h.kind == 'forced'
+                ? 'Only $whom could be the $role!'
+                : '$who found the $role: $whom!',
+          );
+        } else {
+          feedback.play(Sfx.timeout);
+          feedback.warning();
+          _messages.add(
+            h.kind == 'timeout'
+                ? "Time's up for $who: the game guessed $whom. Wrong, so they swapped roles."
+                : '$who guessed $whom for $role. Wrong! They swapped roles.',
+          );
+        }
+      }
+      if (kr.status == KqStatus.revealed && prev.status != KqStatus.revealed) {
+        feedback.play(Sfx.roundEnd);
+        feedback.heavy();
+      }
+    }
+    notifyListeners();
+  }
+
+  void _onKqRole(KqMyRole? r) {
+    final prev = _kqRole;
+    _kqRole = r;
+    if (r != null &&
+        prev != null &&
+        prev.roundKey == r.roundKey &&
+        prev.index != null &&
+        r.index != null &&
+        prev.index != r.index) {
+      feedback.play(Sfx.unfold);
+      feedback.heavy();
+      _messages.add('You swapped roles: you are now the ${r.name}.');
+    }
+    notifyListeners();
+  }
+
+  void kqSelect(String target) {
+    if (!kqMyTurn || busy || !(kqRound?.candidates.contains(target) ?? false)) {
+      return;
+    }
+    kqSelectedTarget = kqSelectedTarget == target ? null : target;
+    feedback.selection();
+    feedback.play(Sfx.select);
+    notifyListeners();
+  }
+
+  Future<void> kqConfirmGuess() async {
+    final kr = kqRound;
+    final target = kqSelectedTarget;
+    if (kr == null || target == null || !kqMyTurn || busy) return;
+    busy = true;
+    notifyListeners();
+    final requestId =
+        '$uid-${kr.key}-${kr.turnId}-${_rand.nextInt(1 << 32).toRadixString(36)}';
+    feedback.medium();
+    try {
+      await _withRetry(
+        () => repo.kqGuess(roomId, kr.key, kr.turnId, target, requestId),
+      );
+    } on GameException catch (e) {
+      _messages.add(e.message);
+    } finally {
+      busy = false;
+      kqSelectedTarget = null;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> kqPick(String chitId) async {
+    final kr = kqRound;
+    if (kr == null || !canKqPick || kr.picks.containsKey(chitId)) return;
+    if (!pendingChits.add(chitId)) return;
+    feedback.selection();
+    feedback.play(Sfx.pick);
+    notifyListeners();
+    try {
+      final role = await _retryValue(
+        () => repo.kqPickChit(roomId, kr.key, chitId),
+      );
+      revealQueue.add(role);
+      feedback.medium();
+    } on GameException catch (e) {
+      _messages.add(
+        e.code == 'already-exists'
+            ? 'Someone grabbed that chit first!'
+            : e.message,
+      );
+    } finally {
+      pendingChits.remove(chitId);
+      if (!_disposed) notifyListeners();
+    }
   }
 
   /// Milliseconds left on the current turn (negative once expired).
@@ -204,7 +398,19 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     final previous = room;
     room = r;
     final key = r.currentRoundKey;
-    if (key != null && key != _watchingRoundKey) {
+    if (r.isKq) {
+      _kqRoleSub ??= repo
+          .watchMyKqRole(roomId)
+          .listen(_onKqRole, onError: (_) {});
+      if (key != null && key != _watchingRoundKey) {
+        _watchingRoundKey = key;
+        _kqRoundSub?.cancel();
+        kqSelectedTarget = null;
+        _kqRoundSub = repo
+            .watchKqRound(roomId, key)
+            .listen(_onKqRound, onError: (_) {});
+      }
+    } else if (key != null && key != _watchingRoundKey) {
       _watchingRoundKey = key;
       _roundSub?.cancel();
       selectedCardId = null;
@@ -345,7 +551,34 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (rd != null && p == Phase.characters) _maybeReveal(rd);
     if (p == Phase.tiebreakVote) _maybeCloseVote();
+    final kr = kqRound;
+    if (kr != null && p == Phase.kqPicking) {
+      _maybeKqClaim(
+        'kqAuto:${kr.key}',
+        kr.pickDeadline,
+        kr,
+        () => repo.kqAutoPick(roomId, kr.key),
+      );
+    }
+    if (kr != null && p == Phase.kqGuessing) {
+      _maybeKqClaim(
+        'kqTimeout:${kr.key}:${kr.turnId}',
+        kr.turnDeadline,
+        kr,
+        () => repo.kqClaimTimeout(roomId, kr.key, kr.turnId),
+      );
+      if (kqMyTurn && kr.timed) {
+        final s = (kqTurnRemainingMs / 1000).ceil();
+        if (s <= 5 && s > 0 && s != _lastWarnSecond) {
+          _lastWarnSecond = s;
+          feedback.play(Sfx.tick);
+          if (s <= 3) feedback.warning();
+        }
+      }
+    }
     if (p == Phase.picking ||
+        p == Phase.kqPicking ||
+        p == Phase.kqGuessing ||
         p == Phase.intro ||
         p == Phase.exchange ||
         p == Phase.characters ||
@@ -375,6 +608,20 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   ) {
     if (deadline == null) return;
     final idx = max(0, rd.order.indexOf(uid ?? ''));
+    final at = deadline.add(Duration(milliseconds: _graceMs + 300 + idx * 500));
+    if (now.isBefore(at)) return;
+    if (!_claimedReveals.add(key)) return;
+    call().catchError((_) => _claimedReveals.remove(key));
+  }
+
+  void _maybeKqClaim(
+    String key,
+    DateTime? deadline,
+    KqRound kr,
+    Future<void> Function() call,
+  ) {
+    if (deadline == null) return;
+    final idx = max(0, kr.players.indexOf(uid ?? ''));
     final at = deadline.add(Duration(milliseconds: _graceMs + 300 + idx * 500));
     if (now.isBefore(at)) return;
     if (!_claimedReveals.add(key)) return;
@@ -607,6 +854,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<bool> setReady(bool v) => run(() => repo.setReady(roomId, v));
+  Future<bool> updateKqSettings(Map<String, Object?> patch) =>
+      run(() => repo.updateKqSettings(roomId, patch));
   Future<bool> updateSettings(Map<String, Object?> patch) =>
       run(() => repo.updateSettings(roomId, patch));
   Future<bool> kick(String player) =>
@@ -635,7 +884,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
         key: '${r.id}-${r.gameNo}',
         playedAt: DateTime.now(),
         rounds: r.currentRound,
-        category: r.settings.category.name,
+        category: r.isKq ? 'King & Queen' : r.settings.category.name,
         standings: standings.map((s) => s.toJson()).toList(),
       ),
     );
@@ -648,6 +897,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _roomSub?.cancel();
     _roundSub?.cancel();
     _handSub?.cancel();
+    _kqRoundSub?.cancel();
+    _kqRoleSub?.cancel();
     _presenceSub?.cancel();
     _connSub?.cancel();
     _heartbeat?.cancel();
