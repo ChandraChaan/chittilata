@@ -8,18 +8,21 @@ Chittilata is the traditional Telugu paper-slip game **Chittilu Aata** for phone
 - One player **creates a room** and shares the 6-character **room code**. The others **join with the code** and tap **I'm ready**.
 - The host chooses the settings and starts the game once everyone is ready.
 
-## The slips
+## The slips — picking folded chits
 
 Each round uses **one name per player**, with **four slips of each name**. A four-player game has 4 names × 4 slips = 16 slips.
 
-Every player is dealt **4 slips**. The opening deal is random but fair:
+**Making the chits.** At the start of the round every phone shows the same thing: the names are written on paper slips, folded, gathered into one pile and shuffled, then scattered across a woven mat.
+
+**Picking.** Every player taps **4 folded chits**, in any order, at the same time as everyone else. Each chit you pick unfolds privately on your phone. A chit can only be picked once; if two players reach for the same chit, the first one wins and the other picks again. You have 25 seconds. When time is up, any chits you still need are picked for you at random.
+
+**Fair by design.** Before anyone picks, the server deals every player a fair, random hand:
 
 - With **4 or more players**, every player starts with **4 different names**.
 - With **3 players** there are only 3 names, so each hand is the most varied possible: one name twice and the other two once each.
 - Nobody ever starts with three or four of the same name, so nobody can win before passing begins.
-- Your seat and your device make no difference to what you are dealt.
 
-Only you can see your slips. The game enforces this on the server, not just by hiding them on screen, and the host has no extra access.
+Each chit you pick is bound by the server to the next slip of your own fair hand. So **which chit you pick doesn't change your chances** (nobody can gain an edge by picking) while you still get to choose and unfold your own chits. Only you can see your slips. The game enforces this on the server, not just by hiding them on screen, and the host has no extra access.
 
 ## The passing circle
 
@@ -51,7 +54,7 @@ The first player to hold **4 slips with the same name** wins the round and earns
 
 ## Secret characters
 
-Every other player then secretly receives one **character card**, which only they can see until the reveal:
+The other players then pick their **character chits**. One character is written on each folded chit (for example Queen 800, Police 500, Thief 100), sealed and shuffled by the server. Each non-winner taps **one** chit and it unfolds privately. **The character inside is exactly what you get.** Nobody sees anyone else's character until the reveal. You have 20 seconds, then any remaining chits are handed out at random. The winner just watches.
 
 | Players in game | Characters used (default points) |
 |---|---|

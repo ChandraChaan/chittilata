@@ -9,11 +9,15 @@ A two-minute guide for friends and family. The complete rules are in [GAME_RULES
 3. Everyone else taps **Join with a code**, enters the code, then taps **I'm ready**.
 4. The host can tap **Edit** to choose the category, difficulty, timer and number of rounds, then taps **Start game**.
 
-## 2. Watch the circle
+## 2. Pick your chits
+
+Watch the names get written, folded and shuffled onto the mat. When the timer appears, **tap any 4 folded chits**. Each one unfolds just for you and drops into your tray.
+
+## 3. Watch the circle
 
 Each round opens with the **passing circle**: who goes first and who passes to whom. It changes every round.
 
-## 3. Pass your slips
+## 4. Pass your slips
 
 - Your 4 slips are at the bottom of the screen. Only you can see them.
 - When the banner says **Your turn**, tap the slip you want to give away, then tap **Pass to …**.
@@ -21,15 +25,15 @@ Each round opens with the **passing circle**: who goes first and who passes to w
 - Slips you hold three of get a **★**. Aim for four of the same name.
 - Keep an eye on the countdown ring. If it runs out, a slip is passed for you.
 
-## 4. Four of a kind wins
+## 5. Four of a kind wins
 
-Hold four matching slips and you win the round: **+1,000 points** and confetti. Everyone else secretly gets a character such as Queen, Police or Thief, worth different points.
+Hold four matching slips and you win the round: **+1,000 points** and confetti. Everyone else **picks one folded character chit** and unfolds a secret character such as Queen, Police or Thief, worth different points.
 
-## 5. Reveal, score, repeat
+## 6. Reveal, score, repeat
 
 All hands and characters are revealed, the leaderboard updates, and the host starts the next round.
 
-## 6. Crown the King and Queen
+## 7. Crown the King and Queen
 
 After the last round, the top score is **King** and the second is **Queen**. Tap **Play again** (host) for another game with the same group.
 

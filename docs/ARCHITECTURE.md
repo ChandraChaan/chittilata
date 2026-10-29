@@ -42,6 +42,7 @@ Android app (Flutter)                Firebase project: chittilata-game (asia-sou
 | `rounds/{key}` | members | order, current/next player, turn id, server deadlines, movie names, hand **sizes**, winner; **hands, characters and scores appear only after reveal** |
 | `hands/{uid}` | **that player only** | their cards (with stable random card ids), incoming card id, secret character |
 | `presence/{uid}` | members | `lastSeen` (must equal server time), `state` |
+| `secrets/{key}` | nobody (server only) | each player's not-yet-picked slips, chit→card bindings, sealed character chits |
 | `audit/*`, `roomCodes/*` | nobody (server only) | debug log with card details; code → room index |
 
 Because card ids are random per round and never appear in public documents, watching the public round state reveals nothing about which slip moved.
@@ -55,6 +56,18 @@ Because card ids are random per round and never appear in public documents, watc
 - **Server deadlines.** `turnDeadline` and `introEndsAt` are server timestamps. Passes after `deadline + 1s` are rejected. A timeout can only be applied after that point, by any member calling `claimTimeout`. The player after the stuck one asks first and others stagger, so the game keeps moving even if the stuck phone is offline. Clients align their countdown using `serverNow`, which every callable response includes.
 - **Deal validation.** `validateDeal` re-checks every opening deal (counts, uniqueness, diversity, no 3-of-a-kind) before a round starts.
 - **Fair randomness.** Shuffles, deals, circle order, names and characters use Node's `crypto.randomInt` with Fisher–Yates.
+
+## Picking folded chits
+
+A round starts in `picking`. `startRoundTx` deals fair hands with `dealHands` (unchanged rules) and stores each player's hand, shuffled, in `secrets/{key}.deal`. The public round only gets `chits` (4N opaque ids), `picks` (chit → uid), `pickOpensAt` (now + 4 s, the length of the create/fold/shuffle/scatter animation) and `pickDeadline` (+25 s). Hands start empty.
+
+- `pickChit` (transaction): the caller must be in the round, picking must be open, the chit must exist and be free, and the caller must hold fewer than 4. The chit is bound to the next slip of **the caller's own dealt hand**, so the fair-deal guarantees always hold no matter what is picked. A retry of the same chit by the same player returns the same slip (`duplicate: true`). A chit already taken fails with `already-exists`.
+- `autoPickChits` (any member, after deadline + grace) fills the remaining slots with random free chits.
+- When all 4N chits are picked, the round moves to `exchange`, with `introEndsAt` = now + 5 s.
+
+**Character chits.** When someone wins, the server takes the first N−1 configured characters, shuffles them, seals one into each chit (`secrets.characters`) and publishes only `charChits`, `charPickOpensAt` (now + 4 s) and `charPickDeadline` (+20 s). `pickCharacter` lets each non-winner take exactly one chit, and the character inside is what they get. `autoPickCharacters` finishes after the deadline. `revealAt` is set only when every character is picked, and `revealRound` refuses before that.
+
+Chit positions on the mat come from a seeded layout (`chitLayout(roundKey)`), so every phone shows the same table. During the client-side ceremony all chits collapse into one pile before scattering, so nobody can track a chit from its slip.
 
 ## Tie-breaker
 
