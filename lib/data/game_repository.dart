@@ -40,10 +40,29 @@ abstract class GameRepository {
   Future<List<Round>> loadRounds(String roomId, int gameNo);
   Future<void> heartbeat(String roomId, {required bool foreground});
 
-  Future<({String roomId, String code})> createRoom(String name);
+  Future<({String roomId, String code})> createRoom(
+    String name, {
+    GameMode mode = GameMode.movie,
+  });
   Future<({String roomId, String code})> joinRoom(String code, String name);
   Future<void> setReady(String roomId, bool ready);
   Future<void> updateSettings(String roomId, Map<String, Object?> patch);
+
+  // King & Queen
+  Future<void> updateKqSettings(String roomId, Map<String, Object?> patch);
+  Stream<KqRound?> watchKqRound(String roomId, String roundKey);
+  Stream<KqMyRole?> watchMyKqRole(String roomId);
+  Future<List<KqRound>> loadKqRounds(String roomId, int gameNo);
+  Future<KqRoleDef> kqPickChit(String roomId, String roundKey, String chitId);
+  Future<void> kqAutoPick(String roomId, String roundKey);
+  Future<void> kqGuess(
+    String roomId,
+    String roundKey,
+    int turnId,
+    String targetUid,
+    String requestId,
+  );
+  Future<void> kqClaimTimeout(String roomId, String roundKey, int turnId);
   Future<void> kickPlayer(String roomId, String uid);
   Future<void> leaveRoom(String roomId);
   Future<void> startGame(String roomId);
@@ -189,10 +208,87 @@ class FirebaseGameRepository implements GameRepository {
       });
 
   @override
-  Future<({String roomId, String code})> createRoom(String name) async {
-    final r = await _call('createRoom', {'name': name});
+  Future<({String roomId, String code})> createRoom(
+    String name, {
+    GameMode mode = GameMode.movie,
+  }) async {
+    final r = await _call('createRoom', {'name': name, 'mode': mode.name});
     return (roomId: r['roomId'] as String, code: r['code'] as String);
   }
+
+  @override
+  Future<void> updateKqSettings(String roomId, Map<String, Object?> patch) =>
+      _call('updateSettings', {'roomId': roomId, 'kqSettings': patch});
+
+  @override
+  Stream<KqRound?> watchKqRound(String roomId, String roundKey) => _room(roomId)
+      .collection('kqRounds')
+      .doc(roundKey)
+      .snapshots()
+      .map((s) => s.exists ? KqRound.fromMap(s.id, s.data()!) : null);
+
+  @override
+  Stream<KqMyRole?> watchMyKqRole(String roomId) => _room(roomId)
+      .collection('kqRoles')
+      .doc(uid)
+      .snapshots()
+      .map((s) => s.exists ? KqMyRole.fromMap(s.data()!) : null);
+
+  @override
+  Future<List<KqRound>> loadKqRounds(String roomId, int gameNo) async {
+    final q = await _room(
+      roomId,
+    ).collection('kqRounds').where('gameNo', isEqualTo: gameNo).get();
+    return q.docs.map((d) => KqRound.fromMap(d.id, d.data())).toList()
+      ..sort((a, b) => a.roundNo.compareTo(b.roundNo));
+  }
+
+  @override
+  Future<KqRoleDef> kqPickChit(
+    String roomId,
+    String roundKey,
+    String chitId,
+  ) async {
+    final r = await _call('kqPickChit', {
+      'roomId': roomId,
+      'roundKey': roundKey,
+      'chitId': chitId,
+    });
+    final role = r['role'] as Map;
+    return KqRoleDef(
+      key: '${role['index']}',
+      name: role['name'] as String,
+      points: (role['points'] as num).toInt(),
+      core: false,
+    );
+  }
+
+  @override
+  Future<void> kqAutoPick(String roomId, String roundKey) =>
+      _call('kqAutoPick', {'roomId': roomId, 'roundKey': roundKey});
+
+  @override
+  Future<void> kqGuess(
+    String roomId,
+    String roundKey,
+    int turnId,
+    String targetUid,
+    String requestId,
+  ) => _call('kqGuess', {
+    'roomId': roomId,
+    'roundKey': roundKey,
+    'turnId': turnId,
+    'targetUid': targetUid,
+    'requestId': requestId,
+  });
+
+  @override
+  Future<void> kqClaimTimeout(String roomId, String roundKey, int turnId) =>
+      _call('kqClaimTimeout', {
+        'roomId': roomId,
+        'roundKey': roundKey,
+        'turnId': turnId,
+      });
 
   @override
   Future<({String roomId, String code})> joinRoom(
