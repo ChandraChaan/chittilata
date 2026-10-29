@@ -4,6 +4,8 @@ export interface StandingInput {
   total: number;
   movieWins: number;
   left?: boolean;
+  /** Points from a tie-breaker round, only for players who played one. */
+  tiebreak?: number;
 }
 
 export type Title = "King" | "Queen" | null;
@@ -18,17 +20,21 @@ export interface Standing extends StandingInput {
  * Final ranking. Tie-break rule (documented in the game rules):
  *   1. Higher total points.
  *   2. More movie-phase wins.
- *   3. Still equal: the players share the rank (and the title).
+ *   3. If the tied players chose to play a tie-breaker round: higher points
+ *      in that round.
+ *   4. Still equal: the players share the rank (and the title).
  * Everyone at rank 1 is King. Everyone at the next rank is Queen.
  * Names only order tied players for display, never decide a rank.
  */
 export function rankPlayers(players: StandingInput[]): Standing[] {
+  const tb = (p: StandingInput) => p.tiebreak ?? -1;
   const sorted = players
     .slice()
     .sort(
       (a, b) =>
         b.total - a.total ||
         b.movieWins - a.movieWins ||
+        tb(b) - tb(a) ||
         a.name.localeCompare(b.name),
     );
   const out: Standing[] = [];
@@ -36,7 +42,7 @@ export function rankPlayers(players: StandingInput[]): Standing[] {
   let distinct = 0;
   sorted.forEach((p, i) => {
     const prev = sorted[i - 1];
-    if (!prev || prev.total !== p.total || prev.movieWins !== p.movieWins) {
+    if (!prev || prev.total !== p.total || prev.movieWins !== p.movieWins || tb(prev) !== tb(p)) {
       rank = i + 1;
       distinct++;
     }
@@ -58,4 +64,19 @@ export function roundScores(
     scores[uid] = uid === winnerUid ? winPoints : (characters[uid]?.points ?? 0);
   }
   return scores;
+}
+
+/**
+ * The tie that decides a title, if any: players sharing King, otherwise
+ * players sharing Queen. Players who left cannot take part in a tie-breaker,
+ * so ties involving them are not offered one.
+ */
+export function titleTie(standings: Standing[]): { title: "King" | "Queen"; uids: string[] } | null {
+  for (const title of ["King", "Queen"] as const) {
+    const group = standings.filter((s) => s.title === title);
+    if (group.length > 1) {
+      return group.some((s) => s.left) ? null : { title, uids: group.map((s) => s.uid) };
+    }
+  }
+  return null;
 }

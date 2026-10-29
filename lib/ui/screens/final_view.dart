@@ -87,7 +87,8 @@ class _FinalViewState extends State<FinalView> {
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       subtitle: Text(
-                        '${s.movieWins} movie win${s.movieWins == 1 ? '' : 's'}',
+                        '${s.movieWins} movie win${s.movieWins == 1 ? '' : 's'}'
+                        '${s.tiebreak == null ? '' : ' · tie-breaker ${s.tiebreak}'}',
                         style: TextStyle(color: c.muted),
                       ),
                       trailing: Text(
@@ -118,10 +119,18 @@ class _FinalViewState extends State<FinalView> {
               },
             ),
             const SizedBox(height: Space.sm),
-            Text(
-              'Ties: most points, then most movie wins. Players still tied share the title.',
-              style: TextStyle(color: c.muted, fontSize: 12),
-            ),
+            Text(switch (room.tiebreak?.stage) {
+              'done' =>
+                'The ${room.tiebreak!.title} tie was settled by a tie-breaker '
+                    'round (TB). Its points don\'t count toward totals.',
+              'declined' =>
+                'The tied players chose to share the ${room.tiebreak!.title} title.',
+              'cancelled' =>
+                'A tied player left, so the ${room.tiebreak!.title} title is shared.',
+              _ =>
+                'Ties: most points, then most movie wins. Players still tied '
+                    'share the title.',
+            }, style: TextStyle(color: c.muted, fontSize: 12)),
             const SizedBox(height: Space.xl),
             if (ctrl.isHost)
               BigButton(
@@ -259,7 +268,10 @@ class _RoundTable extends StatelessWidget {
               columns: [
                 const DataColumn(label: Text('Player')),
                 for (final r in rounds)
-                  DataColumn(numeric: true, label: Text('R${r.roundNo}')),
+                  DataColumn(
+                    numeric: true,
+                    label: Text(r.tiebreak ? 'TB' : 'R${r.roundNo}'),
+                  ),
                 const DataColumn(numeric: true, label: Text('Total')),
               ],
               rows: [
@@ -270,7 +282,8 @@ class _RoundTable extends StatelessWidget {
                       for (final r in rounds)
                         DataCell(
                           Text(
-                            r.status == RoundStatus.aborted
+                            r.status == RoundStatus.aborted ||
+                                    (r.tiebreak && !r.order.contains(s.uid))
                                 ? '—'
                                 : '${r.scores?[s.uid] ?? 0}',
                             style: r.winner?.uid == s.uid

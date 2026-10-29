@@ -48,9 +48,11 @@ export const passCard = callable("passCard", ops.passCard);
 export const claimTimeout = callable("claimTimeout", ops.claimTimeout);
 export const revealRound = callable("revealRound", ops.revealRound);
 export const playAgain = callable("playAgain", ops.playAgain);
+export const tiebreakVote = callable("tiebreakVote", ops.tiebreakVote);
+export const resolveTiebreakVote = callable("resolveTiebreakVote", ops.resolveTiebreakVote);
 export const ping = callable("ping", async () => ({}));
 
 export const expireRooms = onSchedule({ schedule: "every 6 hours", timeZone: "Asia/Kolkata" }, async () => {
-  const closed = await ops.expireRooms(deps(), ROOM_TTL_HOURS * 3600 * 1000);
-  logger.info("expireRooms", { closed });
+  const result = await ops.expireRooms(deps(), ROOM_TTL_HOURS * 3600 * 1000);
+  logger.info("expireRooms", result);
 });

@@ -26,7 +26,7 @@ describe("buildDeck", () => {
 });
 
 describe("dealHands", () => {
-  for (let players = 3; players <= 10; players++) {
+  for (let players = 2; players <= 10; players++) {
     it(`deals valid diverse hands for ${players} players across many seeds`, () => {
       const { maxCopies, minDistinct } = dealConstraints(players);
       for (let seed = 0; seed < 200; seed++) {
@@ -89,7 +89,7 @@ describe("dealHands", () => {
   });
 
   it("rejects unsupported player counts explicitly", () => {
-    expect(() => dealConstraints(2)).toThrow(GameError);
+    expect(() => dealConstraints(1)).toThrow(GameError);
     expect(() => dealConstraints(11)).toThrow(GameError);
     const rng = seededRng(1);
     expect(() => dealHands(buildDeck(names(4), rng), 5, rng)).toThrow(/Deck has 16/);

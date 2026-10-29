@@ -7,6 +7,8 @@
  *   Join an existing room:   node scripts/bots.mjs --code ABC234 --count 3
  *   Host a full bot game:    node scripts/bots.mjs --create --count 4 --rounds 2
  *   Against emulators:       add --emulator
+ *   Force a Queen tie:       --create --rounds 1 --force-tie   (Queen and Police both worth 500)
+ *   Tie-breaker vote:        --tiebreak accept|decline (default accept)
  *
  * The Firebase web config below is a public client identifier, not a secret.
  */
@@ -65,7 +67,7 @@ function chooseCard(cards) {
 }
 
 async function runBot(i, { code, roomId: knownRoomId, host }) {
-  const name = host ? "HostBot" : NAMES[i % NAMES.length];
+  const name = host ? opt("host-name", "HostBot") : NAMES[i % NAMES.length];
   const { auth, db, call } = makeClient(i);
   const { user } = await signInAnonymously(auth);
   const uid = user.uid;
@@ -75,7 +77,16 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
     const r = await call("createRoom", { name });
     roomId = r.roomId;
     code = r.code;
-    await call("updateSettings", { roomId, settings: { rounds: ROUNDS, turnSeconds: 15 } });
+    const settings = { rounds: ROUNDS, turnSeconds: 15 };
+    if (flag("force-tie")) {
+      settings.characters = [
+        { name: "Queen", points: 500 },
+        { name: "Police", points: 500 },
+        { name: "Thief", points: 100 },
+        { name: "Minister", points: 700 },
+      ];
+    }
+    await call("updateSettings", { roomId, settings });
     log(name, `created room ${code}`);
   } else {
     roomId = (await call("joinRoom", { code, name })).roomId;
@@ -112,10 +123,16 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
     onSnapshot(doc(db, `rooms/${roomId}`), (s) => {
       room = s.data();
       if (!room) return;
+      if (room.status === "tiebreakVote" && room.tiebreak?.uids.includes(uid) && !advanced.has("vote")) {
+        advanced.add("vote");
+        const accept = opt("tiebreak", "accept") === "accept";
+        log(name, `tied for ${room.tiebreak.title}; voting ${accept ? "for" : "against"} a tie-breaker`);
+        setTimeout(() => call("tiebreakVote", { roomId, accept }).catch((e) => log(name, `vote: ${e.message}`)), 1500 + i * 700);
+      }
       if (room.status === "finished" && !advanced.has("final")) {
         advanced.add("final");
-        const king = room.final.filter((p) => p.title === "King").map((p) => p.name);
-        log(name, `game finished. King: ${king.join(" & ")}`);
+        const title = (t) => room.final.filter((p) => p.title === t).map((p) => `${p.name} ${p.total}${p.tiebreak !== undefined ? ` (TB ${p.tiebreak})` : ""}`);
+        log(name, `game finished (tie-breaker: ${room.tiebreak?.stage ?? "none"}). King: ${title("King").join(" & ")}; Queen: ${title("Queen").join(" & ")}`);
         setTimeout(resolve, 1500);
       }
       if (room.currentRoundKey && room.currentRoundKey !== watchingKey) {

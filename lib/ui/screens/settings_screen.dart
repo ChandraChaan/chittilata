@@ -1,8 +1,13 @@
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 
 import '../../app.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/common.dart';
+
+/// Only builds made with --dart-define=CRASH_TEST=true show the test-crash
+/// button used to verify Crashlytics end to end.
+const _crashTestBuild = bool.fromEnvironment('CRASH_TEST');
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -70,6 +75,18 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: Space.lg),
+                if (_crashTestBuild) ...[
+                  OutlinedButton(
+                    onPressed: () => FirebaseCrashlytics.instance.crash(),
+                    child: const Text('Send test crash (verification build)'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () =>
+                        throw StateError('Crashlytics verification (Dart)'),
+                    child: const Text('Throw test Dart error'),
+                  ),
+                  const SizedBox(height: Space.lg),
+                ],
                 Panel(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

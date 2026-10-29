@@ -302,6 +302,11 @@ describe("full game", () => {
       if (n < 2) ({ roundKey } = await ops.nextRound(deps(), "u0", { roomId }));
     }
 
+    if ((await room(roomId)).status === "tiebreakVote") {
+      // Random play happened to tie; decline so this test checks the plain finish.
+      const tied = (await room(roomId)).tiebreak!.uids[0];
+      await ops.tiebreakVote(deps(), tied, { roomId, accept: false });
+    }
     const final = await room(roomId);
     expect(final.status).toBe("finished");
     expect(final.final).toHaveLength(4);
@@ -336,8 +341,116 @@ describe("full game", () => {
   it("closes stale rooms", async () => {
     const { roomId, code } = await lobby(3);
     clock += 25 * 3600 * 1000;
-    expect(await ops.expireRooms(deps(), 24 * 3600 * 1000)).toBe(1);
+    expect(await ops.expireRooms(deps(), 24 * 3600 * 1000)).toEqual({ closed: 1, deleted: 0 });
     expect((await room(roomId)).status).toBe("closed");
     await expectCode(ops.joinRoom(deps(), "z", { code, name: "Z" }), "not-found");
+    // A week after closing, the room and its private subcollections are deleted.
+    await db.doc(`rooms/${roomId}/hands/u1`).set({ cards: [] });
+    clock += 8 * 24 * 3600 * 1000;
+    expect(await ops.expireRooms(deps(), 24 * 3600 * 1000)).toEqual({ closed: 0, deleted: 1 });
+    expect((await db.doc(`rooms/${roomId}`).get()).exists).toBe(false);
+    expect((await db.doc(`rooms/${roomId}/hands/u1`).get()).exists).toBe(false);
+  });
+});
+
+describe("tie-breaker", () => {
+  /** Plays a 1-round game and rigs totals so the winner ties another player for King. */
+  async function tiedGame() {
+    const { roomId, uids } = await lobby(4);
+    await ops.updateSettings(deps(), "u0", { roomId, settings: { rounds: 1 } });
+    const { roundKey } = await ops.startGame(deps(), "u0", { roomId });
+    clock += 6000;
+    const won = await playUntilWin(roomId, roundKey);
+    const winner = won.winner!.uid;
+    const rival = uids.find((u) => u !== winner)!;
+    const rivalChar = (await hand(roomId, rival)).character!.points;
+    const totals = Object.fromEntries(uids.map((u) => [u, 0]));
+    totals[winner] = 1000;
+    totals[rival] = 1000 - rivalChar;
+    const movieWins = Object.fromEntries(uids.map((u) => [u, 0]));
+    movieWins[winner] = 1;
+    movieWins[rival] = 1;
+    await db.doc(`rooms/${roomId}`).update({ totals, movieWins });
+    clock = won.revealAt!.toMillis() + 1;
+    await ops.revealRound(deps(), "u0", { roomId, roundKey });
+    return { roomId, uids, winner, rival, others: uids.filter((u) => u !== winner && u !== rival) };
+  }
+
+  it("offers a vote to the tied players and keeps shared titles if anyone declines", async () => {
+    const { roomId, winner, rival, others } = await tiedGame();
+    const r = await room(roomId);
+    expect(r.status).toBe("tiebreakVote");
+    expect(r.tiebreak!.title).toBe("King");
+    expect(r.tiebreak!.uids.slice().sort()).toEqual([winner, rival].sort());
+    expect(r.final!.filter((s) => s.title === "King")).toHaveLength(2);
+
+    await expectCode(ops.tiebreakVote(deps(), others[0], { roomId, accept: true }), "permission-denied");
+    expect((await ops.tiebreakVote(deps(), winner, { roomId, accept: true })).outcome).toBe("waiting");
+    expect((await ops.tiebreakVote(deps(), rival, { roomId, accept: false })).outcome).toBe("declined");
+    const done = await room(roomId);
+    expect(done.status).toBe("finished");
+    expect(done.tiebreak!.stage).toBe("declined");
+    expect(done.final!.filter((s) => s.title === "King")).toHaveLength(2);
+    expect(done.final!.filter((s) => s.rank === 1)).toHaveLength(2);
+  });
+
+  it("runs an extra round among only the tied players when all accept", async () => {
+    const { roomId, winner, rival, others } = await tiedGame();
+    const before = await room(roomId);
+    const otherHand = await hand(roomId, others[0]);
+    await ops.tiebreakVote(deps(), winner, { roomId, accept: true });
+    const started = await ops.tiebreakVote(deps(), rival, { roomId, accept: true });
+    expect(started.outcome).toBe("started");
+
+    const r = await room(roomId);
+    expect(r.status).toBe("playing");
+    expect(r.tiebreak!.stage).toBe("playing");
+    const key = r.currentRoundKey!;
+    const tbRound = await round(roomId, key);
+    expect(tbRound.tiebreak).toBe(true);
+    expect(tbRound.order.slice().sort()).toEqual([winner, rival].sort());
+    expect(tbRound.movieNames).toHaveLength(2);
+    expect((await hand(roomId, winner)).cards).toHaveLength(4);
+    // Spectators keep their old (revealed) hand; they are not dealt in.
+    expect((await hand(roomId, others[0])).roundKey).toBe(otherHand.roundKey);
+    await expectCode(ops.nextRound(deps(), "u0", { roomId }), "failed-precondition");
+
+    clock += 6000;
+    const won = await playUntilWin(roomId, key);
+    clock = won.revealAt!.toMillis() + 1;
+    await ops.revealRound(deps(), others[0], { roomId, roundKey: key }); // a spectator may trigger it
+
+    const done = await room(roomId);
+    expect(done.status).toBe("finished");
+    expect(done.tiebreak!.stage).toBe("done");
+    expect(done.totals).toEqual(before.totals); // tie-breaker points never reach totals
+    expect(done.movieWins).toEqual(before.movieWins);
+    const tbWinner = won.winner!.uid;
+    expect(done.tiebreakScores![tbWinner]).toBe(1000);
+    const kings = done.final!.filter((s) => s.title === "King");
+    expect(kings.map((k) => k.uid)).toEqual([tbWinner]);
+    expect(done.final!.find((s) => s.title === "Queen")!.uid).toBe(tbWinner === winner ? rival : winner);
+    // Not offered a second time.
+    expect(done.final!.filter((s) => s.rank === 1)).toHaveLength(1);
+  });
+
+  it("closes the vote after the deadline; silence counts as no", async () => {
+    const { roomId, others } = await tiedGame();
+    await expectCode(ops.resolveTiebreakVote(deps(), others[0], { roomId }), "failed-precondition");
+    clock += 31_000;
+    await expectCode(
+      ops.tiebreakVote(deps(), (await room(roomId)).tiebreak!.uids[0], { roomId, accept: true }),
+      "failed-precondition",
+    );
+    expect((await ops.resolveTiebreakVote(deps(), others[0], { roomId })).outcome).toBe("declined");
+    expect((await room(roomId)).status).toBe("finished");
+  });
+
+  it("a tied player leaving cancels the tie-breaker and keeps shared titles", async () => {
+    const { roomId, rival } = await tiedGame();
+    await ops.leaveRoom(deps(), rival, { roomId });
+    const r = await room(roomId);
+    expect(r.status).toBe("finished");
+    expect(r.tiebreak!.stage).toBe("cancelled");
   });
 });

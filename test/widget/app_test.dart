@@ -340,6 +340,35 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('starting the next round keeps results up instead of a loader', (
+    tester,
+  ) async {
+    repo.emitRoom(
+      makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'),
+    );
+    repo.emitRound(
+      makeRound(
+        status: RoundStatus.revealed,
+        winner: const RoundWinner('v', 'RRR', 1000),
+        revealed: {'me': myCards, 'v': myCards, 's': myCards, 'k': myCards},
+        characters: const {},
+        scores: const {'me': 0, 'v': 1000, 's': 0, 'k': 0},
+      ),
+    );
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Round results'), findsOneWidget);
+
+    // Host starts round 2: the room points at g1r02 before its round arrives.
+    repo.emitRoom(
+      makeRoom(status: RoomStatus.playing, currentRound: 2, roundKey: 'g1r02'),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Loading room…'), findsNothing);
+    expect(find.text('Round results'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('final ceremony crowns King and Queen and saves history', (
     tester,
   ) async {
@@ -399,6 +428,160 @@ void main() {
     await tester.scrollUntilVisible(find.text('Play again'), 300);
     expect(find.text('Play again'), findsOneWidget);
     expect(prefs.history.single.standings.first['name'], 'Vasavi');
+    await unmount(tester);
+  });
+
+  const tiedStandings = [
+    Standing(
+      uid: 'me',
+      name: 'Chandra',
+      total: 3000,
+      movieWins: 1,
+      rank: 1,
+      title: 'King',
+      left: false,
+    ),
+    Standing(
+      uid: 'v',
+      name: 'Vasavi',
+      total: 3000,
+      movieWins: 1,
+      rank: 1,
+      title: 'King',
+      left: false,
+    ),
+    Standing(
+      uid: 's',
+      name: 'Swetha',
+      total: 2000,
+      movieWins: 1,
+      rank: 3,
+      title: 'Queen',
+      left: false,
+    ),
+    Standing(
+      uid: 'k',
+      name: 'Sai',
+      total: 100,
+      movieWins: 0,
+      rank: 4,
+      title: null,
+      left: false,
+    ),
+  ];
+
+  TiebreakInfo tie({Map<String, bool> votes = const {}, DateTime? deadline}) =>
+      TiebreakInfo(
+        title: 'King',
+        uids: const ['me', 'v'],
+        votes: votes,
+        deadline: deadline ?? DateTime.now().add(const Duration(seconds: 30)),
+        stage: 'vote',
+      );
+
+  testWidgets('tied players are asked whether to play a tie-breaker', (
+    tester,
+  ) async {
+    repo.emitRoom(
+      makeRoom(
+        status: RoomStatus.tiebreakVote,
+        currentRound: 7,
+        standings: tiedStandings,
+        tiebreak: tie(),
+      ),
+    );
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text("It's a tie for King!"), findsOneWidget);
+    expect(find.text('Play tie-breaker'), findsOneWidget);
+    await tester.tap(find.text('Play tie-breaker'));
+    await tester.pump();
+    expect(repo.calls, ['tiebreakVote:true']);
+
+    repo.emitRoom(
+      makeRoom(
+        status: RoomStatus.tiebreakVote,
+        currentRound: 7,
+        standings: tiedStandings,
+        tiebreak: tie(votes: {'me': true}),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Waiting for the others to decide…'), findsOneWidget);
+    expect(find.text('Wants a tie-breaker'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('a tied player can choose to share the title', (tester) async {
+    repo.emitRoom(
+      makeRoom(
+        status: RoomStatus.tiebreakVote,
+        currentRound: 7,
+        standings: tiedStandings,
+        tiebreak: tie(),
+      ),
+    );
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Share the title'));
+    await tester.pump();
+    expect(repo.calls, ['tiebreakVote:false']);
+    await unmount(tester);
+  });
+
+  testWidgets('other players wait, and close the vote after its deadline', (
+    tester,
+  ) async {
+    repo = FakeGameRepository(me: 's');
+    repo.emitRoom(
+      makeRoom(
+        status: RoomStatus.tiebreakVote,
+        currentRound: 7,
+        standings: tiedStandings,
+        tiebreak: tie(
+          deadline: DateTime.now().subtract(const Duration(seconds: 5)),
+        ),
+      ),
+    );
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Play tie-breaker'), findsNothing);
+    expect(
+      find.textContaining('The tied players are deciding'),
+      findsOneWidget,
+    );
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(repo.calls, ['resolveTiebreak']);
+    await unmount(tester);
+  });
+
+  testWidgets('non-tied players watch the tie-breaker round', (tester) async {
+    repo = FakeGameRepository(me: 's');
+    repo.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 8,
+        roundKey: 'g1r01',
+        tiebreak: TiebreakInfo(
+          title: 'King',
+          uids: const ['me', 'v'],
+          votes: const {'me': true, 'v': true},
+          deadline: DateTime.now(),
+          stage: 'playing',
+        ),
+      ),
+    );
+    repo.emitRound(makeRound(order: const ['me', 'v'], tiebreak: true));
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('TIE-BREAKER'), findsOneWidget);
+    expect(find.text('You are watching the tie-breaker'), findsOneWidget);
+    expect(
+      find.text('Chandra and Vasavi are playing for the King.'),
+      findsOneWidget,
+    );
     await unmount(tester);
   });
 

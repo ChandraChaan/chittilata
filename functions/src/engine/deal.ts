@@ -5,7 +5,7 @@ import {
   GameError,
   HAND_SIZE,
   MAX_PLAYERS,
-  MIN_PLAYERS,
+  MIN_DEAL_PLAYERS,
   Rng,
 } from "./types";
 
@@ -16,6 +16,7 @@ import {
  * - N >= 4: every hand holds 4 different names (max 1 copy per name).
  * - N == 3: only 3 names exist, so 4 different names is impossible. The most
  *   diverse legal hand is 2+1+1: three different names, at most 2 copies.
+ * - N == 2 (tie-breaker rounds only): each hand is 2+2.
  * In every case no player can start with 3 or 4 copies of a name, so nobody
  * can win before the first pass.
  */
@@ -23,10 +24,10 @@ export function dealConstraints(playerCount: number): {
   maxCopies: number;
   minDistinct: number;
 } {
-  if (playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
+  if (playerCount < MIN_DEAL_PLAYERS || playerCount > MAX_PLAYERS) {
     throw new GameError(
       "invalid-argument",
-      `Chittilata needs ${MIN_PLAYERS}-${MAX_PLAYERS} players.`,
+      `A round needs ${MIN_DEAL_PLAYERS}-${MAX_PLAYERS} players.`,
     );
   }
   return playerCount >= HAND_SIZE

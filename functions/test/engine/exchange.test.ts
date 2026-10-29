@@ -12,6 +12,7 @@ import {
   mergeSettings,
   nextPlayer,
   rankPlayers,
+  titleTie,
   roundScores,
   seededRng,
   shuffle,
@@ -191,6 +192,48 @@ describe("scoring", () => {
       ["a", 1, "King"],
       ["c", 3, "Queen"],
     ]);
+  });
+
+  it("a tie-breaker result orders tied players without touching totals", () => {
+    const r = rankPlayers([
+      { uid: "a", name: "Amy", total: 3000, movieWins: 1, tiebreak: 100 },
+      { uid: "b", name: "Bo", total: 3000, movieWins: 1, tiebreak: 1000 },
+      { uid: "c", name: "Cy", total: 2000, movieWins: 0 },
+    ]);
+    expect(r.map((p) => [p.uid, p.rank, p.title, p.total])).toEqual([
+      ["b", 1, "King", 3000],
+      ["a", 2, "Queen", 3000],
+      ["c", 3, null, 2000],
+    ]);
+  });
+
+  it("finds the tie that decides a title", () => {
+    const kings = rankPlayers([
+      { uid: "a", name: "A", total: 3000, movieWins: 1 },
+      { uid: "b", name: "B", total: 3000, movieWins: 1 },
+      { uid: "c", name: "C", total: 100, movieWins: 0 },
+    ]);
+    expect(titleTie(kings)).toEqual({ title: "King", uids: ["a", "b"] });
+    const queens = rankPlayers([
+      { uid: "a", name: "A", total: 5000, movieWins: 2 },
+      { uid: "b", name: "B", total: 3000, movieWins: 1 },
+      { uid: "c", name: "C", total: 3000, movieWins: 1 },
+      { uid: "d", name: "D", total: 100, movieWins: 0 },
+    ]);
+    expect(titleTie(queens)).toEqual({ title: "Queen", uids: ["b", "c"] });
+    const none = rankPlayers([
+      { uid: "a", name: "A", total: 5000, movieWins: 2 },
+      { uid: "b", name: "B", total: 3000, movieWins: 1 },
+      { uid: "c", name: "C", total: 100, movieWins: 0 },
+      { uid: "d", name: "D", total: 100, movieWins: 0 },
+    ]);
+    expect(titleTie(none)).toBeNull();
+    const withLeaver = rankPlayers([
+      { uid: "a", name: "A", total: 3000, movieWins: 1, left: true },
+      { uid: "b", name: "B", total: 3000, movieWins: 1 },
+      { uid: "c", name: "C", total: 100, movieWins: 0 },
+    ]);
+    expect(titleTie(withLeaver)).toBeNull();
   });
 
   it("accumulates round scores correctly", () => {

@@ -120,6 +120,7 @@ class Standing {
     required this.rank,
     required this.title,
     required this.left,
+    this.tiebreak,
   });
   final String uid;
   final String name;
@@ -128,6 +129,9 @@ class Standing {
   final int rank;
   final String? title;
   final bool left;
+
+  /// Points from a tie-breaker round, for players who played one.
+  final int? tiebreak;
 
   factory Standing.fromMap(Object? o) {
     final m = o as Map;
@@ -139,6 +143,7 @@ class Standing {
       rank: _int(m['rank'], 1),
       title: m['title'] as String?,
       left: m['left'] == true,
+      tiebreak: (m['tiebreak'] as num?)?.toInt(),
     );
   }
 
@@ -150,10 +155,37 @@ class Standing {
     'rank': rank,
     'title': title,
     'left': left,
+    'tiebreak': tiebreak,
   };
 }
 
-enum RoomStatus { lobby, playing, finished, closed }
+enum RoomStatus { lobby, playing, tiebreakVote, finished, closed }
+
+/// A tie for King or Queen after the last round, and the tied players' vote.
+class TiebreakInfo {
+  const TiebreakInfo({
+    required this.title,
+    required this.uids,
+    required this.votes,
+    required this.deadline,
+    required this.stage,
+  });
+  final String title;
+  final List<String> uids;
+  final Map<String, bool> votes;
+  final DateTime deadline;
+
+  /// vote | playing | declined | done | cancelled
+  final String stage;
+
+  factory TiebreakInfo.fromMap(Map m) => TiebreakInfo(
+    title: m['title'] as String? ?? 'King',
+    uids: List<String>.from(m['uids'] as List? ?? const []),
+    votes: _map(m['votes'], (v) => v == true),
+    deadline: _time(m['deadline']) ?? DateTime.now(),
+    stage: m['stage'] as String? ?? 'vote',
+  );
+}
 
 class Room {
   const Room({
@@ -170,6 +202,8 @@ class Room {
     required this.totals,
     required this.movieWins,
     required this.finalStandings,
+    this.tiebreak,
+    this.tiebreakScores,
   });
 
   final String id;
@@ -185,6 +219,8 @@ class Room {
   final Map<String, int> totals;
   final Map<String, int> movieWins;
   final List<Standing>? finalStandings;
+  final TiebreakInfo? tiebreak;
+  final Map<String, int>? tiebreakScores;
 
   String nameOf(String uid) => players[uid]?.name ?? 'Player';
 
@@ -223,6 +259,12 @@ class Room {
       totals: _map(m['totals'], _int),
       movieWins: _map(m['movieWins'], _int),
       finalStandings: (m['final'] as List?)?.map(Standing.fromMap).toList(),
+      tiebreak: m['tiebreak'] == null
+          ? null
+          : TiebreakInfo.fromMap(m['tiebreak'] as Map),
+      tiebreakScores: m['tiebreakScores'] == null
+          ? null
+          : _map(m['tiebreakScores'], _int),
     );
   }
 }
@@ -250,6 +292,7 @@ class Round {
     required this.key,
     required this.gameNo,
     required this.roundNo,
+    this.tiebreak = false,
     required this.status,
     required this.order,
     required this.turnId,
@@ -273,6 +316,9 @@ class Round {
   final String key;
   final int gameNo;
   final int roundNo;
+
+  /// An extra round among tied players; its points never reach totals.
+  final bool tiebreak;
   final RoundStatus status;
   final List<String> order;
   final int turnId;
@@ -302,6 +348,7 @@ class Round {
       key: id,
       gameNo: _int(m['gameNo'], 1),
       roundNo: _int(m['roundNo'], 1),
+      tiebreak: m['tiebreak'] == true,
       status: RoundStatus.values.byName(m['status'] as String),
       order: List<String>.from(m['order'] as List),
       turnId: _int(m['turnId']),

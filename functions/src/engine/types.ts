@@ -55,6 +55,8 @@ export type GameErrorCode =
   | "resource-exhausted";
 
 export const MIN_PLAYERS = 3;
+/** Tie-breaker rounds may be played by just the two tied players. */
+export const MIN_DEAL_PLAYERS = 2;
 export const MAX_PLAYERS = 10;
 export const HAND_SIZE = 4;
 export const COPIES_PER_NAME = 4;

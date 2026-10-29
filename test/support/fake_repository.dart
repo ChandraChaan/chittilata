@@ -114,6 +114,11 @@ class FakeGameRepository implements GameRepository {
   Future<void> revealRound(String roomId, String roundKey) => _record('reveal');
   @override
   Future<void> playAgain(String roomId) => _record('playAgain');
+  @override
+  Future<void> tiebreakVote(String roomId, bool accept) =>
+      _record('tiebreakVote:$accept');
+  @override
+  Future<void> resolveTiebreakVote(String roomId) => _record('resolveTiebreak');
 }
 
 const defaultSettings = GameSettings(
@@ -141,6 +146,7 @@ Room makeRoom({
   String? roundKey,
   Map<String, int> totals = const {},
   List<Standing>? standings,
+  TiebreakInfo? tiebreak,
 }) => Room(
   id: 'room1',
   code: 'ABC234',
@@ -164,10 +170,13 @@ Room makeRoom({
   totals: totals,
   movieWins: const {},
   finalStandings: standings,
+  tiebreak: tiebreak,
 );
 
 Round makeRound({
   RoundStatus status = RoundStatus.exchange,
+  List<String> order = const ['me', 'v', 's', 'k'],
+  bool tiebreak = false,
   String current = 'me',
   String next = 'v',
   int turnId = 0,
@@ -182,8 +191,9 @@ Round makeRound({
   key: 'g1r01',
   gameNo: 1,
   roundNo: 1,
+  tiebreak: tiebreak,
   status: status,
-  order: const ['me', 'v', 's', 'k'],
+  order: order,
   turnId: turnId,
   currentUid: current,
   nextUid: next,

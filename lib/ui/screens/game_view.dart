@@ -94,7 +94,9 @@ class _GameTopBar extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  'ROUND ${room.currentRound} OF ${room.settings.rounds}',
+                  ctrl.round?.tiebreak == true
+                      ? 'TIE-BREAKER'
+                      : 'ROUND ${room.currentRound} OF ${room.settings.rounds}',
                   style: TextStyle(
                     color: c.muted,
                     letterSpacing: 1.5,
@@ -261,6 +263,35 @@ class _HandAreaState extends State<_HandArea> {
     final hand = ctrl.hand;
     final round = ctrl.round!;
     final room = ctrl.room!;
+    if (ctrl.spectating) {
+      final names = round.order.map(room.nameOf).join(' and ');
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(Space.xl),
+        decoration: BoxDecoration(
+          color: c.surface.withValues(alpha: 0.92),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(top: BorderSide(color: c.outline)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.visibility_rounded, color: c.teal, size: 32),
+            const SizedBox(height: Space.sm),
+            Text(
+              'You are watching the tie-breaker',
+              style: context.text.titleMedium,
+            ),
+            const SizedBox(height: Space.xs),
+            Text(
+              '$names are playing for the ${room.tiebreak?.title ?? 'title'}.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: c.muted),
+            ),
+          ],
+        ),
+      );
+    }
     if (hand == null) {
       return const Padding(
         padding: EdgeInsets.all(Space.xl),
@@ -453,7 +484,7 @@ class _IntroOverlay extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'ROUND ${round.roundNo}',
+              round.tiebreak ? 'TIE-BREAKER' : 'ROUND ${round.roundNo}',
               style: context.text.displaySmall?.copyWith(color: c.marigold),
             ),
             const SizedBox(height: Space.sm),
@@ -544,12 +575,20 @@ class _WinnerOverlay extends StatelessWidget {
                   _FourOfAKind(name: w.movie, width: min(70, (width - 80) / 4)),
                   const SizedBox(height: Space.md),
                   Text(
-                    '+${w.points} POINTS',
+                    round.tiebreak
+                        ? 'WINS THE TIE-BREAKER'
+                        : '+${w.points} POINTS',
                     style: context.text.headlineMedium?.copyWith(color: c.leaf),
                   ),
                   const SizedBox(height: Space.xl),
                   if (!iWon && myChar != null)
                     _CharacterCard(character: myChar),
+                  if (ctrl.spectating)
+                    Text(
+                      'The tie-breaker is decided!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: c.muted),
+                    ),
                   if (iWon)
                     Text(
                       'The others are getting their secret characters…',

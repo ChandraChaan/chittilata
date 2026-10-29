@@ -67,7 +67,11 @@ const ruleSections = [
     'Crown the King and Queen',
     'After the last round, the highest total is King and the second '
         'highest is Queen. Ties are settled by most movie wins. If players '
-        'are still tied, they share the title.',
+        'are still tied for a title, they choose: play one tie-breaker round '
+        'between just the tied players, or share the title. Everyone tied '
+        'must agree to play; otherwise, or with no answer in 30 seconds, the '
+        'title is shared. Tie-breaker points only break the tie and never '
+        'change anyone\'s total.',
   ),
   RuleSection(
     Icons.logout_rounded,

@@ -16,6 +16,7 @@ enum Phase {
   characters,
   results,
   aborted,
+  tiebreakVote,
   finished,
   closed,
   removed,
@@ -98,6 +99,18 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       ? _hand
       : null;
 
+  /// True while a tie-breaker round is played by others and I only watch.
+  bool get spectating =>
+      round != null && uid != null && !round!.order.contains(uid);
+
+  bool get isTiedPlayer => room?.tiebreak?.uids.contains(uid) ?? false;
+
+  int get tiebreakVoteRemainingSeconds {
+    final d = room?.tiebreak?.deadline;
+    if (d == null) return 0;
+    return max(0, (d.difference(now).inMilliseconds / 1000).ceil());
+  }
+
   bool get myTurn =>
       phase == Phase.exchange && round?.currentUid == uid && hand != null;
 
@@ -109,8 +122,15 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (uid != null && !r.memberUids.contains(uid)) return Phase.removed;
     if (r.status == RoomStatus.lobby) return Phase.lobby;
     if (r.status == RoomStatus.finished) return Phase.finished;
+    if (r.status == RoomStatus.tiebreakVote) return Phase.tiebreakVote;
     final rd = round;
-    if (rd == null || rd.key != r.currentRoundKey) return Phase.loading;
+    if (rd == null) return Phase.loading;
+    // The host started a new round but its document hasn't arrived yet:
+    // keep showing the finished round instead of flashing a loader.
+    if (rd.key != r.currentRoundKey) {
+      if (rd.gameNo != r.gameNo) return Phase.loading;
+      return rd.status == RoundStatus.aborted ? Phase.aborted : Phase.results;
+    }
     return switch (rd.status) {
       RoundStatus.exchange =>
         now.isBefore(rd.introEndsAt) ? Phase.intro : Phase.exchange,
@@ -178,11 +198,15 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (key != null && key != _watchingRoundKey) {
       _watchingRoundKey = key;
       _roundSub?.cancel();
-      round = null;
       selectedCardId = null;
       _roundSub = repo
           .watchRound(roomId, key)
           .listen(_onRound, onError: (_) {});
+    }
+    if (r.status == RoomStatus.tiebreakVote &&
+        previous?.status != RoomStatus.tiebreakVote) {
+      feedback.play(Sfx.reveal);
+      feedback.medium();
     }
     if (r.status == RoomStatus.finished &&
         previous?.status != RoomStatus.finished) {
@@ -279,7 +303,11 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       _maybeClaimTimeout(rd, ms);
     }
     if (rd != null && p == Phase.characters) _maybeReveal(rd);
-    if (p == Phase.intro || p == Phase.exchange || p == Phase.characters) {
+    if (p == Phase.tiebreakVote) _maybeCloseVote();
+    if (p == Phase.intro ||
+        p == Phase.exchange ||
+        p == Phase.characters ||
+        p == Phase.tiebreakVote) {
       notifyListeners();
     }
   }
@@ -293,6 +321,23 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     final key = '${rd.key}:${rd.turnId}';
     if (!_claimedTimeouts.add(key)) return;
     repo.claimTimeout(roomId, rd.key, rd.turnId).catchError((_) {});
+  }
+
+  /// After the vote deadline any member asks the server to close the vote.
+  void _maybeCloseVote() {
+    final tb = room?.tiebreak;
+    if (tb == null || tb.stage != 'vote') return;
+    final idx = max(0, room!.memberUids.indexOf(uid ?? ''));
+    if (now.isBefore(
+      tb.deadline.add(Duration(milliseconds: 800 + idx * 500)),
+    )) {
+      return;
+    }
+    final key = 'vote:${room!.gameNo}';
+    if (!_claimedReveals.add(key)) return;
+    repo.resolveTiebreakVote(roomId).catchError((_) {
+      _claimedReveals.remove(key);
+    });
   }
 
   void _maybeReveal(Round rd) {
@@ -397,6 +442,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> nextRound() => run(() => repo.nextRound(roomId));
   Future<bool> revealNow() => run(() => repo.revealRound(roomId, round!.key));
   Future<bool> playAgain() => run(() => repo.playAgain(roomId));
+  Future<bool> voteTiebreak(bool accept) =>
+      run(() => repo.tiebreakVote(roomId, accept));
 
   Future<void> leave() async {
     try {

@@ -27,6 +27,7 @@ import {
   roundScores,
   shuffle,
   timeoutCard,
+  titleTie,
   validateForStart,
 } from "../engine";
 import {
@@ -38,6 +39,8 @@ import {
   RoomDoc,
   roundKeyFor,
   RoundDoc,
+  TIEBREAK_VOTE_SECONDS,
+  TiebreakState,
 } from "./model";
 
 export interface Deps {
@@ -104,8 +107,27 @@ function standingsFor(room: RoomDoc) {
       total: room.totals[uid] ?? 0,
       movieWins: room.movieWins[uid] ?? 0,
       left: p.left,
+      ...(room.tiebreakScores?.[uid] !== undefined ? { tiebreak: room.tiebreakScores[uid] } : {}),
     })),
   );
+}
+
+/**
+ * Room fields for the end of the scheduled rounds: either the final result,
+ * or (once per game) a vote on a tie-breaker when a title is shared.
+ */
+function endOfGameUpdate(room: RoomDoc, t: number): Record<string, unknown> {
+  const final = standingsFor(room);
+  const tie = room.tiebreak ? null : titleTie(final);
+  if (!tie) return { status: "finished", final };
+  const tiebreak: TiebreakState = {
+    title: tie.title,
+    uids: tie.uids,
+    votes: {},
+    deadline: Timestamp.fromMillis(t + TIEBREAK_VOTE_SECONDS * 1000),
+    stage: "vote",
+  };
+  return { status: "tiebreakVote", final, tiebreak };
 }
 
 // ---------- lobby ----------
@@ -135,6 +157,8 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
         movieWins: {},
         usedNames: [],
         final: null,
+        tiebreak: null,
+        tiebreakScores: null,
         createdAt: ts,
         updatedAt: ts,
       };
@@ -262,7 +286,13 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
         endedAt: ts,
       });
     }
-    if (room.status === "playing" && members.length > 0 && members.length < MIN_PLAYERS) {
+    const tb = room.tiebreak;
+    const tiedLeaver = tb && tb.uids.includes(uid) && (tb.stage === "vote" || tb.stage === "playing");
+    if (members.length > 0 && (room.status === "tiebreakVote" || round?.tiebreak) && tiedLeaver) {
+      // A tied player left: no tie-breaker, the shared titles stand.
+      next.status = "finished";
+      next.tiebreak = { ...tb!, stage: "cancelled" };
+    } else if (room.status === "playing" && members.length > 0 && members.length < MIN_PLAYERS) {
       // Too few players to continue: finish with the scores so far.
       const leftRoom = {
         ...room,
@@ -279,10 +309,19 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
 
 // ---------- rounds ----------
 
-/** Deals a fresh round inside a transaction. Caller has already read `room`. */
-function startRoundTx(tx: Transaction, deps: Deps, roomId: string, room: RoomDoc) {
+/**
+ * Deals a fresh round inside a transaction. Caller has already read `room`.
+ * A tie-breaker round is dealt only to the tied players.
+ */
+function startRoundTx(
+  tx: Transaction,
+  deps: Deps,
+  roomId: string,
+  room: RoomDoc,
+  opts: { players?: string[]; tiebreak?: boolean } = {},
+) {
   const { db, now, rng } = deps;
-  const players = room.memberUids;
+  const players = opts.players ?? room.memberUids;
   const roundNo = room.currentRound + 1;
   const key = roundKeyFor(room.gameNo, roundNo);
   const pool = eligibleNames(room.settings.category, room.settings.difficulty, room.settings.customNames);
@@ -312,6 +351,7 @@ function startRoundTx(tx: Transaction, deps: Deps, roomId: string, room: RoomDoc
     roundKey: key,
     gameNo: room.gameNo,
     roundNo,
+    tiebreak: opts.tiebreak === true,
     status: "exchange",
     order,
     turnIndex: 0,
@@ -366,7 +406,13 @@ export async function startGame(deps: Deps, uid: string, data: unknown) {
     validateForStart(room.settings, room.memberUids.length);
     const zero = Object.fromEntries(room.memberUids.map((m) => [m, 0]));
     const fresh: RoomDoc = { ...room, totals: zero, movieWins: { ...zero }, currentRound: 0 };
-    tx.update(roomRef(deps.db, roomId), { totals: zero, movieWins: zero, final: null });
+    tx.update(roomRef(deps.db, roomId), {
+      totals: zero,
+      movieWins: zero,
+      final: null,
+      tiebreak: null,
+      tiebreakScores: null,
+    });
     return startRoundTx(tx, deps, roomId, fresh);
   });
   return { roundKey };
@@ -494,11 +540,14 @@ async function passTx(
         revealAt: Timestamp.fromMillis(t + REVEAL_DELAY_SECONDS * 1000),
       });
       // Movie-win points are applied exactly once, guarded by the status change.
-      tx.update(rRef, {
-        [`totals.${w.uid}`]: (room.totals[w.uid] ?? 0) + room.settings.winPoints,
-        [`movieWins.${w.uid}`]: (room.movieWins[w.uid] ?? 0) + 1,
-        updatedAt: ts,
-      });
+      // Tie-breaker points only order the tied players, so totals stay as they were.
+      if (!round.tiebreak) {
+        tx.update(rRef, {
+          [`totals.${w.uid}`]: (room.totals[w.uid] ?? 0) + room.settings.winPoints,
+          [`movieWins.${w.uid}`]: (room.movieWins[w.uid] ?? 0) + 1,
+          updatedAt: ts,
+        });
+      }
       tx.create(auditRef(db, roomId), { type: "characters", roundKey, characters: chars, at: ts });
     }
     tx.update(roundRef(db, roomId, roundKey), roundUpdate);
@@ -561,12 +610,26 @@ export async function revealRound(deps: Deps, uid: string, data: unknown) {
     const scores = roundScores(round!.order, round!.winner!.uid, round!.winner!.points, characters);
     const ts = Timestamp.fromMillis(t);
 
-    const totals = { ...room.totals };
-    for (const [u, c] of Object.entries(characters)) totals[u] = (totals[u] ?? 0) + c.points;
-    const roomUpdate: Record<string, unknown> = { totals, updatedAt: ts };
-    if (room.currentRound >= room.settings.rounds || room.status === "finished") {
-      roomUpdate.status = "finished";
-      roomUpdate.final = standingsFor({ ...room, totals });
+    let roomUpdate: Record<string, unknown>;
+    if (round!.tiebreak) {
+      // The tie-breaker orders the tied players; totals are untouched.
+      const tiebreakScores = scores;
+      roomUpdate = {
+        status: "finished",
+        tiebreakScores,
+        final: standingsFor({ ...room, tiebreakScores }),
+        tiebreak: room.tiebreak ? { ...room.tiebreak, stage: "done" } : null,
+        updatedAt: ts,
+      };
+    } else {
+      const totals = { ...room.totals };
+      for (const [u, c] of Object.entries(characters)) totals[u] = (totals[u] ?? 0) + c.points;
+      roomUpdate = { totals, updatedAt: ts };
+      if (room.status === "finished") {
+        roomUpdate.final = standingsFor({ ...room, totals });
+      } else if (room.currentRound >= room.settings.rounds) {
+        Object.assign(roomUpdate, endOfGameUpdate({ ...room, totals }, t));
+      }
     }
     tx.update(rRef, { status: "revealed", revealedHands, characters, scores, endedAt: ts });
     tx.update(ref, roomUpdate);
@@ -591,26 +654,97 @@ export async function playAgain(deps: Deps, uid: string, data: unknown) {
       totals: {},
       movieWins: {},
       final: null,
+      tiebreak: null,
+      tiebreakScores: null,
       updatedAt: Timestamp.fromMillis(deps.now()),
     });
   });
   return { ok: true };
 }
 
-/** Closes rooms nobody has touched for a while and frees their codes. */
-export async function expireRooms(deps: Deps, olderThanMs: number) {
+// ---------- tie-breaker ----------
+
+function declineTiebreak(tx: Transaction, deps: Deps, roomId: string, tb: TiebreakState, votes: Record<string, boolean>) {
+  tx.update(roomRef(deps.db, roomId), {
+    status: "finished",
+    tiebreak: { ...tb, votes, stage: "declined" },
+    updatedAt: Timestamp.fromMillis(deps.now()),
+  });
+}
+
+/**
+ * A tied player accepts or rejects the tie-breaker. Any rejection keeps the
+ * shared titles; when every tied player accepts, the round starts at once.
+ */
+export async function tiebreakVote(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  const accept = (data as Record<string, unknown>).accept === true;
+  return deps.db.runTransaction(async (tx) => {
+    const { room } = await loadRoom(tx, deps.db, roomId);
+    requireMember(room, uid);
+    const tb = room.tiebreak;
+    if (room.status !== "tiebreakVote" || !tb || tb.stage !== "vote") {
+      fail("failed-precondition", "There is no tie-breaker vote open.");
+    }
+    if (!tb!.uids.includes(uid)) fail("permission-denied", "Only the tied players decide on a tie-breaker.");
+    if (deps.now() > tb!.deadline.toMillis()) fail("failed-precondition", "The vote has closed.");
+    const votes = { ...tb!.votes, [uid]: accept };
+    if (!accept) {
+      declineTiebreak(tx, deps, roomId, tb!, votes);
+      return { outcome: "declined" };
+    }
+    if (tb!.uids.every((u) => votes[u] === true)) {
+      const roundKey = startRoundTx(tx, deps, roomId, room, { players: tb!.uids, tiebreak: true });
+      tx.update(roomRef(deps.db, roomId), { tiebreak: { ...tb!, votes, stage: "playing" } });
+      return { outcome: "started", roundKey };
+    }
+    tx.update(roomRef(deps.db, roomId), {
+      [`tiebreak.votes.${uid}`]: true,
+      updatedAt: Timestamp.fromMillis(deps.now()),
+    });
+    return { outcome: "waiting" };
+  });
+}
+
+/** After the vote deadline, any member may close it: silence counts as no. */
+export async function resolveTiebreakVote(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  return deps.db.runTransaction(async (tx) => {
+    const { room } = await loadRoom(tx, deps.db, roomId);
+    requireMember(room, uid);
+    const tb = room.tiebreak;
+    if (room.status !== "tiebreakVote" || !tb || tb.stage !== "vote") return { outcome: "none" };
+    if (deps.now() <= tb.deadline.toMillis()) fail("failed-precondition", "The vote is still open.");
+    declineTiebreak(tx, deps, roomId, tb, tb.votes);
+    return { outcome: "declined" };
+  });
+}
+
+/**
+ * Closes rooms nobody has touched for a while and frees their codes, then
+ * permanently deletes rooms (with hands, rounds, presence and audit logs)
+ * that have been closed for longer than `deleteAfterMs`.
+ */
+export async function expireRooms(deps: Deps, olderThanMs: number, deleteAfterMs = 7 * 24 * 3600 * 1000) {
   const { db, now } = deps;
   const cutoff = Timestamp.fromMillis(now() - olderThanMs);
   const stale = await db.collection("rooms").where("updatedAt", "<", cutoff).limit(200).get();
   let closed = 0;
+  let deleted = 0;
   for (const doc of stale.docs) {
     const room = doc.data() as RoomDoc;
-    if (room.status === "closed") continue;
+    if (room.status === "closed") {
+      if (room.updatedAt.toMillis() < now() - deleteAfterMs) {
+        await db.recursiveDelete(doc.ref);
+        deleted++;
+      }
+      continue;
+    }
     const batch = db.batch();
     batch.update(doc.ref, { status: "closed", updatedAt: Timestamp.fromMillis(now()) });
     batch.delete(db.collection("roomCodes").doc(room.code));
     await batch.commit();
     closed++;
   }
-  return closed;
+  return { closed, deleted };
 }

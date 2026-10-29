@@ -11,7 +11,19 @@ import type { Card, CharacterDef, GameSettings, Standing } from "../engine";
  *   rooms/{roomId}/audit/{id}   server-only debug log with card details
  */
 
-export type RoomStatus = "lobby" | "playing" | "finished" | "closed";
+export type RoomStatus = "lobby" | "playing" | "tiebreakVote" | "finished" | "closed";
+
+/**
+ * A tie for King or Queen after the last round. The tied players vote; the
+ * tie-breaker round is played only if all of them accept.
+ */
+export interface TiebreakState {
+  title: "King" | "Queen";
+  uids: string[];
+  votes: Record<string, boolean>;
+  deadline: Timestamp;
+  stage: "vote" | "playing" | "declined" | "done" | "cancelled";
+}
 export type RoundStatus = "exchange" | "characters" | "revealed" | "aborted";
 
 export interface PlayerInfo {
@@ -38,6 +50,9 @@ export interface RoomDoc {
   movieWins: Record<string, number>;
   usedNames: string[];
   final: Standing[] | null;
+  tiebreak: TiebreakState | null;
+  /** Points each tied player scored in the tie-breaker round (not in totals). */
+  tiebreakScores: Record<string, number> | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -55,6 +70,8 @@ export interface RoundDoc {
   roundKey: string;
   gameNo: number;
   roundNo: number;
+  /** A tie-breaker round among tied players; its points never reach totals. */
+  tiebreak: boolean;
   status: RoundStatus;
   order: string[];
   turnIndex: number;
@@ -97,5 +114,7 @@ export const INTRO_SECONDS = 5;
 export const REVEAL_DELAY_SECONDS = 7;
 /** Network allowance after a deadline. Passes inside it count; timeouts start after it. */
 export const DEADLINE_GRACE_MS = 1000;
+/** Seconds the tied players have to vote on a tie-breaker. */
+export const TIEBREAK_VOTE_SECONDS = 30;
 /** Rooms untouched this long are closed by the cleanup job. */
 export const ROOM_TTL_HOURS = 24;

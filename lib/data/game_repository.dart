@@ -58,6 +58,8 @@ abstract class GameRepository {
   Future<void> claimTimeout(String roomId, String roundKey, int turnId);
   Future<void> revealRound(String roomId, String roundKey);
   Future<void> playAgain(String roomId);
+  Future<void> tiebreakVote(String roomId, bool accept);
+  Future<void> resolveTiebreakVote(String roomId);
 }
 
 class FirebaseGameRepository implements GameRepository {
@@ -243,4 +245,12 @@ class FirebaseGameRepository implements GameRepository {
   @override
   Future<void> playAgain(String roomId) =>
       _call('playAgain', {'roomId': roomId});
+
+  @override
+  Future<void> tiebreakVote(String roomId, bool accept) =>
+      _call('tiebreakVote', {'roomId': roomId, 'accept': accept});
+
+  @override
+  Future<void> resolveTiebreakVote(String roomId) =>
+      _call('resolveTiebreakVote', {'roomId': roomId});
 }

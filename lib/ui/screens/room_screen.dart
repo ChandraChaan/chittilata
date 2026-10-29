@@ -12,6 +12,7 @@ import 'final_view.dart';
 import 'game_view.dart';
 import 'lobby_view.dart';
 import 'results_view.dart';
+import 'tiebreak_view.dart';
 
 /// Hosts one room for its whole life: lobby → rounds → final ceremony.
 class RoomScreen extends StatefulWidget {
@@ -142,6 +143,10 @@ class _RoomScreenState extends State<RoomScreen> {
                   onLeave: _confirmLeave,
                 ),
                 Phase.results || Phase.aborted => ResultsView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                ),
+                Phase.tiebreakVote => TiebreakView(
                   ctrl: ctrl,
                   onLeave: _confirmLeave,
                 ),
