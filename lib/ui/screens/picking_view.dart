@@ -142,7 +142,7 @@ class PickingView extends StatelessWidget {
           ],
         ),
         if (reveal is GameCard)
-          _RevealOverlay(
+          ChitRevealOverlay(
             key: ValueKey('reveal-${reveal.id}'),
             caption: 'You picked…',
             onTapSkip: ctrl.consumeReveal,
@@ -157,8 +157,8 @@ class PickingView extends StatelessWidget {
 }
 
 /// Dimmed backdrop with the big unfolding chit in the middle.
-class _RevealOverlay extends StatelessWidget {
-  const _RevealOverlay({
+class ChitRevealOverlay extends StatelessWidget {
+  const ChitRevealOverlay({
     super.key,
     required this.child,
     required this.caption,
@@ -449,7 +449,7 @@ class CharacterPickView extends StatelessWidget {
           ],
         ),
         if (reveal is CharacterDef)
-          _RevealOverlay(
+          ChitRevealOverlay(
             key: ValueKey('char-${reveal.name}'),
             caption: 'Your secret character is…',
             onTapSkip: ctrl.consumeReveal,

@@ -11,6 +11,7 @@ import '../widgets/common.dart';
 import 'final_view.dart';
 import 'game_view.dart';
 import 'lobby_view.dart';
+import 'kq_views.dart';
 import 'picking_view.dart';
 import 'results_view.dart';
 import 'tiebreak_view.dart';
@@ -151,6 +152,16 @@ class _RoomScreenState extends State<RoomScreen> {
                 ),
                 Phase.intro ||
                 Phase.exchange => GameView(ctrl: ctrl, onLeave: _confirmLeave),
+                Phase.kqPicking => KqPickingView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                ),
+                Phase.kqGuessing => KqGuessView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                ),
+                Phase.results || Phase.aborted when ctrl.room!.isKq =>
+                  KqResultsView(ctrl: ctrl, onLeave: _confirmLeave),
                 Phase.results || Phase.aborted => ResultsView(
                   ctrl: ctrl,
                   onLeave: _confirmLeave,
@@ -192,9 +203,12 @@ class _RoomScreenState extends State<RoomScreen> {
 
   String _viewKey(Phase p, RoomController c) => switch (p) {
     Phase.picking => 'picking-${c.round?.key}',
+    Phase.kqPicking => 'kqpicking-${c.kqRound?.key}',
+    Phase.kqGuessing => 'kqguess-${c.kqRound?.key}',
     Phase.characters => 'characters-${c.round?.key}',
     Phase.intro || Phase.exchange => 'game-${c.round?.key}',
-    Phase.results || Phase.aborted => 'results-${c.round?.key}',
+    Phase.results || Phase.aborted =>
+      'results-${c.room?.isKq == true ? c.kqRound?.key : c.round?.key}',
     _ => p.name,
   };
 }

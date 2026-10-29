@@ -70,9 +70,74 @@ class FakeGameRepository implements GameRepository {
   @override
   Future<void> heartbeat(String roomId, {required bool foreground}) async {}
 
+  final _kqRound = StreamController<KqRound?>.broadcast();
+  final _kqRole = StreamController<KqMyRole?>.broadcast();
+  KqRound? kqRound;
+  KqMyRole? kqRole;
+  KqRoleDef nextKqRole = const KqRoleDef(
+    key: '0',
+    name: 'King',
+    points: 1000,
+    core: true,
+  );
+
+  void emitKqRound(KqRound r) {
+    kqRound = r;
+    _kqRound.add(r);
+  }
+
+  void emitKqRole(KqMyRole r) {
+    kqRole = r;
+    _kqRole.add(r);
+  }
+
   @override
-  Future<({String roomId, String code})> createRoom(String name) async {
-    await _record('createRoom:$name');
+  Future<void> updateKqSettings(String roomId, Map<String, Object?> patch) =>
+      _record('updateKqSettings');
+  @override
+  Stream<KqRound?> watchKqRound(String roomId, String roundKey) =>
+      _seeded(_kqRound.stream, kqRound);
+  @override
+  Stream<KqMyRole?> watchMyKqRole(String roomId) =>
+      _seeded(_kqRole.stream, kqRole);
+  @override
+  Future<List<KqRound>> loadKqRounds(String roomId, int gameNo) async =>
+      kqRound == null ? [] : [kqRound!];
+  @override
+  Future<KqRoleDef> kqPickChit(
+    String roomId,
+    String roundKey,
+    String chitId,
+  ) async {
+    await _record('kqPick:$chitId');
+    return nextKqRole;
+  }
+
+  @override
+  Future<void> kqAutoPick(String roomId, String roundKey) =>
+      _record('kqAutoPick');
+  @override
+  Future<void> kqGuess(
+    String roomId,
+    String roundKey,
+    int turnId,
+    String targetUid,
+    String requestId,
+  ) => _record('kqGuess:$turnId:$targetUid');
+  @override
+  Future<void> kqClaimTimeout(String roomId, String roundKey, int turnId) =>
+      _record('kqTimeout:$turnId');
+
+  @override
+  Future<({String roomId, String code})> createRoom(
+    String name, {
+    GameMode mode = GameMode.movie,
+  }) async {
+    await _record(
+      mode == GameMode.movie
+          ? 'createRoom:$name'
+          : 'createRoom:$name:${mode.name}',
+    );
     return (roomId: 'room1', code: 'ABC234');
   }
 
@@ -180,6 +245,8 @@ Room makeRoom({
   Map<String, int> totals = const {},
   List<Standing>? standings,
   TiebreakInfo? tiebreak,
+  GameMode mode = GameMode.movie,
+  Map<String, int> kingWins = const {},
 }) => Room(
   id: 'room1',
   code: 'ABC234',
@@ -204,6 +271,70 @@ Room makeRoom({
   movieWins: const {},
   finalStandings: standings,
   tiebreak: tiebreak,
+  mode: mode,
+  kqSettings: kqDefaultSettings,
+  kingWins: kingWins,
+);
+
+const kqDefaultSettings = KqSettings(
+  rounds: 5,
+  turnSeconds: 20,
+  roles: [
+    KqRoleDef(key: 'king', name: 'King', points: 1000, core: true),
+    KqRoleDef(key: 'queen', name: 'Queen', points: 800, core: true),
+    KqRoleDef(key: 'minister', name: 'Minister', points: 700, core: false),
+    KqRoleDef(key: 'commander', name: 'Commander', points: 600, core: false),
+    KqRoleDef(key: 'police', name: 'Police', points: 500, core: true),
+    KqRoleDef(key: 'merchant', name: 'Merchant', points: 400, core: false),
+    KqRoleDef(key: 'poet', name: 'Poet', points: 300, core: false),
+    KqRoleDef(key: 'farmer', name: 'Farmer', points: 200, core: false),
+    KqRoleDef(key: 'jester', name: 'Jester', points: 150, core: false),
+    KqRoleDef(key: 'thief', name: 'Thief', points: 100, core: true),
+  ],
+);
+
+KqRound makeKqRound({
+  KqStatus status = KqStatus.guessing,
+  int step = 0,
+  String? guesser = 'me',
+  Map<String, int> locked = const {},
+  List<String> excluded = const [],
+  int turnId = 0,
+  List<String> chits = const [],
+  Map<String, String> picks = const {},
+  DateTime? pickOpensAt,
+  DateTime? pickDeadline,
+  DateTime? guessOpensAt,
+  DateTime? turnDeadline,
+  List<KqGuessRecord> history = const [],
+  Map<String, int>? revealedRoles,
+  Map<String, int>? scores,
+}) => KqRound(
+  key: 'g1r01',
+  gameNo: 1,
+  roundNo: 1,
+  status: status,
+  players: const ['me', 'v', 's', 'k'],
+  chain: const ['King', 'Queen', 'Police', 'Thief'],
+  chainPoints: const [1000, 800, 500, 100],
+  chits: chits,
+  picks: picks,
+  pickOpensAt: pickOpensAt,
+  pickDeadline: pickDeadline,
+  step: step,
+  guesser: guesser,
+  locked: locked,
+  excluded: excluded,
+  turnId: turnId,
+  timed: true,
+  turnSeconds: 20,
+  guessOpensAt:
+      guessOpensAt ?? DateTime.now().subtract(const Duration(seconds: 1)),
+  turnDeadline: turnDeadline ?? DateTime.now().add(const Duration(seconds: 20)),
+  history: history,
+  revealedRoles: revealedRoles,
+  scores: scores,
+  abortedReason: null,
 );
 
 Round makeRound({

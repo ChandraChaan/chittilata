@@ -17,10 +17,39 @@ class FinalView extends StatefulWidget {
 }
 
 class _FinalViewState extends State<FinalView> {
-  late final Future<List<Round>> _rounds = widget.ctrl.repo.loadRounds(
-    widget.ctrl.roomId,
-    widget.ctrl.room!.gameNo,
-  );
+  late final Future<List<RoundSummary>> _rounds = _load();
+
+  Future<List<RoundSummary>> _load() async {
+    final ctrl = widget.ctrl;
+    final room = ctrl.room!;
+    if (room.isKq) {
+      final rounds = await ctrl.repo.loadKqRounds(ctrl.roomId, room.gameNo);
+      return [
+        for (final r in rounds)
+          RoundSummary(
+            label: 'R${r.roundNo}',
+            aborted: r.status == KqStatus.aborted,
+            players: r.players.toSet(),
+            scores: r.scores,
+            star: r.revealedRoles?.entries
+                .where((e) => e.value == 0)
+                .map((e) => e.key)
+                .firstOrNull,
+          ),
+      ];
+    }
+    final rounds = await ctrl.repo.loadRounds(ctrl.roomId, room.gameNo);
+    return [
+      for (final r in rounds)
+        RoundSummary(
+          label: r.tiebreak ? 'TB' : 'R${r.roundNo}',
+          aborted: r.status == RoundStatus.aborted,
+          players: r.order.toSet(),
+          scores: r.scores,
+          star: r.winner?.uid,
+        ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,8 +116,10 @@ class _FinalViewState extends State<FinalView> {
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       subtitle: Text(
-                        '${s.movieWins} movie win${s.movieWins == 1 ? '' : 's'}'
-                        '${s.tiebreak == null ? '' : ' · tie-breaker ${s.tiebreak}'}',
+                        room.isKq
+                            ? '${s.movieWins} round${s.movieWins == 1 ? '' : 's'} as King'
+                            : '${s.movieWins} movie win${s.movieWins == 1 ? '' : 's'}'
+                                  '${s.tiebreak == null ? '' : ' · tie-breaker ${s.tiebreak}'}',
                         style: TextStyle(color: c.muted),
                       ),
                       trailing: Text(
@@ -102,7 +133,7 @@ class _FinalViewState extends State<FinalView> {
             const SizedBox(height: Space.xl),
             Text('Round by round', style: context.text.titleMedium),
             const SizedBox(height: Space.sm),
-            FutureBuilder<List<Round>>(
+            FutureBuilder<List<RoundSummary>>(
               future: _rounds,
               builder: (context, snap) {
                 if (!snap.hasData) {
@@ -127,6 +158,9 @@ class _FinalViewState extends State<FinalView> {
                 'The tied players chose to share the ${room.tiebreak!.title} title.',
               'cancelled' =>
                 'A tied player left, so the ${room.tiebreak!.title} title is shared.',
+              _ when room.isKq =>
+                'Ties: most points, then most rounds finished as King. Players '
+                    'still tied share the title. ★ = that round\'s King.',
               _ =>
                 'Ties: most points, then most movie wins. Players still tied '
                     'share the title.',
@@ -246,7 +280,7 @@ class _RoundTable extends StatelessWidget {
     required this.standings,
   });
   final Room room;
-  final List<Round> rounds;
+  final List<RoundSummary> rounds;
   final List<Standing> standings;
 
   @override
@@ -268,10 +302,7 @@ class _RoundTable extends StatelessWidget {
               columns: [
                 const DataColumn(label: Text('Player')),
                 for (final r in rounds)
-                  DataColumn(
-                    numeric: true,
-                    label: Text(r.tiebreak ? 'TB' : 'R${r.roundNo}'),
-                  ),
+                  DataColumn(numeric: true, label: Text(r.label)),
                 const DataColumn(numeric: true, label: Text('Total')),
               ],
               rows: [
@@ -282,11 +313,10 @@ class _RoundTable extends StatelessWidget {
                       for (final r in rounds)
                         DataCell(
                           Text(
-                            r.status == RoundStatus.aborted ||
-                                    (r.tiebreak && !r.order.contains(s.uid))
+                            r.aborted || !r.players.contains(s.uid)
                                 ? '—'
                                 : '${r.scores?[s.uid] ?? 0}',
-                            style: r.winner?.uid == s.uid
+                            style: r.star == s.uid
                                 ? cell.copyWith(
                                     color: c.marigold,
                                     fontWeight: FontWeight.w900,
@@ -309,4 +339,22 @@ class _RoundTable extends StatelessWidget {
       ),
     );
   }
+}
+
+/// One column of the round-by-round table, for either game mode.
+class RoundSummary {
+  const RoundSummary({
+    required this.label,
+    required this.aborted,
+    required this.players,
+    required this.scores,
+    required this.star,
+  });
+  final String label;
+  final bool aborted;
+  final Set<String> players;
+  final Map<String, int>? scores;
+
+  /// Highlighted player: the movie winner, or King & Queen's final King.
+  final String? star;
 }

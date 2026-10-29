@@ -5,6 +5,7 @@ import '../../app.dart';
 import '../../core/services/feedback.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/game_repository.dart';
+import '../../data/models.dart';
 import '../widgets/common.dart';
 import '../widgets/paper_card.dart';
 import 'history_screen.dart';
@@ -52,14 +53,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return n;
   }
 
-  Future<void> _create() async {
+  Future<void> _create(GameMode mode) async {
     final name = _validName();
     if (name == null) return;
     final s = Services.of(context);
     s.feedback.play(Sfx.tap);
     setState(() => _busy = true);
     try {
-      final r = await s.repo.createRoom(name);
+      final r = await s.repo.createRoom(name, mode: mode);
       _open(r.roomId);
     } on GameException catch (e) {
       if (mounted) showGameSnack(context, e.message);
@@ -155,32 +156,45 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: Space.lg),
                     BigButton(
-                      label: 'Create a room',
-                      icon: Icons.add_circle_rounded,
-                      busy: _busy,
-                      onPressed: _create,
-                    ),
-                    const SizedBox(height: Space.md),
-                    BigButton(
                       label: 'Join with a code',
                       icon: Icons.login_rounded,
                       secondary: true,
                       onPressed: _busy ? null : _join,
                     ),
                     const SizedBox(height: Space.lg),
-                    TextButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        gameRoute(const OnboardingScreen()),
+                    Text(
+                      'Or start a new game',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: c.muted,
+                        fontWeight: FontWeight.w700,
                       ),
-                      icon: Icon(Icons.menu_book_rounded, color: c.teal),
-                      label: Text(
-                        'How to play',
-                        style: TextStyle(
-                          color: c.teal,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                    ),
+                    const SizedBox(height: Space.sm),
+                    _ModeCard(
+                      emoji: '🎬',
+                      title: 'Movie Chits',
+                      tagline:
+                          'Pass folded movie chits around a circle. '
+                          'First to collect four of a kind wins!',
+                      players: '3–10 players',
+                      button: 'New Movie Chits room',
+                      busy: _busy,
+                      onCreate: () => _create(GameMode.movie),
+                      mode: GameMode.movie,
+                    ),
+                    const SizedBox(height: Space.md),
+                    _ModeCard(
+                      emoji: '👑',
+                      title: 'King & Queen',
+                      tagline:
+                          'Pick a secret role. The King hunts the Queen, the '
+                          'Queen hunts the Police… wrong guesses swap roles!',
+                      players: '4–10 players',
+                      button: 'New King & Queen room',
+                      busy: _busy,
+                      onCreate: () => _create(GameMode.kingQueen),
+                      mode: GameMode.kingQueen,
                     ),
                   ],
                 ),
@@ -188,6 +202,86 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One game mode on the home screen, with its own create button.
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
+    required this.emoji,
+    required this.title,
+    required this.tagline,
+    required this.players,
+    required this.button,
+    required this.busy,
+    required this.onCreate,
+    required this.mode,
+  });
+
+  final GameMode mode;
+  final String emoji;
+  final String title;
+  final String tagline;
+  final String players;
+  final String button;
+  final bool busy;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Panel(
+      padding: const EdgeInsets.all(Space.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              ExcludeSemantics(
+                child: Text(emoji, style: const TextStyle(fontSize: 34)),
+              ),
+              const SizedBox(width: Space.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: context.text.titleLarge),
+                    Text(
+                      players,
+                      style: TextStyle(
+                        color: c.teal,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Space.sm),
+          Text(tagline, style: TextStyle(color: c.muted, height: 1.35)),
+          const SizedBox(height: Space.md),
+          BigButton(
+            label: button,
+            icon: Icons.add_circle_rounded,
+            busy: busy,
+            onPressed: onCreate,
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              gameRoute(OnboardingScreen(mode: mode)),
+            ),
+            icon: Icon(Icons.menu_book_rounded, color: c.teal, size: 18),
+            label: Text(
+              'How to play $title',
+              style: TextStyle(color: c.teal, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }
