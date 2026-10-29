@@ -2,20 +2,28 @@ import 'package:flutter/material.dart';
 
 import '../../app.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models.dart';
 import '../rules_content.dart';
 import '../widgets/common.dart';
 import 'home_screen.dart';
 
 /// First-run walkthrough; also opened later as "How to play".
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key, this.firstRun = false});
+  const OnboardingScreen({
+    super.key,
+    this.firstRun = false,
+    this.mode = GameMode.movie,
+  });
   final bool firstRun;
+  final GameMode mode;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
+  List<RuleSection> get _sections =>
+      widget.mode == GameMode.kingQueen ? kqRuleSections : ruleSections;
   final _page = PageController();
   int _index = 0;
 
@@ -38,7 +46,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final last = _index == ruleSections.length - 1;
+    final last = _index == _sections.length - 1;
     return Scaffold(
       body: GameBackground(
         child: SafeArea(
@@ -66,16 +74,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               Text(
-                'How to play',
+                widget.mode == GameMode.kingQueen
+                    ? 'How to play King & Queen'
+                    : 'How to play Movie Chits',
                 style: context.text.titleLarge?.copyWith(color: c.marigold),
               ),
               Expanded(
                 child: PageView.builder(
                   controller: _page,
-                  itemCount: ruleSections.length,
+                  itemCount: _sections.length,
                   onPageChanged: (i) => setState(() => _index = i),
                   itemBuilder: (_, i) {
-                    final r = ruleSections[i];
+                    final r = _sections[i];
                     return Padding(
                       padding: const EdgeInsets.all(Space.xl),
                       child: Column(
@@ -119,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  for (var i = 0; i < ruleSections.length; i++)
+                  for (var i = 0; i < _sections.length; i++)
                     AnimatedContainer(
                       duration: Motion.fast,
                       margin: const EdgeInsets.all(3),

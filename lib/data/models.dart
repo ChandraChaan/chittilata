@@ -204,6 +204,9 @@ class Room {
     required this.finalStandings,
     this.tiebreak,
     this.tiebreakScores,
+    this.mode = GameMode.movie,
+    this.kqSettings,
+    this.kingWins = const {},
   });
 
   final String id;
@@ -221,6 +224,14 @@ class Room {
   final List<Standing>? finalStandings;
   final TiebreakInfo? tiebreak;
   final Map<String, int>? tiebreakScores;
+  final GameMode mode;
+  final KqSettings? kqSettings;
+  final Map<String, int> kingWins;
+
+  bool get isKq => mode == GameMode.kingQueen;
+
+  /// Rounds in the game, for either mode.
+  int get totalRounds => isKq ? (kqSettings?.rounds ?? 7) : settings.rounds;
 
   String nameOf(String uid) => players[uid]?.name ?? 'Player';
 
@@ -265,6 +276,11 @@ class Room {
       tiebreakScores: m['tiebreakScores'] == null
           ? null
           : _map(m['tiebreakScores'], _int),
+      mode: m['mode'] == 'kingQueen' ? GameMode.kingQueen : GameMode.movie,
+      kqSettings: m['kqSettings'] == null
+          ? null
+          : KqSettings.fromMap(m['kqSettings'] as Map),
+      kingWins: _map(m['kingWins'], _int),
     );
   }
 }
@@ -454,4 +470,233 @@ String? matchingName(List<GameCard> cards, {int need = 4}) {
     if (e.value >= need) return e.key;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// King & Queen (docs/KING_QUEEN_RULES.md)
+// ---------------------------------------------------------------------------
+
+enum GameMode { movie, kingQueen }
+
+class KqRoleDef {
+  const KqRoleDef({
+    required this.key,
+    required this.name,
+    required this.points,
+    required this.core,
+  });
+  final String key;
+  final String name;
+  final int points;
+  final bool core;
+
+  factory KqRoleDef.fromMap(Object? o) {
+    final m = o as Map;
+    return KqRoleDef(
+      key: m['key'] as String,
+      name: m['name'] as String,
+      points: _int(m['points']),
+      core: m['core'] == true,
+    );
+  }
+
+  Map<String, Object> toMap() => {'key': key, 'name': name, 'points': points};
+}
+
+class KqSettings {
+  const KqSettings({
+    required this.rounds,
+    required this.turnSeconds,
+    required this.roles,
+  });
+  final int rounds;
+  final int turnSeconds;
+  final List<KqRoleDef> roles;
+
+  static const roundOptions = [5, 7, 10, 15];
+
+  /// Optional roles join in this order as players increase (rules §1).
+  static const optionalOrder = [
+    'minister',
+    'commander',
+    'merchant',
+    'poet',
+    'farmer',
+    'jester',
+  ];
+
+  /// The role chain for [players] players, in catalogue order.
+  List<KqRoleDef> chainFor(int players) {
+    final wanted = {
+      ...roles.where((r) => r.core).map((r) => r.key),
+      ...optionalOrder.take((players - 4).clamp(0, 6)),
+    };
+    return roles.where((r) => wanted.contains(r.key)).toList();
+  }
+
+  factory KqSettings.fromMap(Map? m) => KqSettings(
+    rounds: _int(m?['rounds'], 7),
+    turnSeconds: _int(m?['turnSeconds'], 20),
+    roles: (m?['roles'] as List? ?? const []).map(KqRoleDef.fromMap).toList(),
+  );
+}
+
+enum KqStatus { picking, guessing, revealed, aborted }
+
+class KqGuessRecord {
+  const KqGuessRecord({
+    required this.step,
+    required this.guesser,
+    required this.target,
+    required this.correct,
+    required this.kind,
+  });
+  final int step;
+  final String guesser;
+  final String target;
+  final bool correct;
+
+  /// guess | forced | timeout
+  final String kind;
+
+  factory KqGuessRecord.fromMap(Object? o) {
+    final m = o as Map;
+    return KqGuessRecord(
+      step: _int(m['step']),
+      guesser: m['guesser'] as String,
+      target: m['target'] as String,
+      correct: m['correct'] == true,
+      kind: m['kind'] as String? ?? 'guess',
+    );
+  }
+}
+
+/// Public King & Queen round state. Hidden roles never appear here until
+/// [revealedRoles] is written at the end of the round.
+class KqRound {
+  const KqRound({
+    required this.key,
+    required this.gameNo,
+    required this.roundNo,
+    required this.status,
+    required this.players,
+    required this.chain,
+    required this.chainPoints,
+    required this.chits,
+    required this.picks,
+    required this.pickOpensAt,
+    required this.pickDeadline,
+    required this.step,
+    required this.guesser,
+    required this.locked,
+    required this.excluded,
+    required this.turnId,
+    required this.timed,
+    required this.turnSeconds,
+    required this.guessOpensAt,
+    required this.turnDeadline,
+    required this.history,
+    required this.revealedRoles,
+    required this.scores,
+    required this.abortedReason,
+  });
+
+  final String key;
+  final int gameNo;
+  final int roundNo;
+  final KqStatus status;
+  final List<String> players;
+  final List<String> chain;
+  final List<int> chainPoints;
+  final List<String> chits;
+  final Map<String, String> picks;
+  final DateTime? pickOpensAt;
+  final DateTime? pickDeadline;
+  final int step;
+  final String? guesser;
+  final Map<String, int> locked;
+  final List<String> excluded;
+  final int turnId;
+  final bool timed;
+  final int turnSeconds;
+  final DateTime? guessOpensAt;
+  final DateTime? turnDeadline;
+  final List<KqGuessRecord> history;
+  final Map<String, int>? revealedRoles;
+  final Map<String, int>? scores;
+  final String? abortedReason;
+
+  /// The role the guesser holds and the one they are looking for.
+  String get seekerRole => chain[step.clamp(0, chain.length - 1)];
+  String get targetRole => chain[(step + 1).clamp(0, chain.length - 1)];
+
+  /// Players the guesser may pick right now.
+  List<String> get candidates {
+    if (status != KqStatus.guessing || guesser == null) return const [];
+    final out = {...locked.keys, guesser!, ...excluded};
+    return players.where((p) => !out.contains(p)).toList();
+  }
+
+  /// A player's publicly known role, if any (locked or current guesser).
+  String? publicRoleOf(String uid) {
+    final l = locked[uid];
+    if (l != null) return chain[l];
+    if (uid == guesser && status == KqStatus.guessing) return seekerRole;
+    final r = revealedRoles?[uid];
+    return r == null ? null : chain[r];
+  }
+
+  factory KqRound.fromMap(String id, Map<String, dynamic> m) => KqRound(
+    key: id,
+    gameNo: _int(m['gameNo'], 1),
+    roundNo: _int(m['roundNo'], 1),
+    status: KqStatus.values.byName(m['status'] as String),
+    players: List<String>.from(m['players'] as List? ?? const []),
+    chain: List<String>.from(m['chain'] as List? ?? const []),
+    chainPoints: (m['chainPoints'] as List? ?? const [])
+        .map((e) => _int(e))
+        .toList(),
+    chits: List<String>.from(m['chits'] as List? ?? const []),
+    picks: _map(m['picks'], (v) => v as String),
+    pickOpensAt: _time(m['pickOpensAt']),
+    pickDeadline: _time(m['pickDeadline']),
+    step: _int(m['step']),
+    guesser: m['guesser'] as String?,
+    locked: _map(m['locked'], _int),
+    excluded: List<String>.from(m['excluded'] as List? ?? const []),
+    turnId: _int(m['turnId']),
+    timed: m['timed'] != false,
+    turnSeconds: _int(m['turnSeconds'], 20),
+    guessOpensAt: _time(m['guessOpensAt']),
+    turnDeadline: _time(m['turnDeadline']),
+    history: (m['history'] as List? ?? const [])
+        .map(KqGuessRecord.fromMap)
+        .toList(),
+    revealedRoles: m['revealedRoles'] == null
+        ? null
+        : _map(m['revealedRoles'], _int),
+    scores: m['scores'] == null ? null : _map(m['scores'], _int),
+    abortedReason: m['abortedReason'] as String?,
+  );
+}
+
+/// My own secret King & Queen role (owner-only document).
+class KqMyRole {
+  const KqMyRole({
+    required this.roundKey,
+    required this.index,
+    required this.name,
+    required this.points,
+  });
+  final String roundKey;
+  final int? index;
+  final String? name;
+  final int? points;
+
+  factory KqMyRole.fromMap(Map<String, dynamic> m) => KqMyRole(
+    roundKey: m['roundKey'] as String? ?? '',
+    index: (m['index'] as num?)?.toInt(),
+    name: m['name'] as String?,
+    points: (m['points'] as num?)?.toInt(),
+  );
 }

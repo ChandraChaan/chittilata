@@ -608,6 +608,7 @@ class _CharacterCard extends StatelessWidget {
   final CharacterDef character;
 
   static IconData iconFor(String name) => switch (name.toLowerCase()) {
+    'king' => Icons.workspace_premium_rounded,
     'queen' => Icons.diamond_rounded,
     'police' => Icons.local_police_rounded,
     'thief' => Icons.directions_run_rounded,

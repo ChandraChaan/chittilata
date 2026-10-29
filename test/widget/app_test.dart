@@ -50,13 +50,13 @@ void main() {
   ) async {
     repo.emitRoom(makeRoom());
     await pumpApp(tester, const HomeScreen());
-    await tester.tap(find.text('Create a room'));
+    await tester.tap(find.text('New Movie Chits room'));
     await tester.pump();
     expect(find.text('Enter your name first'), findsOneWidget);
     expect(repo.calls, isEmpty);
 
     await tester.enterText(find.byType(TextField), 'Chandra');
-    await tester.tap(find.text('Create a room'));
+    await tester.tap(find.text('New Movie Chits room'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(repo.calls, ['createRoom:Chandra']);

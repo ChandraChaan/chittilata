@@ -85,3 +85,62 @@ const ruleSections = [
         'connection does not remove you; reopen the app to rejoin.',
   ),
 ];
+
+/// King & Queen rules. Keep in sync with docs/KING_QUEEN_RULES.md.
+const kqRuleSections = [
+  RuleSection(
+    Icons.groups_rounded,
+    'Gather 4–10 friends',
+    'One person creates a King & Queen room and shares the code. Everyone '
+        'plays on their own phone.',
+  ),
+  RuleSection(
+    Icons.style_rounded,
+    'Pick one folded chit',
+    'The roles are written on paper, folded, shuffled and scattered. Each '
+        'player picks exactly one chit and sees their role privately. Four '
+        'players use King, Queen, Police and Thief. With more players, '
+        'Minister, Commander, Merchant, Poet, Farmer and Jester join in.',
+  ),
+  RuleSection(
+    Icons.workspace_premium_rounded,
+    'The King starts',
+    'The King is announced to everyone and must find the Queen. Tap the '
+        'player you think is the Queen and confirm.',
+  ),
+  RuleSection(
+    Icons.check_circle_rounded,
+    'Right guess',
+    'The King keeps the crown for good. The Queen is revealed and must now '
+        'find the next role in the chain (the Police, or the Minister in '
+        'bigger games), and so on down to the Thief.',
+  ),
+  RuleSection(
+    Icons.swap_horiz_rounded,
+    'Wrong guess: swap!',
+    'If you pick the wrong player, you two swap roles and you lose your '
+        'turn. They now hold your role and must find the same target. You '
+        'are marked "not the target", so nobody guesses you again for it. '
+        'When only one player is left, they must be the one.',
+  ),
+  RuleSection(
+    Icons.timer_rounded,
+    'Beat the timer',
+    'Each guess has a timer. If it runs out, the game picks a random '
+        'player for you. That never helps or hurts anyone in particular.',
+  ),
+  RuleSection(
+    Icons.emoji_events_rounded,
+    'Score your final role',
+    'When every role is found, all roles are revealed. Everyone scores '
+        'their final role: King 1000, Queen 800, Police 500, Thief 100 (the '
+        'host can change points). Totals add up across rounds.',
+  ),
+  RuleSection(
+    Icons.diamond_rounded,
+    'Crown the champions',
+    'After the last round, the top total is King and the next is Queen. '
+        'Ties go to whoever finished the most rounds as King. If still tied, '
+        'the title is shared.',
+  ),
+];

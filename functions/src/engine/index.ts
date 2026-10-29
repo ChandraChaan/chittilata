@@ -6,3 +6,4 @@ export * from "./exchange";
 export * from "./characters";
 export * from "./scoring";
 export * from "./settings";
+export * from "./kingqueen";

@@ -12,6 +12,8 @@ import type { Card, CharacterDef, GameSettings, Standing } from "../engine";
  *   rooms/{roomId}/secrets/{key} server-only: undealt slips and sealed character chits
  */
 
+export type GameMode = "movie" | "kingQueen";
+
 export type RoomStatus = "lobby" | "playing" | "tiebreakVote" | "finished" | "closed";
 
 /**
@@ -43,7 +45,13 @@ export interface RoomDoc {
   /** Everyone who has played this game, including players who left. */
   players: Record<string, PlayerInfo>;
   banned: string[];
+  /** Absent on rooms created before modes existed: treated as "movie". */
+  mode?: GameMode;
   settings: GameSettings;
+  /** King & Queen settings (rounds, timer, role points). */
+  kqSettings?: { rounds: number; turnSeconds: number; roles: { key: string; name: string; points: number; core: boolean }[] };
+  /** King & Queen: rounds each player finished as King (the tie-break key). */
+  kingWins?: Record<string, number>;
   gameNo: number;
   currentRound: number;
   currentRoundKey: string | null;

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../data/models.dart';
 import '../../game/room_controller.dart';
 import '../widgets/common.dart';
+import 'onboarding_screen.dart';
 
 const categoryLabels = {
   Category.telugu: 'Telugu movies',
@@ -34,11 +37,16 @@ class LobbyView extends StatelessWidget {
     final me = room.players[ctrl.uid];
     final players = room.activePlayers;
     final count = players.length;
-    final canStart = count >= 3 && count <= 10 && room.everyoneReady();
+    final minPlayers = room.isKq ? 4 : 3;
+    final canStart = count >= minPlayers && count <= 10 && room.everyoneReady();
 
     return Column(
       children: [
-        _TopBar(title: 'Room lobby', onLeave: onLeave),
+        _TopBar(
+          title: room.isKq ? '👑 King & Queen lobby' : '🎬 Movie Chits lobby',
+          onLeave: onLeave,
+          mode: room.mode,
+        ),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: Space.lg),
@@ -57,9 +65,9 @@ class LobbyView extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  if (count < 3)
+                  if (count < minPlayers)
                     Text(
-                      'Need ${3 - count} more',
+                      'Need ${minPlayers - count} more',
                       style: TextStyle(
                         color: c.kumkum,
                         fontWeight: FontWeight.w700,
@@ -109,7 +117,10 @@ class LobbyView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: Space.lg),
-              _SettingsSummary(ctrl: ctrl),
+              if (room.isKq)
+                _KqSettingsSummary(ctrl: ctrl)
+              else
+                _SettingsSummary(ctrl: ctrl),
               const SizedBox(height: Space.xl),
             ],
           ),
@@ -123,8 +134,8 @@ class LobbyView extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(bottom: Space.sm),
                         child: Text(
-                          count < 3
-                              ? 'Share the code. 3–10 players can play.'
+                          count < minPlayers
+                              ? 'Share the code. $minPlayers–10 players can play.'
                               : 'Waiting for everyone to tap Ready…',
                           style: TextStyle(color: c.muted),
                         ),
@@ -180,9 +191,14 @@ class LobbyView extends StatelessWidget {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.title, required this.onLeave});
+  const _TopBar({
+    required this.title,
+    required this.onLeave,
+    required this.mode,
+  });
   final String title;
   final VoidCallback onLeave;
+  final GameMode mode;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -204,10 +220,271 @@ class _TopBar extends StatelessWidget {
             style: context.text.titleMedium,
           ),
         ),
-        const SizedBox(width: 48),
+        IconButton(
+          tooltip: 'Rules',
+          icon: const Icon(Icons.menu_book_rounded),
+          onPressed: () =>
+              Navigator.push(context, gameRoute(OnboardingScreen(mode: mode))),
+        ),
       ],
     ),
   );
+}
+
+/// King & Queen settings shown in the lobby.
+class _KqSettingsSummary extends StatelessWidget {
+  const _KqSettingsSummary({required this.ctrl});
+  final RoomController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final room = ctrl.room!;
+    final s = room.kqSettings!;
+    final n = room.memberUids.length.clamp(4, 10);
+    final chain = s.chainFor(n);
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('Game settings', style: context.text.titleMedium),
+              const Spacer(),
+              if (ctrl.isHost)
+                FilledButton.tonalIcon(
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => KqSettingsSheet(ctrl: ctrl),
+                  ),
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  label: const Text('Edit'),
+                ),
+            ],
+          ),
+          const SizedBox(height: Space.sm),
+          Text(
+            '${s.rounds} rounds · ${timerLabel(s.turnSeconds)} per guess',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: Space.sm),
+          Text(
+            'Roles for $n players (in finding order)',
+            style: TextStyle(color: c.muted, fontSize: 13),
+          ),
+          const SizedBox(height: Space.xs),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final r in chain)
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  label: Text('${r.name} ${r.points}'),
+                ),
+            ],
+          ),
+          if (!ctrl.isHost)
+            Padding(
+              padding: const EdgeInsets.only(top: Space.sm),
+              child: Text(
+                'Only the host can change settings.',
+                style: TextStyle(color: c.muted, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Host-only King & Queen settings: rounds, guess timer, role points and
+/// names of optional roles. Validated again on the server.
+class KqSettingsSheet extends StatefulWidget {
+  const KqSettingsSheet({super.key, required this.ctrl});
+  final RoomController ctrl;
+
+  @override
+  State<KqSettingsSheet> createState() => _KqSettingsSheetState();
+}
+
+class _KqSettingsSheetState extends State<KqSettingsSheet> {
+  late final KqSettings s = widget.ctrl.room!.kqSettings!;
+  late int rounds = s.rounds;
+  late int turnSeconds = s.turnSeconds;
+  late final _roundsCtl = TextEditingController(text: '$rounds');
+  late final roles = [
+    for (final r in s.roles)
+      (
+        r,
+        TextEditingController(text: r.name),
+        TextEditingController(text: '${r.points}'),
+      ),
+  ];
+
+  @override
+  void dispose() {
+    _roundsCtl.dispose();
+    for (final r in roles) {
+      r.$2.dispose();
+      r.$3.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final ok = await widget.ctrl.updateKqSettings({
+      'rounds': rounds,
+      'turnSeconds': turnSeconds,
+      'roles': [
+        for (final r in roles)
+          {
+            'key': r.$1.key,
+            if (!r.$1.core) 'name': r.$2.text.trim(),
+            'points': int.tryParse(r.$3.text.trim()) ?? r.$1.points,
+          },
+      ],
+    });
+    if (ok && mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    Widget label(String t) => Padding(
+      padding: const EdgeInsets.only(top: Space.lg, bottom: Space.sm),
+      child: Text(
+        t,
+        style: context.text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    );
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.9,
+      maxChildSize: 0.95,
+      builder: (context, scroll) => Column(
+        children: [
+          Expanded(
+            child: ListView(
+              controller: scroll,
+              padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+              children: [
+                Text('King & Queen settings', style: context.text.titleLarge),
+                label('Rounds'),
+                Wrap(
+                  spacing: Space.sm,
+                  runSpacing: Space.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (final r in KqSettings.roundOptions)
+                      ChoiceChip(
+                        label: Text('$r'),
+                        selected: rounds == r,
+                        onSelected: (_) => setState(() {
+                          rounds = r;
+                          _roundsCtl.text = '$r';
+                        }),
+                      ),
+                    SizedBox(
+                      width: 96,
+                      child: TextField(
+                        controller: _roundsCtl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Custom',
+                          isDense: true,
+                        ),
+                        onChanged: (v) {
+                          final n = int.tryParse(v);
+                          if (n != null && n >= 1 && n <= 30) {
+                            setState(() => rounds = n);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                label('Time per guess'),
+                Wrap(
+                  spacing: Space.sm,
+                  runSpacing: Space.sm,
+                  children: [
+                    for (final t in GameSettings.turnOptions)
+                      ChoiceChip(
+                        label: Text(timerLabel(t)),
+                        selected: turnSeconds == t,
+                        onSelected: (_) => setState(() => turnSeconds = t),
+                      ),
+                  ],
+                ),
+                label('Roles and points'),
+                Text(
+                  'King, Queen, Police and Thief are always used. Optional '
+                  'roles join from the top as more players play.',
+                  style: TextStyle(color: c.muted, fontSize: 13),
+                ),
+                const SizedBox(height: Space.sm),
+                for (final r in roles)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: Space.sm),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: r.$2,
+                            enabled: !r.$1.core,
+                            maxLength: 16,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              counterText: '',
+                              labelText: r.$1.core ? 'Core role' : 'Optional',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: Space.sm),
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            controller: r.$3,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              labelText: 'Points',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: Space.xl),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              Space.xl,
+              Space.sm,
+              Space.xl,
+              Space.lg + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: ListenableBuilder(
+                listenable: widget.ctrl,
+                builder: (_, _) => BigButton(
+                  label: 'Save settings',
+                  busy: widget.ctrl.busy,
+                  onPressed: _save,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _CodeCard extends StatelessWidget {

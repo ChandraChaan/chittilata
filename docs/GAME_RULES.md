@@ -1,4 +1,6 @@
-# Chittilata (చిట్టిలాట) — Game Rules
+# Chittilata (చిట్టిలాట) — Movie Chits rules
+
+> These are the rules for **🎬 Movie Chits**. For **👑 King & Queen** see [KING_QUEEN_RULES.md](KING_QUEEN_RULES.md).
 
 Chittilata is the traditional Telugu paper-slip game **Chittilu Aata** for phones. Every player uses their own Android phone, and the slips stay private.
 

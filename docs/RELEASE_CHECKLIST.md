@@ -13,6 +13,7 @@
 - [ ] Fix GitHub Actions billing for the account. CI jobs are currently refused with "recent account payments have failed or your spending limit needs to be increased".
 - [ ] In Google Cloud Console → APIs & Services → Credentials, restrict the Android API key to package `com.chandra.chittilata` and the release SHA-256 `AD:5B:D1:6C:1D:78:BC:90:9B:7A:55:33:10:BD:A8:4B:FF:1D:E8:42:C7:28:52:6A:EF:B6:4A:16:95:EC:94:5A`
 - [ ] Consider enabling Firebase App Check (Play Integrity) and enforcing it on callables
+- [ ] If you raise `maxInstances` or CPU, check the regional Cloud Run CPU quota first. Deploys fail with "Quota exceeded for total allowable CPU per project per region" otherwise.
 - [ ] Add testers to the App Distribution group `family-testers`
 
 ## Every release
@@ -30,7 +31,9 @@
    ```bash
    firebase crashlytics:symbols:upload --app=1:158543185837:android:f9a1aad186465883e50324 build/symbols
    ```
-7. Smoke test on a device with bots: `cd functions && node scripts/bots.mjs --code <ROOMCODE> --count 3`
+7. Smoke test on a device with bots, for both modes:
+   - `cd functions && node scripts/bots.mjs --code <ROOMCODE> --count 3` (Movie Chits)
+   - `node scripts/bots.mjs --mode kq --code <ROOMCODE> --count 3` (King & Queen)
 8. Beta: `firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk --app 1:158543185837:android:f9a1aad186465883e50324 --groups family-testers --release-notes "…"`
 9. GitHub: tag `vX.Y.Z` and push. The release workflow attaches signed APKs. Or attach manually with `gh release create`.
 10. Play Console: upload `build/app/outputs/bundle/release/app-release.aab` to Internal testing first.
