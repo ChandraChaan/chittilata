@@ -41,6 +41,8 @@ const opt = (name, fallback) => {
 const COUNT = Number(opt("count", 3));
 const DELAY = Number(opt("delay", 1800));
 const ROUNDS = Number(opt("rounds", 2));
+/** Extra ms before each chit pick, so a human can pick first in demos. */
+const PICK_DELAY = Number(opt("pick-delay", 600));
 const NAMES = ["Vasavi", "Swetha", "Sai", "Ravi", "Lata", "Kiran", "Anu", "Meena", "Gopi"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (who, ...m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${who}:`, ...m);
@@ -150,6 +152,54 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
   async function tick() {
     if (!room || !round || acting) return;
     const key = `${round.roundKey}:${round.turnId}`;
+    const free = (ids, picks) => ids.filter((c) => !picks[c]);
+    // Pick folded movie chits one at a time, like a person would.
+    if (
+      round.status === "picking" &&
+      round.order.includes(uid) &&
+      hand?.roundKey === round.roundKey &&
+      hand.cards.length < 4
+    ) {
+      acting = "pick";
+      await sleep(Math.max(0, round.pickOpensAt.toMillis() - Date.now()) + PICK_DELAY + Math.random() * 1200);
+      const options = free(round.chits, round.picks);
+      if (options.length) {
+        const chitId = options[Math.floor(Math.random() * options.length)];
+        try {
+          const r = await call("pickChit", { roomId, roundKey: round.roundKey, chitId });
+          log(name, `picked a chit: ${r.card.name}`);
+        } catch (e) {
+          log(name, `pick rejected: ${e.message}`);
+        }
+      }
+      acting = null;
+      setTimeout(tick, 50);
+      return;
+    }
+    // Pick a folded character chit if we did not win.
+    if (
+      round.status === "characters" &&
+      !round.revealAt &&
+      round.order.includes(uid) &&
+      round.winner?.uid !== uid &&
+      !Object.values(round.charPicks ?? {}).includes(uid)
+    ) {
+      acting = "char";
+      await sleep(Math.max(0, round.charPickOpensAt.toMillis() - Date.now()) + PICK_DELAY + 200 + Math.random() * 1500);
+      const options = free(round.charChits, round.charPicks);
+      if (options.length) {
+        const chitId = options[Math.floor(Math.random() * options.length)];
+        try {
+          const r = await call("pickCharacter", { roomId, roundKey: round.roundKey, chitId });
+          log(name, `secret character: ${r.character.name} (+${r.character.points})`);
+        } catch (e) {
+          log(name, `character pick rejected: ${e.message}`);
+        }
+      }
+      acting = null;
+      setTimeout(tick, 400); // lost a race: look again at what is left
+      return;
+    }
     if (
       round.status === "exchange" &&
       round.currentUid === uid &&
@@ -177,9 +227,8 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
       acting = null;
       return;
     }
-    if (round.status === "characters" && !revealed.has(round.roundKey)) {
+    if (round.status === "characters" && round.revealAt && !revealed.has(round.roundKey)) {
       revealed.add(round.roundKey);
-      if (hand?.character) log(name, `secret character: ${hand.character.name} (+${hand.character.points})`);
       await sleep(Math.max(0, round.revealAt.toMillis() - Date.now()) + 1500 + i * 400);
       await call("revealRound", { roomId, roundKey: round.roundKey }).catch(() => {});
       return;
@@ -214,6 +263,18 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
         }
       }, 500);
     });
+
+  // Like the app: after a picking deadline, ask the server to finish picks.
+  setInterval(() => {
+    if (!round) return;
+    const now = Date.now() - 1500 - i * 300;
+    if (round.status === "picking" && round.pickDeadline?.toMillis() < now) {
+      call("autoPickChits", { roomId, roundKey: round.roundKey }).catch(() => {});
+    }
+    if (round.status === "characters" && !round.revealAt && round.charPickDeadline?.toMillis() < now) {
+      call("autoPickCharacters", { roomId, roundKey: round.roundKey }).catch(() => {});
+    }
+  }, 2000).unref();
 
   return { code, roomId, done, allReady, start: () => call("startGame", { roomId }) };
 }
