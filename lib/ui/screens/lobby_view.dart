@@ -624,8 +624,9 @@ class _SettingsSheetState extends State<SettingsSheet> {
                         ),
                         onChanged: (v) {
                           final n = int.tryParse(v);
-                          if (n != null && n >= 1 && n <= 30)
+                          if (n != null && n >= 1 && n <= 30) {
                             setState(() => rounds = n);
+                          }
                         },
                       ),
                     ),

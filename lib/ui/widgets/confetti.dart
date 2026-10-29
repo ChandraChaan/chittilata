@@ -51,8 +51,9 @@ class _ConfettiState extends State<Confetti>
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.of(context).disableAnimations)
+    if (MediaQuery.of(context).disableAnimations) {
       return const SizedBox.shrink();
+    }
     final c = context.colors;
     final colors = [c.marigold, c.kumkum, c.teal, c.paper];
     return IgnorePointer(
