@@ -1,0 +1,79 @@
+name: Release APK
+
+# Push a tag like v1.0.0 to build signed, obfuscated APKs and attach them to a
+# GitHub Release. Requires these repository secrets:
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS,
+#   ANDROID_KEY_PASSWORD
+# Optional (uploads Dart symbols to Crashlytics and the APK to App Distribution):
+#   FIREBASE_SERVICE_ACCOUNT_JSON
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.5"
+          channel: stable
+          cache: true
+      - name: Check signing secrets
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set; refusing to publish an unsigned/debug-signed release."
+            exit 1
+          fi
+      - name: Restore keystore
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+      - run: flutter pub get
+      - run: flutter test
+      - name: Build signed release APKs
+        env:
+          CHITTILATA_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          CHITTILATA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CHITTILATA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CHITTILATA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          flutter build apk --release --obfuscate --split-debug-info=build/symbols
+          flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols
+          cd build/app/outputs/flutter-apk
+          VERSION="${GITHUB_REF_NAME}"
+          mv app-release.apk "chittilata-${VERSION}-universal.apk"
+          for abi in arm64-v8a armeabi-v7a x86_64; do mv "app-${abi}-release.apk" "chittilata-${VERSION}-${abi}.apk"; done
+          sha256sum chittilata-*.apk > SHA256SUMS.txt
+      - name: Upload Crashlytics symbols and App Distribution build
+        if: ${{ env.SA != '' }}
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          echo "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@15.19.0 crashlytics:symbols:upload \
+            --app=1:158543185837:android:f9a1aad186465883e50324 build/symbols
+          npx --yes firebase-tools@15.19.0 appdistribution:distribute \
+            build/app/outputs/flutter-apk/chittilata-${GITHUB_REF_NAME}-universal.apk \
+            --app 1:158543185837:android:f9a1aad186465883e50324 \
+            --groups "family-testers" \
+            --release-notes "Chittilata ${GITHUB_REF_NAME}"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/flutter-apk/chittilata-*.apk
+            build/app/outputs/flutter-apk/SHA256SUMS.txt
+          generate_release_notes: true
