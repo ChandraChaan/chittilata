@@ -10,7 +10,9 @@ import * as kq from "./game/kq";
 import { ROOM_TTL_HOURS } from "./game/model";
 
 initializeApp();
-setGlobalOptions({ region: "asia-south1", maxInstances: 20, memory: "256MiB" });
+// Small, short transactions: a fractional CPU and few instances keep the
+// project well inside its regional Cloud Run CPU quota.
+setGlobalOptions({ region: "asia-south1", maxInstances: 5, memory: "256MiB", cpu: "gcf_gen1" });
 
 const deps = (): ops.Deps => ({ db: getFirestore(), now: Date.now, rng: secureRng });
 
