@@ -1,0 +1,35 @@
+name: Bug report
+description: Something in the game didn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Found a way to see other players' cards or roles? Please report it privately instead: see SECURITY.md."
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Game mode
+      options: [Movie Chits, King & Queen, Lobby / home / settings]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: "e.g. v2.0.0 (the release you installed)"
+  - type: input
+    id: device
+    attributes:
+      label: Phone and Android version
+      placeholder: "e.g. Pixel 7, Android 16"
+  - type: input
+    id: players
+    attributes:
+      label: Number of players

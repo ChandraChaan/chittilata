@@ -58,3 +58,6 @@ service-account*.json
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# Crashlytics symbol tool downloaded at build time
+.crashlytics/
