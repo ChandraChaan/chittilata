@@ -24,5 +24,10 @@
     "firebase": "^13.1.0",
     "typescript": "~5.9.0",
     "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "^1.14.7"
+    }
   }
 }
