@@ -4,7 +4,7 @@ These answers are based on the code in this repository (Firebase Auth anonymous,
 
 **Does your app collect or share any of the required user data types?** Yes.
 **Is all of the user data collected by your app encrypted in transit?** Yes (HTTPS/TLS via Firebase SDKs).
-**Do you provide a way for users to request that their data is deleted?** Yes. Rooms auto-delete 7 days after closing, and users can request earlier deletion by email (add the address to the privacy policy).
+**Do you provide a way for users to request that their data is deleted?** Yes. Rooms auto-delete 7 days after closing, and users can request earlier deletion by email at the address in the privacy policy.
 
 | Data type (Play category) | Collected | Shared | Optional? | Purpose |
 |---|---|---|---|---|

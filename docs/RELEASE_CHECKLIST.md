@@ -10,7 +10,6 @@
   - `ANDROID_KEYSTORE_BASE64` (`base64 -i ~/.android/chittilata/chittilata-release.jks | pbcopy`)
   - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`chittilata`), `ANDROID_KEY_PASSWORD` (values in `android/key.properties`)
   - Optional: `FIREBASE_SERVICE_ACCOUNT_JSON`, a service account with *Firebase App Distribution Admin* and *Firebase Crashlytics* roles
-- [ ] Fix GitHub Actions billing for the account. CI jobs are currently refused with "recent account payments have failed or your spending limit needs to be increased".
 - [ ] In Google Cloud Console → APIs & Services → Credentials, restrict the Android API key to package `com.chandra.chittilata` and the release SHA-256 `AD:5B:D1:6C:1D:78:BC:90:9B:7A:55:33:10:BD:A8:4B:FF:1D:E8:42:C7:28:52:6A:EF:B6:4A:16:95:EC:94:5A`
 - [ ] Consider enabling Firebase App Check (Play Integrity) and enforcing it on callables
 - [ ] If you raise `maxInstances` or CPU, check the regional Cloud Run CPU quota first. Deploys fail with "Quota exceeded for total allowable CPU per project per region" otherwise.
@@ -40,10 +39,13 @@
 
 ## Play Console submission (when ready)
 
-- [ ] Publish `docs/PRIVACY_POLICY.md` at a public URL and add a contact email
+The full walkthrough, with every answer filled in, is in [store/PLAY_SUBMISSION.md](store/PLAY_SUBMISSION.md).
+
+- [x] Contact email added to `docs/PRIVACY_POLICY.md`
+- [ ] Merge to `main` so the policy is live at https://github.com/ChandraChaan/chittilata/blob/main/docs/PRIVACY_POLICY.md
 - [ ] Store listing text and graphics from `docs/store/`
 - [ ] Data Safety form from `docs/store/DATA_SAFETY.md`
 - [ ] Content rating questionnaire (see `docs/store/LISTING.md`)
 - [ ] Target audience and content (13+ recommended)
-- [ ] Enroll in Play App Signing (upload key = the keystore above)
+- [ ] Enroll in Play App Signing (upload key = the keystore above), then add the Play **app signing** SHA-1/SHA-256 to Firebase and to the API key restriction
 - [ ] Internal testing → Closed testing (12+ testers for 14 days for new personal accounts) → Production

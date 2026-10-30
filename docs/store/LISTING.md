@@ -12,49 +12,22 @@
 | Contains ads | No |
 | In-app purchases | No |
 
-## Short description (≤ 80 characters)
+## Descriptions
 
-> Play Chittilu Aata with friends: pass paper slips, collect four of a kind!
+Paste these as-is. They're plain text because Play Console shows markdown literally.
 
-(74 characters)
-
-## Full description (≤ 4000 characters)
-
-> **Chittilata (చిట్టిలాట)** brings two much-loved Telugu paper-chit games to your phone: **Movie Chits** (*Chittilu Aata*) and **King & Queen**. No paper and no scissors needed. Everyone plays on their own phone, and every slip stays secret.
->
-> **🎬 Movie Chits (3–10 players)**
-> • One person creates a room and shares the 6-letter code. 3–10 players can join.
-> • Everyone gets four secret slips with movie names.
-> • Pass one slip at a time around a random circle. Keep what you need and pass on what you don't.
-> • The first to collect four of the same name wins the round!
-> • Everyone else secretly becomes the Queen, Police, Thief and more, each worth different points.
-> • Play 7, 10, 15 or 20 rounds. The top scorer is crowned **King**, and the runner-up is **Queen**.
->
-> **Made for family game nights**
-> • Telugu movies by default, plus All-Indian, Hollywood, Mixed, or your own custom names: cities, countries, cricketers, anything!
-> • Easy, Normal and Challenging difficulty.
-> • A turn timer with a live countdown everyone sees. No more waiting on that one cousin!
-> • Beautiful folded-paper design, celebrations, sound effects and gentle vibration, each with its own on/off switch.
->
-> **Fair and private**
-> • Every deal is shuffled fairly on our server, and nobody starts close to winning.
-> • Only you can see your slips. Not even the host can peek.
-> • Lost connection? Reopen the app and you're right back in your seat.
->
-> **👑 King & Queen (4–10 players)**
-> • Pick one folded chit to get your secret role.
-> • The King hunts the Queen, the Queen hunts the Police… guess wrong and you swap roles!
-> • Everyone scores their final role. Most points after all rounds wins.
->
-> Gather the family. Pick the chits. Wear the crown. 👑
+- Short description (78/80): [`play/short-description.txt`](play/short-description.txt)
+- Full description (1954/4000): [`play/full-description.txt`](play/full-description.txt)
+- First release notes: [`play/release-notes.txt`](play/release-notes.txt)
 
 ## Graphics
 
 | Asset | File | Notes |
 |---|---|---|
-| App icon 512×512 | `docs/store/icon-512.png` | |
+| App icon 512×512 | `docs/store/icon-512.png` | 32-bit PNG |
 | Feature graphic 1024×500 | `docs/store/feature-graphic.png` | |
-| Phone screenshots (1080×2160) | `docs/store/screenshots/01…12-*.png` (07–12: King & Queen) | Real captures from a live 4-player game on the production backend (3 test players were scripted bots) |
+| Phone screenshots for Play (1080×1920) | `docs/store/play/screenshots/01…08-*.png` | The 8 to upload: raw captures with a headline, made by `tool/brand/make_store_screenshots.sh` |
+| Raw screenshots (1080×2160) | `docs/store/screenshots/01…12-*.png` (07–12: King & Queen) | Real captures from a live 4-player game on the production backend (3 test players were scripted bots) |
 | Promo video | `docs/media/chittilata-how-to-play.mp4` | Play needs a YouTube URL, so upload the file to YouTube first |
 
 ## Content rating questionnaire (IARC) — expected answers

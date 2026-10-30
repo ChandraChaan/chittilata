@@ -1,0 +1,6 @@
+<en-IN>
+First release on Google Play!
+• Movie Chits: pass the slips and collect four of a kind (3–10 players)
+• King & Queen: find the Queen, and swap roles on a wrong guess (4–10 players)
+• Fair server-side shuffles, private slips, turn timers and reconnect
+</en-IN>

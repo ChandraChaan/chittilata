@@ -1,6 +1,6 @@
 # Chittilata — Privacy Policy
 
-_Last updated: 30 October 2026. This is a draft prepared for the developer; review it and publish it at a public URL (for example GitHub Pages) before submitting to Google Play._
+_Last updated: 30 October 2026._
 
 Chittilata ("the app") is a multiplayer card game made by Chandra ("we"). This policy explains what the app collects and why.
 
@@ -46,4 +46,4 @@ All traffic is encrypted (HTTPS/TLS). Game rules and scoring run on our server, 
 
 ## Contact
 
-Chandra — **[add a contact email before publishing]**
+Chandra — dumpalachandu@gmail.com
