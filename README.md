@@ -13,6 +13,7 @@ Real-time, cheat-proof multiplayer for 3–10 friends, built with Flutter and Fi
 ![Flutter](https://img.shields.io/badge/Flutter-3.44-02569B?logo=flutter&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20and%20Functions-FFCA28?logo=firebase&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/backend-TypeScript-3178C6?logo=typescript&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [**Download**](https://github.com/ChandraChaan/chittilata/releases/latest) · [How to play](docs/HOW_TO_PLAY.md) · [Video walkthrough](docs/media/chittilata-how-to-play.mp4) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -157,3 +158,7 @@ If Chittilata brought back memories of family game nights, consider giving it a 
 ## Notes
 
 `google-services.json` and `firebase_options.dart` contain Firebase client identifiers, which ship inside every Android app. They are not secrets: access is enforced by Firestore rules and server-side checks. Signing keys and service accounts are never committed.
+
+## License
+
+[MIT](LICENSE) © 2026 Chandra

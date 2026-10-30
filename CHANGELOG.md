@@ -5,6 +5,7 @@ All notable changes to Chittilata. Versions follow [Semantic Versioning](https:/
 ## [Unreleased]
 
 ### Added
+- MIT license.
 - README with demo GIF, screenshot gallery and architecture diagram; social preview image.
 - `SECURITY.md` (private vulnerability reporting), `CONTRIBUTING.md`, issue and pull request templates, Dependabot configuration.
 
