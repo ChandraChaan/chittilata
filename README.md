@@ -11,7 +11,7 @@ Real-time, cheat-proof multiplayer for 3–10 friends, built with Flutter and Fi
 [![Latest release](https://img.shields.io/github/v/release/ChandraChaan/chittilata?label=download%20APK&color=F5B82E)](https://github.com/ChandraChaan/chittilata/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
 ![Flutter](https://img.shields.io/badge/Flutter-3.44-02569B?logo=flutter&logoColor=white)
-![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Functions-FFCA28?logo=firebase&logoColor=black)
+![Firebase](https://img.shields.io/badge/Firebase-Firestore%20and%20Functions-FFCA28?logo=firebase&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/backend-TypeScript-3178C6?logo=typescript&logoColor=white)
 
 [**Download**](https://github.com/ChandraChaan/chittilata/releases/latest) · [How to play](docs/HOW_TO_PLAY.md) · [Video walkthrough](docs/media/chittilata-how-to-play.mp4) · [Architecture](docs/ARCHITECTURE.md)
