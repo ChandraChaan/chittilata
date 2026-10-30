@@ -2,6 +2,16 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- README with demo GIF, screenshot gallery and architecture diagram; social preview image.
+- `SECURITY.md` (private vulnerability reporting), `CONTRIBUTING.md`, issue and pull request templates, Dependabot configuration.
+
+### Changed
+- CI runs with a read-only token. The release workflow now correctly detects the optional Firebase service account and deletes it after use.
+- Stopped tracking the downloaded Crashlytics symbol tool (`.crashlytics/`).
+
 ## [2.0.0] — 2026-10-30
 
 ### Added
