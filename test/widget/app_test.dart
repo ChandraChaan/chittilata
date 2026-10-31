@@ -240,6 +240,16 @@ void main() {
       );
       expect(find.text('Pass one slip'), findsOneWidget);
       expect(repo.calls, isEmpty);
+      // ...and can still pass after the deadline.
+      expect(
+        find.text('Still your turn: pass one slip to Sai'),
+        findsOneWidget,
+      );
+      await tester.tap(find.bySemanticsLabel('Slip: Devara').last);
+      await tester.pump();
+      await tester.tap(find.text('Pass to Sai'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(repo.calls, ['pass:3:c2']);
       await unmount(tester);
     },
   );

@@ -218,11 +218,11 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       ? _kqRole
       : null;
 
+  /// Still my turn after the deadline: nothing is guessed for me automatically.
   bool get kqMyTurn =>
       phase == Phase.kqGuessing &&
       kqRound?.guesser == uid &&
-      !now.isBefore(kqRound!.guessOpensAt ?? now) &&
-      kqTurnRemainingMs > -_graceMs;
+      !now.isBefore(kqRound!.guessOpensAt ?? now);
 
   int get kqTurnRemainingMs {
     final d = kqRound?.turnDeadline;

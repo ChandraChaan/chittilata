@@ -180,7 +180,9 @@ class _TurnBanner extends StatelessWidget {
         ? 'Your turn'
         : '$who is choosing';
     final subtitle = expired
-        ? 'Passing a slip automatically…'
+        ? (mine
+              ? 'Still your turn: pass one slip to $next'
+              : 'Waiting for $who to pass')
         : mine
         ? 'Pick one slip to pass to $next'
         : round.nextUid == ctrl.uid
@@ -302,7 +304,8 @@ class _HandAreaState extends State<_HandArea> {
       counts[card.name] = (counts[card.name] ?? 0) + 1;
     }
     final four = matchingName(hand.cards);
-    final canAct = ctrl.myTurn && !ctrl.busy && ctrl.turnRemainingMs > 0;
+    // A late player can still pass: nothing is passed for them automatically.
+    final canAct = ctrl.myTurn && !ctrl.busy;
     final width = MediaQuery.sizeOf(context).width;
     final slipWidth = min(
       84.0,
