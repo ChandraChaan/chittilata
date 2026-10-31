@@ -3,7 +3,7 @@ rules_version = '2';
 // Chittilata security model
 // - Every game mutation goes through Cloud Functions (Admin SDK bypasses rules).
 // - Clients may READ only what they are entitled to and WRITE only their own
-//   presence heartbeat.
+//   presence heartbeat and quick-chat message (preset codes only).
 // - Active hands and secret characters are per-player documents readable only
 //   by their owner. The host has no extra read access.
 // - Round documents contain no card identities until the server reveals them.
@@ -49,6 +49,29 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['lastSeen', 'state'])
           && request.resource.data.lastSeen == request.time
           && request.resource.data.state in ['foreground', 'background'];
+        allow delete: if false;
+      }
+
+      // Quick chat: each member's latest emoji, preset phrase or nudge. Only
+      // preset codes (no free text), at most one per second per player.
+      match /chat/{uid} {
+        allow read: if isMember(roomId);
+        allow create, update: if signedIn()
+          && request.auth.uid == uid
+          && isMember(roomId)
+          && request.resource.data.keys().hasOnly(['id', 'kind', 'code', 'to', 'at'])
+          && request.resource.data.keys().hasAll(['id', 'kind', 'code', 'to', 'at'])
+          && request.resource.data.id is string
+          && request.resource.data.id.matches('^[a-z0-9]{1,12}$')
+          && request.resource.data.at == request.time
+          && request.resource.data.kind in ['emoji', 'phrase', 'nudge']
+          && request.resource.data.code is string
+          && request.resource.data.code.matches('^[a-z0-9_]{1,16}$')
+          && (request.resource.data.to == null
+              || (request.resource.data.to is string
+                  && request.resource.data.to in room(roomId).memberUids))
+          && (resource == null
+              || request.time > resource.data.at + duration.value(1, 's'));
         allow delete: if false;
       }
 

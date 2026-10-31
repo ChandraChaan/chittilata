@@ -176,6 +176,27 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('a late King is buzzed but can still guess', (tester) async {
+    repo.emitRoom(kqRoom());
+    repo.emitKqRound(
+      makeKqRound(
+        guesser: 'me',
+        turnDeadline: DateTime.now().subtract(const Duration(seconds: 8)),
+      ),
+    );
+    repo.emitKqRole(myKing);
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text("Time's up! Everyone is waiting for you"), findsOneWidget);
+    expect(find.text('Make your guess'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel(RegExp('^Swetha')));
+    await tester.pump();
+    await tester.tap(find.text('Is Swetha the Queen?'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(repo.calls, ['kqGuess:0:s']);
+    await unmount(tester);
+  });
+
   testWidgets('other players watch; their secret role stays on their screen', (
     tester,
   ) async {
@@ -230,9 +251,8 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('an expired guess turn is claimed so the game moves on', (
-    tester,
-  ) async {
+  testWidgets('an expired guess turn is never auto-guessed; offline guessers '
+      'can be played for', (tester) async {
     repo = FakeGameRepository(me: 'k');
     repo.emitRoom(kqRoom());
     repo.emitKqRound(
@@ -246,7 +266,10 @@ void main() {
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 250));
     }
-    expect(repo.calls, contains('kqTimeout:0'));
+    expect(repo.calls, isEmpty);
+    await tester.tap(find.text('Play for Swetha'));
+    await tester.pump();
+    expect(repo.calls, ['kqTimeout:0']);
     await unmount(tester);
   });
 

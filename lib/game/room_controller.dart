@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../core/services/feedback.dart';
 import '../core/services/preferences.dart';
+import '../data/chat.dart';
 import '../data/game_repository.dart';
 import '../data/models.dart';
 
@@ -28,9 +29,32 @@ enum Phase {
 /// Server-matching grace after a deadline (see DEADLINE_GRACE_MS on server).
 const _graceMs = 1000;
 
+/// Others may play for a late player after this much overtime, or once the
+/// late player is offline (see PLAY_FOR_AFTER_MS / OFFLINE_AFTER_MS on server).
+const playForAfter = Duration(seconds: 45);
+const _offlineAfter = Duration(seconds: 45);
+
+/// The players the table is waiting on after their deadline passed.
+class LateState {
+  const LateState(this.uids, this.deadline);
+  final List<String> uids;
+  final DateTime deadline;
+}
+
+/// A quick-chat message on screen, until it floats away.
+class ChatBubble {
+  ChatBubble(this.seq, this.event, this.name, this.shownAt);
+  final int seq;
+  final ChatEvent event;
+  final String name;
+  final DateTime shownAt;
+}
+
 /// Owns every live subscription for one room and turns the server's
 /// authoritative documents into UI state. It never decides game outcomes;
-/// it only asks the server to act (pass, timeout, reveal).
+/// it only asks the server to act (pass, reveal, or play for a late player
+/// when someone at the table chooses to). Nothing is ever played
+/// automatically: a late player is buzzed and can be nudged instead.
 class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   RoomController({
     required this.repo,
@@ -45,6 +69,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       presence = p;
       notifyListeners();
     }, onError: (_) {});
+    _chatSub = repo.watchChat(roomId).listen(_onChat, onError: (_) {});
     _connSub = repo.watchConnected(roomId).listen((c) {
       if (c != connected) {
         connected = c;
@@ -77,6 +102,16 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   /// plays the unfolding reveal and then calls [consumeReveal].
   final revealQueue = <Object>[];
 
+  /// Quick-chat messages currently floating on screen, oldest first.
+  final chatFeed = <ChatBubble>[];
+  final _seenChat = <String, String>{};
+  int _chatSeq = 0;
+  DateTime _lastSend = DateTime(0);
+  final _lastNudge = <String, DateTime>{};
+  StreamSubscription<List<ChatEvent>>? _chatSub;
+  String? _lateKey;
+  int _lastBuzzSecond = -100;
+
   final _messages = StreamController<String>.broadcast();
   Stream<String> get messages => _messages.stream;
 
@@ -95,7 +130,6 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _heartbeat;
   Timer? _ticker;
   String? _watchingRoundKey;
-  final _claimedTimeouts = <String>{};
   final _claimedReveals = <String>{};
   int _lastWarnSecond = -1;
   String? _lastActionKey;
@@ -184,11 +218,11 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       ? _kqRole
       : null;
 
+  /// Still my turn after the deadline: nothing is guessed for me automatically.
   bool get kqMyTurn =>
       phase == Phase.kqGuessing &&
       kqRound?.guesser == uid &&
-      !now.isBefore(kqRound!.guessOpensAt ?? now) &&
-      kqTurnRemainingMs > -_graceMs;
+      !now.isBefore(kqRound!.guessOpensAt ?? now);
 
   int get kqTurnRemainingMs {
     final d = kqRound?.turnDeadline;
@@ -257,7 +291,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
           feedback.warning();
           _messages.add(
             h.kind == 'timeout'
-                ? "Time's up for ${h.guesser == uid ? 'you' : who}: the game guessed $whom. Wrong, so they swapped roles."
+                ? '${h.guesser == uid ? 'You' : who} took too long, so a random guess was made: $whom. Wrong, so they swapped roles.'
                 : '$who guessed $whom for $role. Wrong! They swapped roles.',
           );
         }
@@ -452,8 +486,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
         feedback.play(Sfx.timeout);
         _messages.add(
           la.fromUid == uid
-              ? "Time's up! A card was passed for you."
-              : "Time's up for ${room?.nameOf(la.fromUid)} — a card was auto-passed.",
+              ? 'You took too long, so a card was passed for you.'
+              : '${room?.nameOf(la.fromUid)} took too long, so a card was passed for them.',
         );
       } else if (la.fromUid != uid && la.toUid != uid) {
         feedback.play(Sfx.tap);
@@ -521,62 +555,29 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   void _tick() {
     final rd = round;
     final p = phase;
-    if (rd != null && p == Phase.exchange) {
-      final ms = turnRemainingMs;
-      if (myTurn && rd.timed) {
-        final s = (ms / 1000).ceil();
-        if (s <= 5 && s > 0 && s != _lastWarnSecond) {
-          _lastWarnSecond = s;
-          feedback.play(Sfx.tick);
-          if (s <= 3) feedback.warning();
-        }
+    if (rd != null && p == Phase.exchange && myTurn && rd.timed) {
+      final s = (turnRemainingMs / 1000).ceil();
+      if (s <= 5 && s > 0 && s != _lastWarnSecond) {
+        _lastWarnSecond = s;
+        feedback.play(Sfx.tick);
+        if (s <= 3) feedback.warning();
       }
-      _maybeClaimTimeout(rd, ms);
-    }
-    if (rd != null && p == Phase.picking) {
-      _maybeClaim(
-        'autoPick:${rd.key}',
-        rd.pickDeadline,
-        rd,
-        () => repo.autoPickChits(roomId, rd.key),
-      );
-    }
-    if (rd != null && p == Phase.characters && rd.revealAt == null) {
-      _maybeClaim(
-        'autoChar:${rd.key}',
-        rd.charPickDeadline,
-        rd,
-        () => repo.autoPickCharacters(roomId, rd.key),
-      );
     }
     if (rd != null && p == Phase.characters) _maybeReveal(rd);
     if (p == Phase.tiebreakVote) _maybeCloseVote();
     final kr = kqRound;
-    if (kr != null && p == Phase.kqPicking) {
-      _maybeKqClaim(
-        'kqAuto:${kr.key}',
-        kr.pickDeadline,
-        kr,
-        () => repo.kqAutoPick(roomId, kr.key),
-      );
-    }
-    if (kr != null && p == Phase.kqGuessing) {
-      _maybeKqClaim(
-        'kqTimeout:${kr.key}:${kr.turnId}',
-        kr.turnDeadline,
-        kr,
-        () => repo.kqClaimTimeout(roomId, kr.key, kr.turnId),
-      );
-      if (kqMyTurn && kr.timed) {
-        final s = (kqTurnRemainingMs / 1000).ceil();
-        if (s <= 5 && s > 0 && s != _lastWarnSecond) {
-          _lastWarnSecond = s;
-          feedback.play(Sfx.tick);
-          if (s <= 3) feedback.warning();
-        }
+    if (kr != null && p == Phase.kqGuessing && kqMyTurn && kr.timed) {
+      final s = (kqTurnRemainingMs / 1000).ceil();
+      if (s <= 5 && s > 0 && s != _lastWarnSecond) {
+        _lastWarnSecond = s;
+        feedback.play(Sfx.tick);
+        if (s <= 3) feedback.warning();
       }
     }
-    if (p == Phase.picking ||
+    _buzzIfLate();
+    final pruned = _pruneChat();
+    if (pruned ||
+        p == Phase.picking ||
         p == Phase.kqPicking ||
         p == Phase.kqGuessing ||
         p == Phase.intro ||
@@ -587,46 +588,200 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Any client may ask the server to apply an expired turn. The player after
-  /// the stuck one asks first; others stagger so calls rarely collide.
-  void _maybeClaimTimeout(Round rd, int remainingMs) {
-    final idx = rd.order.indexOf(uid ?? '');
-    final stagger = rd.nextUid == uid ? 300 : 1500 + max(0, idx) * 400;
-    if (remainingMs > -(_graceMs + stagger)) return;
-    final key = '${rd.key}:${rd.turnId}';
-    if (!_claimedTimeouts.add(key)) return;
-    repo.claimTimeout(roomId, rd.key, rd.turnId).catchError((_) {});
+  // ---------- late players ----------
+
+  /// Who the table is waiting on past their deadline, if anyone.
+  LateState? get late {
+    final t = now;
+    LateState? after(DateTime? deadline, Iterable<String> who) {
+      if (deadline == null) return null;
+      final uids = who.toList();
+      if (uids.isEmpty) return null;
+      if (!t.isAfter(deadline.add(const Duration(milliseconds: _graceMs)))) {
+        return null;
+      }
+      return LateState(uids, deadline);
+    }
+
+    final rd = round;
+    final kr = kqRound;
+    switch (phase) {
+      case Phase.picking when rd != null:
+        final counts = <String, int>{};
+        for (final u in rd.picks.values) {
+          counts[u] = (counts[u] ?? 0) + 1;
+        }
+        return after(
+          rd.pickDeadline,
+          rd.order.where((u) => (counts[u] ?? 0) < 4),
+        );
+      case Phase.characters when rd != null && rd.revealAt == null:
+        final picked = rd.charPicks.values.toSet();
+        return after(
+          rd.charPickDeadline,
+          rd.order.where((u) => u != rd.winner?.uid && !picked.contains(u)),
+        );
+      case Phase.exchange when rd != null:
+        return after(rd.turnDeadline, [rd.currentUid]);
+      case Phase.kqPicking when kr != null:
+        final picked = kr.picks.values.toSet();
+        return after(
+          kr.pickDeadline,
+          kr.players.where((u) => !picked.contains(u)),
+        );
+      case Phase.kqGuessing when kr != null && kr.guesser != null:
+        return after(kr.turnDeadline, [kr.guesser!]);
+      default:
+        return null;
+    }
   }
 
-  /// After a picking deadline any member asks the server to finish the
-  /// remaining picks at random; members stagger so calls rarely collide.
-  void _maybeClaim(
-    String key,
-    DateTime? deadline,
-    Round rd,
-    Future<void> Function() call,
-  ) {
-    if (deadline == null) return;
-    final idx = max(0, rd.order.indexOf(uid ?? ''));
-    final at = deadline.add(Duration(milliseconds: _graceMs + 300 + idx * 500));
-    if (now.isBefore(at)) return;
-    if (!_claimedReveals.add(key)) return;
-    call().catchError((_) => _claimedReveals.remove(key));
+  bool get iAmLate => late?.uids.contains(uid) ?? false;
+
+  /// Seconds past the deadline (0 when nobody is late).
+  int get overtimeSeconds {
+    final l = late;
+    return l == null ? 0 : max(0, now.difference(l.deadline).inSeconds);
   }
 
-  void _maybeKqClaim(
-    String key,
-    DateTime? deadline,
-    KqRound kr,
-    Future<void> Function() call,
-  ) {
-    if (deadline == null) return;
-    final idx = max(0, kr.players.indexOf(uid ?? ''));
-    final at = deadline.add(Duration(milliseconds: _graceMs + 300 + idx * 500));
-    if (now.isBefore(at)) return;
-    if (!_claimedReveals.add(key)) return;
-    call().catchError((_) => _claimedReveals.remove(key));
+  /// No heartbeat for a while: the app is closed or the phone lost signal.
+  bool isOffline(String player) {
+    final seen = presence[player]?.lastSeen;
+    return seen == null || now.difference(seen) > _offlineAfter;
   }
+
+  /// Whether I may play for the late players now (the server checks too).
+  bool get canPlayForLate {
+    final l = late;
+    if (l == null || l.uids.contains(uid)) return false;
+    return now.difference(l.deadline) > playForAfter || l.uids.every(isOffline);
+  }
+
+  /// Plays for the late players: a random pass, pick or guess, exactly as a
+  /// timeout used to, but only because someone at the table chose to.
+  Future<bool> playForLate() {
+    final rd = round;
+    final kr = kqRound;
+    final l = late;
+    if (l == null || !canPlayForLate) return Future.value(false);
+    final names = l.uids.map((u) => room?.nameOf(u) ?? 'Player').join(', ');
+    return run(() async {
+      switch (phase) {
+        case Phase.exchange:
+          await repo.claimTimeout(roomId, rd!.key, rd.turnId);
+        case Phase.picking:
+          await repo.autoPickChits(roomId, rd!.key);
+          _messages.add('Chits were picked for $names.');
+        case Phase.characters:
+          await repo.autoPickCharacters(roomId, rd!.key);
+          _messages.add('Characters were picked for $names.');
+        case Phase.kqPicking:
+          await repo.kqAutoPick(roomId, kr!.key);
+          _messages.add('Chits were picked for $names.');
+        case Phase.kqGuessing:
+          await repo.kqClaimTimeout(roomId, kr!.key, kr.turnId);
+        default:
+          break;
+      }
+    });
+  }
+
+  /// Buzzes my phone when my time runs out, and again every 10 seconds.
+  void _buzzIfLate() {
+    final l = late;
+    if (l == null || !l.uids.contains(uid)) {
+      _lateKey = null;
+      return;
+    }
+    final key = '${phase.name}:${l.deadline.millisecondsSinceEpoch}';
+    if (key != _lateKey) {
+      _lateKey = key;
+      _lastBuzzSecond = -100;
+      feedback.play(Sfx.timeout);
+    }
+    final over = now.difference(l.deadline).inSeconds;
+    if (over - _lastBuzzSecond >= 10) {
+      _lastBuzzSecond = over;
+      feedback.buzz();
+    }
+  }
+
+  // ---------- quick chat ----------
+
+  void _onChat(List<ChatEvent> events) {
+    var added = false;
+    for (final e in events) {
+      if (_seenChat[e.uid] == e.id) continue;
+      final first = !_seenChat.containsKey(e.uid);
+      _seenChat[e.uid] = e.id;
+      // On joining, only show what was sent in the last few seconds.
+      if (first && now.difference(e.at) > const Duration(seconds: 6)) continue;
+      if (e.text == null) continue;
+      chatFeed.add(
+        ChatBubble(_chatSeq++, e, room?.nameOf(e.uid) ?? 'Player', now),
+      );
+      added = true;
+      if (e.kind == ChatKind.nudge && e.to == uid) {
+        feedback.play(Sfx.timeout);
+        feedback.buzz();
+      } else if (e.uid != uid) {
+        feedback.selection();
+      }
+    }
+    if (chatFeed.length > 12) chatFeed.removeRange(0, chatFeed.length - 12);
+    if (added) notifyListeners();
+  }
+
+  bool _pruneChat() {
+    final before = chatFeed.length;
+    chatFeed.removeWhere(
+      (b) => now.difference(b.shownAt) > const Duration(seconds: 4),
+    );
+    return chatFeed.length != before;
+  }
+
+  /// Sends a preset emoji or phrase; at most one per second (rules enforce it).
+  bool sendQuick(ChatKind kind, String code) {
+    final t = DateTime.now();
+    if (t.difference(_lastSend) < const Duration(milliseconds: 1100)) {
+      return false;
+    }
+    _lastSend = t;
+    feedback.selection();
+    repo
+        .sendChat(roomId, id: _chatId(), kind: kind, code: code)
+        .catchError((_) {});
+    return true;
+  }
+
+  bool canNudge(String target) {
+    final last = _lastNudge[target];
+    return target != uid &&
+        (last == null ||
+            DateTime.now().difference(last) > const Duration(seconds: 8));
+  }
+
+  /// Buzzes [target]'s phone with a 👋 everyone sees.
+  void nudge(String target) {
+    if (!canNudge(target)) return;
+    final t = DateTime.now();
+    if (t.difference(_lastSend) < const Duration(milliseconds: 1100)) return;
+    _lastSend = t;
+    _lastNudge[target] = t;
+    feedback.medium();
+    repo
+        .sendChat(
+          roomId,
+          id: _chatId(),
+          kind: ChatKind.nudge,
+          code: nudgeCode,
+          to: target,
+        )
+        .catchError((_) {});
+    notifyListeners();
+  }
+
+  String _chatId() => _rand.nextInt(1 << 32).toRadixString(36);
 
   /// After the vote deadline any member asks the server to close the vote.
   void _maybeCloseVote() {
@@ -900,6 +1055,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _kqRoundSub?.cancel();
     _kqRoleSub?.cancel();
     _presenceSub?.cancel();
+    _chatSub?.cancel();
     _connSub?.cancel();
     _heartbeat?.cancel();
     _ticker?.cancel();

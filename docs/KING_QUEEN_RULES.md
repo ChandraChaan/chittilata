@@ -46,7 +46,7 @@ picking ──(all chits picked)──▶ guessing ──(every role locked)─�
 1. The server seals one role into each of N folded chits, shuffled with a cryptographically secure RNG. The public round shows only opaque chit ids.
 2. Every phone shows the ceremony: role names are written on paper, folded, collapsed into one pile, shuffled and scattered on the mat.
 3. Each player picks **exactly one** chit. A chit can be taken once; a player can take one. **The role inside is the player's role.** Only that player sees it.
-4. After 20 seconds, any member may ask the server to hand out the remaining chits at random.
+4. After 20 seconds the late players are buzzed and can be nudged. 45 seconds after the deadline (or sooner if every late player is offline), any member may ask the server to hand out the remaining chits at random.
 5. When every chit is picked, guessing begins. The **King is announced publicly**, because the King must call the first guess.
 
 ### 2.2 Guessing
@@ -77,7 +77,7 @@ State (server-authoritative):
 - Then **forced resolution**: while the round isn't over and |*C*| = 1, the single candidate must hold chain[s+1]. That holder isn't locked (locked players hold chain[0..s−1]), isn't the guesser, and isn't excluded (excluded players hold other roles). So the server applies that correct guess automatically and logs it as **forced**.
 - **Round over**: when *s* = N − 1, the guesser holds the last role (Thief), which is final: *L* += *g*. Every role is now locked.
 
-**Timeout.** If the guesser doesn't guess before the deadline (plus 1 second of grace), any member may ask the server to apply the timeout. The server then makes a **uniformly random** guess from *C* on the guesser's behalf, with the same transitions. A timeout never helps or hurts anyone in particular. The host sets the turn timer (10–60 s), or picks **No timer**, which still auto-guesses after 5 minutes so the game can't freeze.
+**Timeout.** Nothing is guessed automatically. Once the deadline passes (plus 1 second of grace) the guesser is buzzed and can be nudged, and can still guess. 45 seconds after the deadline, or sooner if the guesser is offline (no heartbeat for 45 s), any member may ask the server to play for them. The server then makes a **uniformly random** guess from *C* on the guesser's behalf, with the same transitions. That never helps or hurts anyone in particular. The host sets the turn timer (10–60 s), or picks **No timer**, which uses a 5-minute deadline so the game can't freeze.
 
 ### 2.3 Guarantees (each one is tested)
 
@@ -102,7 +102,7 @@ State (server-authoritative):
 
 ## 5. Leaving and reconnecting
 
-- Disconnecting doesn't remove you: deadlines keep running, and a missed guess is made at random.
+- Disconnecting doesn't remove you: deadlines keep running, and once you're offline past your deadline, another player can make a random guess for you.
 - **Leaving** during picking or guessing **voids the round** (no points), and it counts as played. If fewer than 4 players remain, the game ends with the totals so far.
 
 ## 6. Worked example (4 players)

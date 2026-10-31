@@ -11,6 +11,7 @@ These answers are based on the code in this repository (Firebase Auth anonymous,
 | Personal info → **Name** (player-chosen display name) | Yes | No | Required to play | App functionality |
 | Personal info → **User IDs** (Firebase anonymous UID) | Yes | No | Required | App functionality |
 | App activity → **Other actions** (game moves, scores) | Yes | No | Required | App functionality |
+| Messages → **Other in-app messages** (preset emojis, phrases and nudges; no free text) | Yes | No | Optional | App functionality |
 | App info & performance → **Crash logs** | Yes | No | Required | Analytics (crash diagnostics) |
 | App info & performance → **Diagnostics** (device model, OS, app version) | Yes | No | Required | Analytics (crash diagnostics) |
 | Device or other IDs → **Firebase installation ID** | Yes | No | Required | Analytics (crash diagnostics) |

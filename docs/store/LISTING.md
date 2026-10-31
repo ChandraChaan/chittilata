@@ -33,7 +33,7 @@ Paste these as-is. They're plain text because Play Console shows markdown litera
 ## Content rating questionnaire (IARC) — expected answers
 
 - Violence, sexual content, profanity, drugs, gambling: **None**. The game has no real-money stakes and no simulated gambling; points have no value.
-- User interaction: players can see the **display names** other players choose in a private room. There is no chat, no user-generated media, and no location sharing.
+- User interaction: players can see the **display names** other players choose in a private room, and send each other **preset** quick-chat emojis, phrases and nudges. There is no free-text chat, no user-generated media, and no location sharing.
 - Expected rating: **Everyone / PEGI 3 / IARC 3+**. Note "Users interact" in the questionnaire.
 
 ## Target audience

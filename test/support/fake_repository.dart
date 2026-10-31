@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:chittilata/data/chat.dart';
 import 'package:chittilata/data/game_repository.dart';
 import 'package:chittilata/data/models.dart';
 
@@ -59,9 +60,47 @@ class FakeGameRepository implements GameRepository {
       _seeded(_round.stream, round);
   @override
   Stream<Hand?> watchHand(String roomId) => _seeded(_hand.stream, hand);
+
+  /// Presence the UI sees; empty means nobody has a heartbeat (offline).
+  Map<String, Presence> presence = {};
   @override
   Stream<Map<String, Presence>> watchPresence(String roomId) =>
-      Stream.value({});
+      Stream.value(presence);
+
+  final _chat = StreamController<List<ChatEvent>>.broadcast();
+  final chat = <String, ChatEvent>{};
+
+  /// Pushes a quick-chat message as if [ChatEvent.uid] had sent it.
+  void emitChat(ChatEvent e) {
+    chat[e.uid] = e;
+    _chat.add(chat.values.toList());
+  }
+
+  @override
+  Stream<List<ChatEvent>> watchChat(String roomId) =>
+      _seeded(_chat.stream, chat.isEmpty ? null : chat.values.toList());
+
+  @override
+  Future<void> sendChat(
+    String roomId, {
+    required String id,
+    required ChatKind kind,
+    required String code,
+    String? to,
+  }) async {
+    await _record('chat:${kind.name}:$code${to == null ? '' : ':$to'}');
+    emitChat(
+      ChatEvent(
+        id: id,
+        uid: me,
+        kind: kind,
+        code: code,
+        to: to,
+        at: DateTime.now(),
+      ),
+    );
+  }
+
   @override
   Stream<bool> watchConnected(String roomId) => Stream.value(true);
   @override

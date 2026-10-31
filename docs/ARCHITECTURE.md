@@ -17,7 +17,7 @@ Android app (Flutter)                Firebase project: chittilata-game (asia-sou
                                       └──────────────────────────────────────────────┘
 ```
 
-**The server is the only authority.** Clients never write game state. Every action (create, join, ready, settings, start, pass, timeout, reveal, next round, play again, leave) is an authenticated callable Cloud Function. Each one runs inside a Firestore **transaction**, validates the request against the authoritative state, and writes the result. Clients only *read* what they are entitled to, plus write their own presence heartbeat.
+**The server is the only authority.** Clients never write game state. Every action (create, join, ready, settings, start, pass, timeout, reveal, next round, play again, leave) is an authenticated callable Cloud Function. Each one runs inside a Firestore **transaction**, validates the request against the authoritative state, and writes the result. Clients only *read* what they are entitled to, plus write their own presence heartbeat and their own quick-chat message.
 
 ## Code layout
 
@@ -28,7 +28,7 @@ Android app (Flutter)                Firebase project: chittilata-game (asia-sou
 | `functions/src/index.ts` | Callable wrappers, error mapping, `serverNow`, scheduled room expiry. |
 | `firestore.rules` | Least-privilege read rules; all game writes denied to clients. |
 | `lib/data/` | Firestore document models and `GameRepository` (Firebase and fake implementations). |
-| `lib/game/room_controller.dart` | Live subscriptions, server-aligned clock, timeout/reveal claims, feedback triggers. |
+| `lib/game/room_controller.dart` | Live subscriptions, server-aligned clock, late-player state (buzz, nudge, play for), reveal claims, quick chat, feedback triggers. |
 | `lib/ui/` | Screens, design-system widgets, rules content. |
 | `lib/core/` | Theme tokens, preferences, sound/haptics. |
 | `functions/scripts/bots.mjs` | Bot players for end-to-end testing against the real backend. |
@@ -53,7 +53,7 @@ Because card ids are random per round and never appear in public documents, watc
 - **Idempotency keys.** Every pass carries a `requestId`. If a retried request arrives after it already succeeded, it returns `duplicate: true` and changes nothing.
 - **Transactions.** Room, round and both affected hands are read and written atomically, so concurrent requests serialize.
 - **Exactly-once scoring.** Movie-win points are added in the same transaction as the `exchange → characters` status change, and character points with the `characters → revealed` change. Retries can't award points twice. Round scores are stored per round (`rounds/*.scores`), separately from cumulative `totals`.
-- **Server deadlines.** `turnDeadline` and `introEndsAt` are server timestamps. Passes after `deadline + 1s` are rejected. A timeout can only be applied after that point, by any member calling `claimTimeout`. The player after the stuck one asks first and others stagger, so the game keeps moving even if the stuck phone is offline. Clients align their countdown using `serverNow`, which every callable response includes.
+- **Server deadlines, never auto-played.** `turnDeadline` and `introEndsAt` are server timestamps. A late player can still make their own move after the deadline. Nobody's move is ever made automatically: another member may call `claimTimeout` (or `autoPickChits`, `autoPickCharacters`, `kqAutoPick`, `kqClaimTimeout`) only when `requirePlayFor` allows it, which is 45 s after the deadline (`PLAY_FOR_AFTER_MS`), or sooner if every late player's `presence.lastSeen` is older than 45 s (`OFFLINE_AFTER_MS`). The app shows that as a **Play for …** button; until then it buzzes the late player and offers **Nudge**. Clients align their countdown using `serverNow`, which every callable response includes.
 - **Deal validation.** `validateDeal` re-checks every opening deal (counts, uniqueness, diversity, no 3-of-a-kind) before a round starts.
 - **Fair randomness.** Shuffles, deals, circle order, names and characters use Node's `crypto.randomInt` with Fisher–Yates.
 
@@ -90,15 +90,19 @@ Rooms carry `mode: "movie" | "kingQueen"` (missing means movie, for older rooms)
 
 - `kqPickChit` / `kqAutoPick`: one chit per player, one player per chit, transactional and idempotent. When the last chit is taken, the King is announced and `guessing` starts (`guessOpensAt` = now + 4 s).
 - `kqGuess`: only the current guesser, with the current `turnId`, before the deadline, at a current candidate. `requestId` replay protection. Applies the engine transition, including forced resolutions, writes only the changed players' `kqRoles`, and when the round ends reveals roles and scores exactly once (guarded by the status change), adding totals and `kingWins`.
-- `kqClaimTimeout`: any member, after deadline + grace. The server makes a uniformly random guess for the guesser.
+- `kqClaimTimeout`: any member, once `requirePlayFor` allows it (45 s over, or the guesser is offline). The server makes a uniformly random guess for the guesser.
 - Leaving mid-round voids it. Fewer than 4 players ends the game. Final ranking uses `kingWins` as the second key, and there is no tie-breaker round.
 - Movie Chits code paths are unchanged. `createRoom` defaults to `movie`, and King & Queen callables refuse non-King & Queen rooms.
 
 **Capacity.** All callables run with `cpu: "gcf_gen1"` (fractional vCPU at 256 MiB) and `maxInstances: 5`, which keeps the project inside the regional Cloud Run CPU quota.
 
-## Timeout and reveal policy
+## Late players and reveal policy
 
-Clients run a 250 ms ticker for the UI. When a deadline has passed (plus grace and stagger), the client calls `claimTimeout(turnId)`, and the server checks the time itself. The character reveal works the same way after `revealAt`, and the host can also reveal early.
+Clients run a 250 ms ticker for the UI. Past a deadline, the late player's phone buzzes (again every 10 s) and shows a shaking banner; everyone else sees who they're waiting for, a **Nudge 👋** button and, once the server would allow it, **Play for …**. Nothing is claimed automatically. The character reveal is still claimed by clients after `revealAt` (it moves nobody's piece), and the host can also reveal early.
+
+## Quick chat
+
+`rooms/{id}/chat/{uid}` holds each member's latest message: `{id, kind: emoji|phrase|nudge, code, to, at}`. Members write only their own doc, `code` must be a preset code (no free text), `to` must be a member, `at` must be server time, and rules allow one write per second. Codes map to emojis and Telugu/English phrases in `lib/data/chat.dart`; unknown codes from newer apps are ignored. Docs are deleted with the room.
 
 ## Reliability
 

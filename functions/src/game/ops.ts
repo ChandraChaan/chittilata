@@ -42,7 +42,9 @@ import {
   HandDoc,
   INTRO_SECONDS,
   LastAction,
+  OFFLINE_AFTER_MS,
   PICK_SECONDS,
+  PLAY_FOR_AFTER_MS,
   REVEAL_DELAY_SECONDS,
   RoomDoc,
   roundKeyFor,
@@ -74,6 +76,32 @@ const secretRef = (db: Firestore, roomId: string, key: string) =>
   db.collection("rooms").doc(roomId).collection("secrets").doc(key) as DocumentReference<SecretDoc>;
 const auditRef = (db: Firestore, roomId: string) =>
   db.collection("rooms").doc(roomId).collection("audit").doc();
+const presenceRef = (db: Firestore, roomId: string, uid: string) =>
+  db.collection("rooms").doc(roomId).collection("presence").doc(uid);
+
+/**
+ * Nothing is played for a late player automatically. Another member may play
+ * for the late players only once they are PLAY_FOR_AFTER_MS past the deadline,
+ * or sooner if every one of them is offline. Reads only, so it can run before
+ * a transaction's writes.
+ */
+export async function requirePlayFor(
+  tx: Transaction,
+  db: Firestore,
+  roomId: string,
+  late: string[],
+  deadline: number,
+  t: number,
+) {
+  if (t <= deadline + DEADLINE_GRACE_MS) fail("failed-precondition", "There is still time left.");
+  if (t > deadline + PLAY_FOR_AFTER_MS) return;
+  const snaps = await Promise.all(late.map((u) => tx.get(presenceRef(db, roomId, u))));
+  const offline = snaps.every((s) => {
+    const seen = s.data()?.lastSeen as Timestamp | undefined;
+    return !seen || seen.toMillis() < t - OFFLINE_AFTER_MS;
+  });
+  if (!offline) fail("failed-precondition", "Give them a little longer, or send a nudge.");
+}
 
 export function str(data: unknown, field: string, max = 64): string {
   const v = (data as Record<string, unknown> | null)?.[field];
@@ -531,10 +559,10 @@ async function passTx(
     const deadline = round.turnDeadline.toMillis();
     if (t < round.introEndsAt.toMillis()) fail("failed-precondition", "The round has not started yet.");
     if (actor.kind === "player") {
+      // A late player can still make their own move: nothing is auto-played.
       if (round.currentUid !== actor.uid) fail("permission-denied", "It is not your turn.");
-      if (t > deadline + DEADLINE_GRACE_MS) fail("failed-precondition", "Time is up for this turn.");
-    } else if (t <= deadline + DEADLINE_GRACE_MS) {
-      fail("failed-precondition", "The turn has not timed out yet.");
+    } else {
+      await requirePlayFor(tx, db, roomId, [round.currentUid], deadline, t);
     }
 
     const fromUid = round.currentUid;
@@ -734,18 +762,17 @@ export async function pickChit(deps: Deps, uid: string, data: unknown) {
   });
 }
 
-/** After the pick deadline, any member may have the server finish the picks at random. */
+/** Picks at random for players still picking, once [requirePlayFor] allows it. */
 export async function autoPickChits(deps: Deps, uid: string, data: unknown) {
   return deps.db.runTransaction(async (tx) => {
     const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
     if (round.status !== "picking") return { assigned: 0 };
     const t = deps.now();
-    if (t <= round.pickDeadline.toMillis() + DEADLINE_GRACE_MS) {
-      fail("failed-precondition", "Players still have time to pick.");
-    }
     const snaps = await Promise.all(round.order.map((u) => tx.get(handRef(deps.db, roomId, u))));
     const hands: Record<string, HandDoc> = {};
     round.order.forEach((u, i) => (hands[u] = snaps[i].data() as HandDoc));
+    const late = round.order.filter((u) => hands[u].cards.length < HAND_SIZE);
+    await requirePlayFor(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), t);
     const free = shuffle(round.chits.filter((c) => !round.picks[c]), deps.rng);
     const assignments: [string, string][] = [];
     for (const u of round.order) {
@@ -809,17 +836,15 @@ export async function pickCharacter(deps: Deps, uid: string, data: unknown) {
   });
 }
 
-/** After the character deadline, any member may finish the picks at random. */
+/** Picks characters at random for late players, once [requirePlayFor] allows it. */
 export async function autoPickCharacters(deps: Deps, uid: string, data: unknown) {
   return deps.db.runTransaction(async (tx) => {
     const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
     if (round.status !== "characters" || round.revealAt) return { assigned: 0 };
     const t = deps.now();
-    if (t <= round.charPickDeadline!.toMillis() + DEADLINE_GRACE_MS) {
-      fail("failed-precondition", "Players still have time to pick.");
-    }
     const picked = new Set(Object.values(round.charPicks));
     const waiting = round.order.filter((u) => u !== round.winner!.uid && !picked.has(u));
+    await requirePlayFor(tx, deps.db, roomId, waiting, round.charPickDeadline!.toMillis(), t);
     const free = shuffle(round.charChits.filter((c) => !round.charPicks[c]), deps.rng);
     const assignments = waiting.map((u) => [free.pop()!, u] as [string, string]);
     bindCharacterChits(tx, deps, roomId, round, secret, assignments, t, true);
@@ -836,7 +861,7 @@ export async function passCard(deps: Deps, uid: string, data: unknown) {
   });
 }
 
-/** Any member may ask the server to apply an expired turn's timeout. */
+/** Another member plays a late player's turn, once [requirePlayFor] allows it. */
 export async function claimTimeout(deps: Deps, uid: string, data: unknown) {
   return passTx(deps, str(data, "roomId"), str(data, "roundKey"), int(data, "turnId"), {
     kind: "timeout",
