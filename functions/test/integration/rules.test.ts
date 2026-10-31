@@ -170,3 +170,49 @@ describe("presence", () => {
     );
   });
 });
+
+describe("quick chat", () => {
+  const msg = (extra: Record<string, unknown> = {}) => ({
+    id: "k3x9a",
+    kind: "emoji",
+    code: "laugh",
+    to: null,
+    at: serverTimestamp(),
+    ...extra,
+  });
+
+  it("a member can send a preset emoji, phrase or nudge that the room can read", async () => {
+    await assertSucceeds(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg()));
+    await assertSucceeds(getDoc(doc(as("bob"), `rooms/${ROOM}/chat/alice`)));
+    await assertSucceeds(setDoc(doc(as("bob"), `rooms/${ROOM}/chat/bob`), msg({ kind: "phrase", code: "hurry" })));
+    await assertSucceeds(setDoc(doc(as("host"), `rooms/${ROOM}/chat/host`), msg({ kind: "nudge", code: "nudge", to: "alice" })));
+    await assertFails(getDoc(doc(as("mallory"), `rooms/${ROOM}/chat/alice`)));
+  });
+
+  it("rejects free text, fake times, impersonation, outsiders and unknown targets", async () => {
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg({ code: "Hello there!" })));
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg({ text: "hi" })));
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg({ id: "Hello there" })));
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg({ kind: "message" })));
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg({ at: Timestamp.fromMillis(1) })));
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/bob`), msg()));
+    await assertFails(setDoc(doc(as("mallory"), `rooms/${ROOM}/chat/mallory`), msg()));
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg({ kind: "nudge", to: "mallory" })));
+    await assertFails(deleteDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`)));
+  });
+
+  it("allows at most one message per second per player", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `rooms/${ROOM}/chat/alice`), { id: "a1", kind: "emoji", code: "fire", to: null, at: Timestamp.now() });
+      await setDoc(doc(ctx.firestore(), `rooms/${ROOM}/chat/bob`), {
+        id: "b1",
+        kind: "emoji",
+        code: "fire",
+        to: null,
+        at: Timestamp.fromMillis(Date.now() - 5000),
+      });
+    });
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg()));
+    await assertSucceeds(setDoc(doc(as("bob"), `rooms/${ROOM}/chat/bob`), msg()));
+  });
+});

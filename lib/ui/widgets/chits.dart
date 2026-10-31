@@ -599,10 +599,12 @@ class _ChitTableState extends State<ChitTable>
             final ceremonyDone = t >= 1;
             final center = Offset(w / 2, matTop + matH / 2);
             final chitWidgets = <Widget>[];
+            // Free chits in paint order, for resolving taps on the mat.
+            final targets = <(String, Offset, double)>[];
             for (var i = 0; i < widget.ids.length; i++) {
               final id = widget.ids[i];
               final spot = spots[id]!;
-              final home = Offset(spot.x * w, matTop + spot.y * matH);
+              final home = chitCentre(spot, w, matTop, matH, chitW);
               final owner = widget.picks[id];
               Offset pos;
               double angle;
@@ -646,6 +648,7 @@ class _ChitTableState extends State<ChitTable>
               final pending = widget.pending.contains(id);
               final tappable =
                   ceremonyDone && owner == null && widget.canPick && !pending;
+              if (tappable) targets.add((id, pos, angle));
               final chit = Transform.rotate(
                 angle: angle,
                 child: FoldedChit(
@@ -655,13 +658,15 @@ class _ChitTableState extends State<ChitTable>
                   seed: i,
                 ),
               );
+              // Touches are resolved for the whole mat in [_chitAt]; each chit
+              // only carries the accessibility action.
               final positionedChild = Semantics(
+                container: true,
                 button: tappable,
                 label: owner == null ? 'Folded chit' : 'Picked chit',
+                onTap: tappable ? () => widget.onPick(id) : null,
                 excludeSemantics: true,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: tappable ? () => widget.onPick(id) : null,
+                child: IgnorePointer(
                   child: AnimatedOpacity(
                     opacity: opacity,
                     duration: ceremonyDone
@@ -699,48 +704,108 @@ class _ChitTableState extends State<ChitTable>
               );
             }
 
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: matTop,
-                  height: matH,
-                  child: const _WovenMat(),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  height: stripH,
-                  child: _PlayerStrip(
-                    players: players,
-                    counts: widget.counts,
-                    capacity: widget.capacity,
-                    myUid: widget.myUid,
-                  ),
-                ),
-                if (!ceremonyDone && t < 0.55)
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (d) {
+                final id = _chitAt(d.localPosition, targets, chitW, chitH);
+                if (id != null) widget.onPick(id);
+              },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
                   Positioned(
                     left: 0,
                     right: 0,
                     top: matTop,
                     height: matH,
-                    child: _CeremonySlips(
-                      labels: widget.ceremonyLabels,
-                      t: t,
-                      width: w,
+                    child: const _WovenMat(),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    height: stripH,
+                    child: _PlayerStrip(
+                      players: players,
+                      counts: widget.counts,
+                      capacity: widget.capacity,
+                      myUid: widget.myUid,
                     ),
                   ),
-                ...chitWidgets,
-              ],
+                  if (!ceremonyDone && t < 0.55)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: matTop,
+                      height: matH,
+                      child: _CeremonySlips(
+                        labels: widget.ceremonyLabels,
+                        t: t,
+                        width: w,
+                      ),
+                    ),
+                  ...chitWidgets,
+                ],
+              ),
             );
           },
         );
       },
     );
   }
+}
+
+/// Where a chit's centre sits on a table [w] wide whose mat starts at [matTop]
+/// and is [matH] tall: its seeded spot, nudged inwards so the whole tilted
+/// paper stays on the table and can be touched.
+Offset chitCentre(
+  ChitSpot s,
+  double w,
+  double matTop,
+  double matH,
+  double chitW,
+) {
+  final chitH = chitW * 0.72;
+  final ex = chitW / 2 * cos(s.angle).abs() + chitH / 2 * sin(s.angle).abs();
+  final ey = chitW / 2 * sin(s.angle).abs() + chitH / 2 * cos(s.angle).abs();
+  double fit(double v, double lo, double hi) =>
+      lo > hi ? (lo + hi) / 2 : v.clamp(lo, hi);
+  return Offset(
+    fit(s.x * w, ex, w - ex),
+    fit(matTop + s.y * matH, matTop + ey, matTop + matH - ey),
+  );
+}
+
+/// The free chit a tap at [p] means: the one whose paper is drawn on top at
+/// that point; failing that, one whose small margin contains it; failing
+/// that, the nearest one within reach. So a slightly-off tap on a small or
+/// tilted chit still picks it, and never one hidden underneath.
+String? _chitAt(
+  Offset p,
+  List<(String, Offset, double)> targets,
+  double chitW,
+  double chitH,
+) {
+  for (final margin in const [0.0, 6.0]) {
+    for (final (id, c, angle) in targets.reversed) {
+      final d = p - c;
+      final lx = d.dx * cos(-angle) - d.dy * sin(-angle);
+      final ly = d.dx * sin(-angle) + d.dy * cos(-angle);
+      if (lx.abs() <= chitW / 2 + margin && ly.abs() <= chitH / 2 + margin) {
+        return id;
+      }
+    }
+  }
+  String? best;
+  var bestDist = chitW * 0.9;
+  for (final (id, c, _) in targets) {
+    final dist = (p - c).distance;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = id;
+    }
+  }
+  return best;
 }
 
 /// Writing and folding the named slips at the start of the ceremony.

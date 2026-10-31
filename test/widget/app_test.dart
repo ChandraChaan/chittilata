@@ -204,9 +204,95 @@ void main() {
   );
 
   testWidgets(
-    'expired turn: a client asks the server to apply the timeout once',
+    'expired turn: nothing is passed automatically; the late player is told',
     (tester) async {
-      repo = FakeGameRepository(me: 'k'); // Sai is next after Swetha
+      repo = FakeGameRepository(me: 's'); // Swetha's turn has run out
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(
+        makeRound(
+          current: 's',
+          next: 'k',
+          turnId: 3,
+          deadline: DateTime.now().subtract(const Duration(seconds: 3)),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: myCards,
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(
+        find.text("Time's up! Everyone is waiting for you"),
+        findsOneWidget,
+      );
+      expect(find.text('Pass one slip'), findsOneWidget);
+      expect(repo.calls, isEmpty);
+      await unmount(tester);
+    },
+  );
+
+  testWidgets(
+    'expired turn: others can nudge a late player who is still online',
+    (tester) async {
+      repo = FakeGameRepository(me: 'k');
+      repo.presence = {'s': Presence(DateTime.now(), 'foreground')};
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(
+        makeRound(
+          current: 's',
+          next: 'k',
+          turnId: 3,
+          deadline: DateTime.now().subtract(const Duration(seconds: 3)),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: myCards,
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(find.text('Waiting for Swetha ⏰'), findsOneWidget);
+      expect(find.textContaining('Play for'), findsNothing);
+      await tester.tap(find.text('Nudge 👋'));
+      await tester.pump();
+      expect(repo.calls, ['chat:nudge:nudge:s']);
+      expect(find.text('👋 You nudged Swetha'), findsOneWidget);
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      await unmount(tester);
+    },
+  );
+
+  testWidgets(
+    'expired turn: once the late player is offline, someone can play for them',
+    (tester) async {
+      repo = FakeGameRepository(me: 'k'); // no heartbeat from Swetha
       repo.emitRoom(
         makeRoom(
           status: RoomStatus.playing,
@@ -235,6 +321,10 @@ void main() {
         await tester.pump(const Duration(milliseconds: 250));
       }
       expect(find.text("Time's up!"), findsOneWidget);
+      expect(find.text('Swetha is offline 📵'), findsOneWidget);
+      expect(repo.calls, isEmpty);
+      await tester.tap(find.text('Play for Swetha'));
+      await tester.pump();
       expect(repo.calls, ['timeout:3']);
       await unmount(tester);
     },
@@ -375,7 +465,7 @@ void main() {
   );
 
   testWidgets(
-    'picking: after the deadline a client asks the server to finish',
+    'picking: nothing is auto-picked after the deadline; I can still pick',
     (tester) async {
       repo.emitRoom(
         makeRoom(
@@ -404,7 +494,18 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 250));
       }
-      expect(repo.calls, contains('autoPick'));
+      expect(repo.calls, isEmpty);
+      expect(
+        find.text("Time's up! Everyone is waiting for you"),
+        findsOneWidget,
+      );
+      await tester.tap(find.bySemanticsLabel('Folded chit').first);
+      await tester.pump();
+      expect(repo.calls, hasLength(1));
+      expect(repo.calls.single, startsWith('pick:'));
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
       await unmount(tester);
     },
   );
@@ -539,6 +640,11 @@ void main() {
     expect(find.text('Vasavi collected four × RRR'), findsOneWidget);
     expect(find.text('Movie winner'), findsOneWidget);
     expect(find.text('Queen'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Leaderboard'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Leaderboard'), findsOneWidget);
     expect(find.text('Start round 2'), findsOneWidget);
     await tester.tap(find.text('Start round 2'));
@@ -632,7 +738,11 @@ void main() {
     expect(find.text('KING'), findsOneWidget);
     expect(find.text('QUEEN'), findsOneWidget);
     expect(find.text('Final leaderboard'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Play again'), 300);
+    await tester.scrollUntilVisible(
+      find.text('Play again'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Play again'), findsOneWidget);
     expect(prefs.history.single.standings.first['name'], 'Vasavi');
     await unmount(tester);

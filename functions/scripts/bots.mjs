@@ -10,6 +10,7 @@
  *   Force a Queen tie:       --create --rounds 1 --force-tie   (Queen and Police both worth 500)
  *   Tie-breaker vote:        --tiebreak accept|decline (default accept)
  *   King & Queen mode:       --create --mode kq --count 4 --rounds 2
+ *   Chatty bots:             add --chat (random emojis/phrases, nudge late players)
  *
  * The Firebase web config below is a public client identifier, not a secret.
  */
@@ -62,6 +63,40 @@ function makeClient(i) {
   return { auth, db, call };
 }
 
+const EMOJIS = ["laugh", "fire", "shock", "clap", "cry", "think", "cool", "sleep", "pray", "crown", "heart", "devil"];
+const PHRASES = ["twaraga", "ayyo", "super", "nene", "mosam", "baaga", "hurry", "nice", "close", "oops", "unfair", "gg"];
+
+/** With --chat: random quick-chat messages, and nudges for late players. */
+function chatter(db, roomId, uid, name) {
+  if (!flag("chat")) return { nudge: () => {} };
+  const send = (kind, code, to = null) =>
+    setDoc(doc(db, `rooms/${roomId}/chat/${uid}`), {
+      id: Math.random().toString(36).slice(2, 10),
+      kind,
+      code,
+      to,
+      at: serverTimestamp(),
+    })
+      .then(() => log(name, `chat ${kind} ${code}${to ? ` -> ${to.slice(0, 6)}` : ""}`))
+      .catch(() => {});
+  setInterval(() => {
+    if (Math.random() < 0.35) {
+      const phrase = Math.random() < 0.3;
+      const list = phrase ? PHRASES : EMOJIS;
+      send(phrase ? "phrase" : "emoji", list[Math.floor(Math.random() * list.length)]);
+    }
+  }, 5000).unref();
+  const nudged = new Set();
+  return {
+    /** Nudges [target] once per [key]. */
+    nudge: (target, key) => {
+      if (target === uid || nudged.has(key)) return;
+      nudged.add(key);
+      send("nudge", "nudge", target);
+    },
+  };
+}
+
 /** Pass a slip of the name we hold fewest of (keeps building a set). */
 function chooseCard(cards) {
   const counts = {};
@@ -105,6 +140,7 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
     }).catch(() => {});
   beat();
   setInterval(beat, 20000).unref();
+  const chat = chatter(db, roomId, uid, name);
 
   let hand = null;
   let round = null;
@@ -265,11 +301,19 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
       }, 500);
     });
 
-  // Like the app: after a picking deadline, ask the server to finish picks.
+  // Like an impatient player: nudge late players, and play for them once the
+  // server allows it (45s over time, or they are offline).
   setInterval(() => {
     if (!round) return;
     const now = Date.now() - 1500 - i * 300;
+    if (round.status === "exchange" && round.turnDeadline.toMillis() < now - 4000) {
+      chat.nudge(round.currentUid, `turn${round.roundKey}:${round.turnId}`);
+    }
     if (round.status === "picking" && round.pickDeadline?.toMillis() < now) {
+      const counts = {};
+      for (const u of Object.values(round.picks)) counts[u] = (counts[u] ?? 0) + 1;
+      const late = round.order.find((u) => (counts[u] ?? 0) < 4);
+      if (late) chat.nudge(late, `pick${round.roundKey}`);
       call("autoPickChits", { roomId, roundKey: round.roundKey }).catch(() => {});
     }
     if (round.status === "characters" && !round.revealAt && round.charPickDeadline?.toMillis() < now) {

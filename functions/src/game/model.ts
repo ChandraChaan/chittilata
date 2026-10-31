@@ -158,8 +158,15 @@ export const CHAR_PICK_SECONDS = 20;
 export const INTRO_SECONDS = 5;
 /** Seconds everyone looks at their own character before the public reveal. */
 export const REVEAL_DELAY_SECONDS = 5;
-/** Network allowance after a deadline. Passes inside it count; timeouts start after it. */
+/** Network allowance after a deadline before a player counts as late. */
 export const DEADLINE_GRACE_MS = 1000;
+/**
+ * Nothing is ever played for a late player automatically: they get buzzed and
+ * nudged instead. Others may play for them only this long after the deadline,
+ * or as soon as they are offline (no heartbeat for OFFLINE_AFTER_MS).
+ */
+export const PLAY_FOR_AFTER_MS = 45_000;
+export const OFFLINE_AFTER_MS = 45_000;
 /** Seconds the tied players have to vote on a tie-breaker. */
 export const TIEBREAK_VOTE_SECONDS = 30;
 /** Rooms untouched this long are closed by the cleanup job. */

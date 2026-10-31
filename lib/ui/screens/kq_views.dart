@@ -630,7 +630,7 @@ class _History extends StatelessWidget {
                       (true, _) =>
                         '${n(h.guesser)} found the ${round.chain[h.step + 1]}: ${m(h.target)}!',
                       (false, 'timeout') =>
-                        "Time's up for ${m(h.guesser)}. The game picked ${m(h.target)}: wrong, roles swapped.",
+                        '${m(h.guesser)} took too long, so a random guess was made: ${m(h.target)}. Wrong, roles swapped.',
                       _ =>
                         '${n(h.guesser)} guessed ${m(h.target)} for ${round.chain[h.step + 1]}: wrong, roles swapped.',
                     }, style: const TextStyle(height: 1.3)),

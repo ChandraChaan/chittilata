@@ -66,7 +66,8 @@ Paper-chit games like *Chittilu Aata* and *Raja Rani* are a staple of Telugu fam
 - 📜 **Real paper feel.** Chits are written, folded, gathered and scattered on a woven mat, with a private unfold when you pick one. Paper sounds and haptics included, and reduced-motion settings are respected.
 - 🔒 **Nobody can peek, not even the host.** Your hand and your role live in documents only you can read. Undealt slips and sealed chits sit where no client can read them at all.
 - ⚖️ **Fair by construction.** Shuffles use cryptographic randomness, and the deal never gives anyone three copies of a name at the start. Every pick, pass and guess is checked on the server.
-- ⏱️ **Server-run timers.** Turn deadlines live on the server. If someone stalls or loses signal, anyone at the table can move the game on, and the server makes the move fairly on their behalf.
+- ⏱️ **Timers that never play for you.** Turn deadlines live on the server. When time runs out, the late player's phone buzzes and everyone else can nudge them 👋. Only after 45 seconds, or if their phone is offline, can someone at the table choose to play for them, and the server makes that move fairly.
+- 💬 **Quick chat.** One-tap emojis and preset phrases in Telugu and English float up on everyone's screen. Presets only, so there's no free text to moderate.
 - 🔁 **Reconnect and resume.** Close the app mid-round and come back to exactly where you were.
 - 🤝 **Ties handled gracefully.** Tied for King? Vote for a tie-breaker round or share the crown.
 - 🎨 **Polished UI.** Light and dark themes, confetti, round reveals, history of past games, and an Android app icon and store assets.

@@ -856,7 +856,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       ),
                   ],
                 ),
-                _label('When time runs out'),
+                _label('If the table plays for a late player'),
                 RadioGroup<TimeoutPolicy>(
                   groupValue: policy,
                   onChanged: (v) => setState(() => policy = v!),

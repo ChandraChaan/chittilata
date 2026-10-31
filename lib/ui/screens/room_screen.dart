@@ -8,6 +8,7 @@ import '../../core/services/feedback.dart';
 import '../../core/theme/app_theme.dart';
 import '../../game/room_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/quick_chat.dart';
 import 'final_view.dart';
 import 'game_view.dart';
 import 'lobby_view.dart';
@@ -178,19 +179,34 @@ class _RoomScreenState extends State<RoomScreen> {
                   },
                 ),
               };
+              final inRoom =
+                  ctrl.room != null &&
+                  phase != Phase.loading &&
+                  phase != Phase.closed &&
+                  phase != Phase.removed;
               return SafeArea(
                 child: Column(
                   children: [
                     ConnectionBanner(connected: ctrl.connected),
                     Expanded(
-                      child: AnimatedSwitcher(
-                        duration: Motion.of(context, Motion.medium),
-                        child: KeyedSubtree(
-                          key: ValueKey(_viewKey(phase, ctrl)),
-                          child: body,
-                        ),
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: AnimatedSwitcher(
+                              duration: Motion.of(context, Motion.medium),
+                              child: KeyedSubtree(
+                                key: ValueKey(_viewKey(phase, ctrl)),
+                                child: body,
+                              ),
+                            ),
+                          ),
+                          if (inRoom)
+                            Positioned.fill(child: ChatLayer(ctrl: ctrl)),
+                        ],
                       ),
                     ),
+                    if (inRoom) LateBanner(ctrl: ctrl),
+                    if (inRoom) QuickChatBar(ctrl: ctrl),
                   ],
                 ),
               );

@@ -71,6 +71,18 @@ class GameFeedback {
   void heavy() => _haptic(HapticFeedback.heavyImpact);
   void warning() => _haptic(HapticFeedback.vibrate);
 
+  /// A long, unmistakable buzz-buzz-buzz: your turn is over time, or
+  /// someone nudged you.
+  void buzz() {
+    if (!_prefs.haptics) return;
+    for (var i = 0; i < 4; i++) {
+      Future<void>.delayed(
+        Duration(milliseconds: i * 160),
+        HapticFeedback.vibrate,
+      );
+    }
+  }
+
   void _haptic(Future<void> Function() f) {
     if (_prefs.haptics) f();
   }

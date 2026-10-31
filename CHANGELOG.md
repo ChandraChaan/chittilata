@@ -5,13 +5,21 @@ All notable changes to Chittilata. Versions follow [Semantic Versioning](https:/
 ## [Unreleased]
 
 ### Added
+- **💬 Quick chat**: one-tap emojis and preset phrases in Telugu and English (త్వరగా! ⏰, అయ్యో! 😩, Good game! 🤝…) float up on everyone's screen, in the lobby and during play. Presets only: no free text to moderate.
+- **👋 Nudge**: buzz a slow player's phone. Nudges aimed at you show big and vibrate.
+- Late-player banner: "Waiting for Ravi ⏰" → "Ravi is thinking hard 🤔" → "Ravi fell asleep 😴", or "offline 📵".
+- Debug and profile builds can play against local Firebase emulators (`--dart-define=USE_EMULATOR=true`); bots can chat and nudge (`--chat`).
 - MIT license.
 - README with demo GIF, screenshot gallery and architecture diagram; social preview image.
 - `SECURITY.md` (private vulnerability reporting), `CONTRIBUTING.md`, issue and pull request templates, Dependabot configuration.
 
 ### Changed
+- **Nothing is played automatically when time runs out**: no auto-pass, auto-pick or auto-guess. The late player's phone buzzes (and again every 10 s) with a shaking "Time's up!" banner, and they can still play. Another player can **Play for** them only 45 s after the deadline, or straight away if their phone is offline; the server enforces both.
 - CI runs with a read-only token. The release workflow now correctly detects the optional Firebase service account and deletes it after use.
 - Stopped tracking the downloaded Crashlytics symbol tool (`.crashlytics/`).
+
+### Fixed
+- Folded chits that didn't respond to taps, especially the last few on the mat: tilted corners were outside the tap area, a neighbour's invisible margin could take the tap, chits near the edge poked off the table, and the 25 s pick timer could auto-pick the chits you were reaching for. Taps now pick the chit drawn under your finger, or the nearest one within reach.
 
 ## [2.0.0] — 2026-10-30
 

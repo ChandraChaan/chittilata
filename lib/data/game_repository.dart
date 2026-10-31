@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'chat.dart';
 import 'models.dart';
 
 /// A user-facing error from the game server.
@@ -39,6 +40,18 @@ abstract class GameRepository {
   Stream<bool> watchConnected(String roomId);
   Future<List<Round>> loadRounds(String roomId, int gameNo);
   Future<void> heartbeat(String roomId, {required bool foreground});
+
+  /// Every member's latest quick-chat message (one per player).
+  Stream<List<ChatEvent>> watchChat(String roomId);
+
+  /// Sends a preset emoji, phrase or nudge. [id] is random per message.
+  Future<void> sendChat(
+    String roomId, {
+    required String id,
+    required ChatKind kind,
+    required String code,
+    String? to,
+  });
 
   Future<({String roomId, String code})> createRoom(
     String name, {
@@ -206,6 +219,37 @@ class FirebaseGameRepository implements GameRepository {
         'lastSeen': FieldValue.serverTimestamp(),
         'state': foreground ? 'foreground' : 'background',
       });
+
+  @override
+  Stream<List<ChatEvent>> watchChat(String roomId) => _room(roomId)
+      .collection('chat')
+      .snapshots()
+      .map(
+        (q) => [
+          for (final d in q.docs)
+            // A local write's server time is still null: use local time.
+            ?ChatEvent.fromMap(
+              d.id,
+              d.data(),
+              (d.data()['at'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            ),
+        ],
+      );
+
+  @override
+  Future<void> sendChat(
+    String roomId, {
+    required String id,
+    required ChatKind kind,
+    required String code,
+    String? to,
+  }) => _room(roomId).collection('chat').doc(uid).set({
+    'id': id,
+    'kind': kind.name,
+    'code': code,
+    'to': to,
+    'at': FieldValue.serverTimestamp(),
+  });
 
   @override
   Future<({String roomId, String code})> createRoom(

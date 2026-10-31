@@ -24,7 +24,7 @@ import {
   shuffle,
   TURN_SECONDS_OPTIONS,
 } from "../engine";
-import { DEADLINE_GRACE_MS, RoomDoc, roundKeyFor } from "./model";
+import { RoomDoc, roundKeyFor } from "./model";
 import type { Deps } from "./ops";
 import * as ops from "./ops";
 
@@ -268,14 +268,15 @@ export async function kqPickChit(deps: Deps, uid: string, data: unknown) {
   });
 }
 
-/** After the pick deadline, any member may hand out the remaining chits at random. */
+/** Hands out the remaining chits at random, once [ops.requirePlayFor] allows it. */
 export async function kqAutoPick(deps: Deps, uid: string, data: unknown) {
   return deps.db.runTransaction(async (tx) => {
     const { roomId, round, secret } = await loadKq(tx, deps, uid, data);
     if (round.status !== "picking") return { assigned: 0 };
     const t = deps.now();
-    if (t <= round.pickDeadline.toMillis() + DEADLINE_GRACE_MS) fail("failed-precondition", "Players still have time to pick.");
     const picked = new Set(Object.values(round.picks));
+    const late = round.players.filter((p) => !picked.has(p));
+    await ops.requirePlayFor(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), t);
     const free = shuffle(round.chits.filter((c) => !round.picks[c]), deps.rng);
     const assignments = round.players.filter((p) => !picked.has(p)).map((p) => [free.pop()!, p] as [string, string]);
     bindRoleChits(tx, deps, roomId, round, secret, assignments, t, true);
@@ -300,9 +301,10 @@ async function guessTx(
     if (round.turnId !== turnId) fail("failed-precondition", "That turn has already finished.");
     const t = now();
     if (t < round.guessOpensAt!.toMillis()) fail("failed-precondition", "The King is still being announced.");
-    const deadline = round.turnDeadline!.toMillis() + DEADLINE_GRACE_MS;
-    if (actor.kind === "guess" && t > deadline) fail("failed-precondition", "Time is up for this turn.");
-    if (actor.kind === "timeout" && t <= deadline) fail("failed-precondition", "The turn has not timed out yet.");
+    // A late guesser can still guess: nothing is auto-played for them.
+    if (actor.kind === "timeout") {
+      await ops.requirePlayFor(tx, db, roomId, [round.guesser!], round.turnDeadline!.toMillis(), t);
+    }
 
     const before: KqState = {
       chain: round.chain,
@@ -384,7 +386,7 @@ export async function kqGuess(deps: Deps, uid: string, data: unknown) {
   });
 }
 
-/** Any member may apply an expired guess turn: the server guesses at random. */
+/** Another member guesses at random for a late guesser, once [ops.requirePlayFor] allows it. */
 export async function kqClaimTimeout(deps: Deps, uid: string, data: unknown) {
   return guessTx(deps, data, { kind: "timeout", uid });
 }

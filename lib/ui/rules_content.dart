@@ -37,11 +37,19 @@ const ruleSections = [
   RuleSection(
     Icons.timer_rounded,
     'Beat the timer',
-    'Each turn has a timer set by the host. If time runs out, the game '
-        'passes a slip for you: by default the slip you just received, or a '
-        'random slip if the host picked that rule. Timeouts never help you, '
-        'so pass in time! With "No timer", the game waits 5 minutes before '
-        'passing for you.',
+    'Each turn has a timer set by the host. Nothing is ever played for '
+        'you automatically: when time runs out your phone buzzes and everyone '
+        'can nudge you 👋. If you still haven\'t passed after 45 seconds (or '
+        'your phone is offline), another player can pass for you: by default '
+        'the slip you just received, or a random slip if the host picked that '
+        'rule. That never helps you, so pass in time!',
+  ),
+  RuleSection(
+    Icons.chat_bubble_rounded,
+    'Quick chat',
+    'Tap an emoji at the bottom of the screen, or the chat button for fun '
+        'phrases in Telugu and English. Everyone in the room sees them float '
+        'up for a few seconds.',
   ),
   RuleSection(
     Icons.emoji_events_rounded,
@@ -126,8 +134,10 @@ const kqRuleSections = [
   RuleSection(
     Icons.timer_rounded,
     'Beat the timer',
-    'Each guess has a timer. If it runs out, the game picks a random '
-        'player for you. That never helps or hurts anyone in particular.',
+    'Each guess has a timer. When it runs out your phone buzzes and the '
+        'others can nudge you. After 45 seconds (or if you are offline) '
+        'another player can make a random guess for you, which never helps '
+        'or hurts anyone in particular.',
   ),
   RuleSection(
     Icons.emoji_events_rounded,

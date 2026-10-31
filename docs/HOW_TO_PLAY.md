@@ -29,7 +29,8 @@ Each round opens with the **passing circle**: who goes first and who passes to w
 - When the banner says **Your turn**, tap the slip you want to give away, then tap **Pass to …**.
 - When a slip comes to you it drops in with a **NEW** tag, and you hold 5 slips. Keep the ones you want and pass one on.
 - Slips you hold three of get a **★**. Aim for four of the same name.
-- Keep an eye on the countdown ring. If it runs out, a slip is passed for you.
+- Keep an eye on the countdown ring. If it runs out, your phone buzzes and the others can nudge you. After 45 more seconds, someone can pass for you.
+- Tap an emoji at the bottom of the screen to react, or 💬 for phrases like "త్వరగా! ⏰".
 
 ## 5. Four of a kind wins
 

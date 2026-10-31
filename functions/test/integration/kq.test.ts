@@ -1,5 +1,5 @@
 import { deleteApp, getApps, initializeApp } from "firebase-admin/app";
-import { Firestore, getFirestore } from "firebase-admin/firestore";
+import { Firestore, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GameError, seededRng } from "../../src/engine";
 import * as kq from "../../src/game/kq";
@@ -32,6 +32,13 @@ const role = async (id: string, uid: string) => (await db.doc(`rooms/${id}/kqRol
 
 async function expectCode(p: Promise<unknown>, code: GameError["code"]) {
   await expect(p).rejects.toSatisfy((e: unknown) => e instanceof GameError && e.code === code);
+}
+
+/** Heartbeats for [uids] as the app writes them, seen at [at]. */
+async function online(roomId: string, uids: string[], at: number) {
+  for (const u of uids) {
+    await db.doc(`rooms/${roomId}/presence/${u}`).set({ lastSeen: Timestamp.fromMillis(at), state: "foreground" });
+  }
 }
 
 const NAMES = ["Chandra", "Vasavi", "Swetha", "Sai", "Ravi", "Lata", "Kiran", "Anu", "Meena", "Gopi"];
@@ -164,13 +171,18 @@ describe("King & Queen picking", () => {
     expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(1);
   });
 
-  it("auto-picks for slow players only after the deadline", async () => {
-    const { roomId, roundKey } = await started(4);
+  it("picks for slow players only after 45s of overtime, or when they are all offline", async () => {
+    const { roomId, roundKey, uids } = await started(4);
     const r = await kround(roomId, roundKey);
     clock = r.pickOpensAt.toMillis() + 1;
     await kq.kqPickChit(deps(), "u3", { roomId, roundKey, chitId: r.chits[0] });
     await expectCode(kq.kqAutoPick(deps(), "u0", { roomId, roundKey }), "failed-precondition");
     clock = r.pickDeadline.toMillis() + 1500;
+    await online(roomId, uids, clock);
+    await expectCode(kq.kqAutoPick(deps(), "u0", { roomId, roundKey }), "failed-precondition");
+    await online(roomId, ["u1", "u2"], clock - 60_000);
+    await expectCode(kq.kqAutoPick(deps(), "u3", { roomId, roundKey }), "failed-precondition"); // u0 still online
+    await online(roomId, ["u0"], clock - 60_000);
     expect((await kq.kqAutoPick(deps(), "u0", { roomId, roundKey })).assigned).toBe(3);
     expect((await kround(roomId, roundKey)).status).toBe("guessing");
   });
@@ -255,20 +267,26 @@ describe("King & Queen guessing", () => {
     expect((await kround(r2Id, k2)).history.filter((h) => h.kind === "guess")).toHaveLength(1);
   });
 
-  it("timeouts only after the deadline; the server guesses at random", async () => {
-    const { roomId, roundKey } = await started(4);
-    const r = await pickAll(roomId, roundKey);
+  it("never auto-guesses: late guessers can still guess, others guess for them only after 45s", async () => {
+    const { roomId, roundKey, uids } = await started(4);
+    let r = await pickAll(roomId, roundKey);
     await expectCode(kq.kqClaimTimeout(deps(), "u1", { roomId, roundKey, turnId: 0 }), "failed-precondition");
     clock = r.turnDeadline!.toMillis() + 1500;
-    await expectCode(
-      kq.kqGuess(deps(), r.guesser!, { roomId, roundKey, turnId: 0, targetUid: r.players.find((p) => p !== r.guesser)!, requestId: "late" }),
-      "failed-precondition",
-    );
-    await kq.kqClaimTimeout(deps(), "u1", { roomId, roundKey, turnId: 0 });
-    await expectCode(kq.kqClaimTimeout(deps(), "u2", { roomId, roundKey, turnId: 0 }), "failed-precondition");
-    const after = await kround(roomId, roundKey);
-    expect(after.history[0].kind).toBe("timeout");
-    expect(after.history[0].guesser).toBe(r.guesser);
+    await online(roomId, uids, clock);
+    await expectCode(kq.kqClaimTimeout(deps(), "u1", { roomId, roundKey, turnId: 0 }), "failed-precondition");
+    const target = r.players.find((p) => p !== r.guesser && !r.excluded.includes(p))!;
+    await kq.kqGuess(deps(), r.guesser!, { roomId, roundKey, turnId: 0, targetUid: target, requestId: "late" });
+    r = await kround(roomId, roundKey);
+    expect(r.history[0].kind).toBe("guess");
+    if (r.status === "revealed") return;
+
+    clock = r.turnDeadline!.toMillis() + 46_000;
+    await online(roomId, uids, clock);
+    await kq.kqClaimTimeout(deps(), "u1", { roomId, roundKey, turnId: r.turnId });
+    await expectCode(kq.kqClaimTimeout(deps(), "u2", { roomId, roundKey, turnId: r.turnId }), "failed-precondition");
+    const played = (await kround(roomId, roundKey)).history[r.history.length];
+    expect(played.kind).toBe("timeout");
+    expect(played.guesser).toBe(r.guesser);
   });
 
   it("plays complete rounds: every role revealed once, points and King wins recorded", async () => {

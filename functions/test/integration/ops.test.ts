@@ -1,5 +1,5 @@
 import { deleteApp, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { getFirestore, Firestore, Timestamp } from "firebase-admin/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Card, GameError, seededRng } from "../../src/engine";
 import { HandDoc, RoomDoc, RoundDoc } from "../../src/game/model";
@@ -33,6 +33,13 @@ const hand = async (id: string, uid: string) => (await db.doc(`rooms/${id}/hands
 
 async function expectCode(p: Promise<unknown>, code: GameError["code"]) {
   await expect(p).rejects.toSatisfy((e: unknown) => e instanceof GameError && e.code === code);
+}
+
+/** Heartbeats for [uids] as the app writes them, seen at [at]. */
+async function online(roomId: string, uids: string[], at: number) {
+  for (const u of uids) {
+    await db.doc(`rooms/${roomId}/presence/${u}`).set({ lastSeen: Timestamp.fromMillis(at), state: "foreground" });
+  }
 }
 
 async function lobby(n: number) {
@@ -253,28 +260,41 @@ describe("exchange", () => {
     expect((await hand(roomId, r.nextUid)).cards).toHaveLength(5);
   });
 
-  it("timeouts only apply after the server deadline and pass the incoming card", async () => {
-    const { roomId, roundKey } = await started(4);
+  it("never auto-passes: late players can still pass, others play for them only after 45s or when offline", async () => {
+    const { roomId, roundKey, uids } = await started(4);
     let r = await round(roomId, roundKey);
-    const cardId = (await hand(roomId, r.currentUid)).cards[0].id;
-    await ops.passCard(deps(), r.currentUid, { roomId, roundKey, turnId: 0, cardId, requestId: "t0" });
+    await expectCode(ops.claimTimeout(deps(), "u0", { roomId, roundKey, turnId: 0 }), "failed-precondition");
+
+    // Late but online: nobody can play for them yet, and their own pass still counts.
+    clock = r.turnDeadline.toMillis() + 1500;
+    await online(roomId, uids, clock - 5000);
+    await expectCode(ops.claimTimeout(deps(), "u0", { roomId, roundKey, turnId: 0 }), "failed-precondition");
+    const late = (await hand(roomId, r.currentUid)).cards[0].id;
+    await ops.passCard(deps(), r.currentUid, { roomId, roundKey, turnId: 0, cardId: late, requestId: "late" });
+    expect((await round(roomId, roundKey)).lastAction?.type).toBe("pass");
+
+    // 45 seconds of overtime: another player may play for them, exactly once.
     r = await round(roomId, roundKey);
     const waiting = r.currentUid;
+    clock = r.turnDeadline.toMillis() + 30_000;
+    await online(roomId, uids, clock - 5000);
     await expectCode(ops.claimTimeout(deps(), "u0", { roomId, roundKey, turnId: 1 }), "failed-precondition");
-    clock = r.turnDeadline.toMillis() + 1500;
-    // the late player can no longer act
-    const late = (await hand(roomId, waiting)).cards[0].id;
-    await expectCode(
-      ops.passCard(deps(), waiting, { roomId, roundKey, turnId: 1, cardId: late, requestId: "late" }),
-      "failed-precondition",
-    );
+    clock = r.turnDeadline.toMillis() + 46_000;
+    await online(roomId, uids, clock - 5000);
     await ops.claimTimeout(deps(), "u0", { roomId, roundKey, turnId: 1 });
-    // a second claim for the same turn is rejected, not applied twice
     await expectCode(ops.claimTimeout(deps(), "u1", { roomId, roundKey, turnId: 1 }), "failed-precondition");
     const after = await round(roomId, roundKey);
     expect(after.lastAction?.type).toBe("timeout");
     expect(after.timeouts[waiting]).toBe(1);
-    expect((await hand(roomId, r.nextUid)).incomingCardId).toBe(cardId);
+    expect((await hand(roomId, r.nextUid)).incomingCardId).toBe(late);
+
+    // An offline player (no heartbeat for 45s) can be played for right after the deadline.
+    const gone = after.currentUid;
+    clock = after.turnDeadline.toMillis() + 1500;
+    await online(roomId, uids.filter((u) => u !== gone), clock);
+    await online(roomId, [gone], clock - 60_000);
+    await ops.claimTimeout(deps(), "u0", { roomId, roundKey, turnId: 2 });
+    expect((await round(roomId, roundKey)).timeouts[gone]).toBe(1);
   });
 });
 
@@ -560,13 +580,18 @@ describe("picking folded chits", () => {
     expect(owners.reduce((a, b) => a + b, 0)).toBe(1);
   });
 
-  it("auto-picks for slow players only after the deadline", async () => {
+  it("picks for slow players only after 45s of overtime, never automatically", async () => {
     const { roomId, roundKey, r, uids } = await picking();
     clock = r.pickOpensAt.toMillis() + 1;
     await ops.pickChit(deps(), "u2", { roomId, roundKey, chitId: r.chits[0] });
     await expectCode(ops.autoPickChits(deps(), "u0", { roomId, roundKey }), "failed-precondition");
     clock = r.pickDeadline.toMillis() + 1500;
-    expect((await ops.autoPickChits(deps(), "u0", { roomId, roundKey })).assigned).toBe(15);
+    await online(roomId, uids, clock);
+    await expectCode(ops.autoPickChits(deps(), "u0", { roomId, roundKey }), "failed-precondition");
+    // Still picking in overtime works.
+    await ops.pickChit(deps(), "u2", { roomId, roundKey, chitId: r.chits[1] });
+    clock = r.pickDeadline.toMillis() + 46_000;
+    expect((await ops.autoPickChits(deps(), "u0", { roomId, roundKey })).assigned).toBe(14);
     const done = await round(roomId, roundKey);
     expect(done.status).toBe("exchange");
     for (const u of uids) {
@@ -608,6 +633,9 @@ describe("picking folded chits", () => {
     await expectCode(ops.revealRound(deps(), "u0", { roomId, roundKey }), "failed-precondition");
     await expectCode(ops.autoPickCharacters(deps(), "u0", { roomId, roundKey }), "failed-precondition");
     clock = won.charPickDeadline!.toMillis() + 1500;
+    await online(roomId, uids, clock);
+    await expectCode(ops.autoPickCharacters(deps(), "u0", { roomId, roundKey }), "failed-precondition");
+    clock = won.charPickDeadline!.toMillis() + 46_000;
     expect((await ops.autoPickCharacters(deps(), "u0", { roomId, roundKey })).assigned).toBe(2);
     const after = await round(roomId, roundKey);
     expect(after.revealAt).not.toBeNull();

@@ -16,7 +16,7 @@ Each round uses **one name per player**, with **four slips of each name**. A fou
 
 **Making the chits.** At the start of the round every phone shows the same thing: the names are written on paper slips, folded, gathered into one pile and shuffled, then scattered across a woven mat.
 
-**Picking.** Every player taps **4 folded chits**, in any order, at the same time as everyone else. Each chit you pick unfolds privately on your phone. A chit can only be picked once; if two players reach for the same chit, the first one wins and the other picks again. You have 25 seconds. When time is up, any chits you still need are picked for you at random.
+**Picking.** Every player taps **4 folded chits**, in any order, at the same time as everyone else. Each chit you pick unfolds privately on your phone. A chit can only be picked once; if two players reach for the same chit, the first one wins and the other picks again. You have 25 seconds. After that your phone buzzes and the others can nudge you, but you can still pick. Only after 45 more seconds (or if your phone is offline) can another player choose to have your remaining chits picked at random.
 
 **Fair by design.** Before anyone picks, the server deals every player a fair, random hand:
 
@@ -40,12 +40,12 @@ You can only pass on your turn, only one slip per turn, and only a slip you actu
 
 The host picks a timer: 10, 15, 20, 30, 45 or 60 seconds, or **No timer**. The countdown comes from the server, so every phone shows the same time, even after reconnecting.
 
-If time runs out, the game passes a slip **for** you and tells everyone:
+Nothing is passed for you automatically. When time runs out, your phone buzzes, a "Time's up!" banner shakes, and everyone else can **nudge** you 👋. You can still pass. If you haven't passed 45 seconds after the deadline, or your phone is offline, another player can choose **Play for you**, and the server passes a slip by the host's rule:
 
 - **Pass the slip I just received** (default). If you had not received one yet, a random slip is passed.
 - **Pass a random slip** (the host can choose this instead).
 
-Neither rule ever looks at which slip would help you, so a timeout never helps you. With **No timer**, the game waits 5 minutes before passing for you, so an idle phone can't freeze the game.
+Neither rule ever looks at which slip would help you, so being played for never helps you. With **No timer**, the deadline is 5 minutes, so an idle phone can't freeze the game.
 
 ## Winning a round
 
@@ -56,7 +56,7 @@ The first player to hold **4 slips with the same name** wins the round and earns
 
 ## Secret characters
 
-The other players then pick their **character chits**. One character is written on each folded chit (for example Queen 800, Police 500, Thief 100), sealed and shuffled by the server. Each non-winner taps **one** chit and it unfolds privately. **The character inside is exactly what you get.** Nobody sees anyone else's character until the reveal. You have 20 seconds, then any remaining chits are handed out at random. The winner just watches.
+The other players then pick their **character chits**. One character is written on each folded chit (for example Queen 800, Police 500, Thief 100), sealed and shuffled by the server. Each non-winner taps **one** chit and it unfolds privately. **The character inside is exactly what you get.** Nobody sees anyone else's character until the reveal. You have 20 seconds. After that the late players are buzzed and nudged, and after 45 more seconds (or if they're offline) another player can have their chits handed out at random. The winner just watches.
 
 | Players in game | Characters used (default points) |
 |---|---|
