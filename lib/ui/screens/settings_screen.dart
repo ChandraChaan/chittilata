@@ -1,5 +1,6 @@
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../app.dart';
 import '../../core/theme/app_theme.dart';
@@ -104,6 +105,23 @@ class SettingsScreen extends StatelessWidget {
                         'Animations follow your system "remove animations" '
                         'setting.',
                         style: TextStyle(color: c.muted, height: 1.4),
+                      ),
+                      const SizedBox(height: Space.sm),
+                      // So players can tell which build they have installed.
+                      FutureBuilder<PackageInfo>(
+                        future: PackageInfo.fromPlatform(),
+                        builder: (context, snap) {
+                          final info = snap.data;
+                          return Text(
+                            info == null
+                                ? ''
+                                : 'Version ${info.version} (${info.buildNumber})',
+                            style: TextStyle(
+                              color: c.muted,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

@@ -153,10 +153,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         : Icons.arrow_forward_rounded,
                     onPressed: last
                         ? _finish
-                        : () => _page.nextPage(
-                            duration: Motion.of(context, Motion.medium),
-                            curve: Motion.curve,
-                          ),
+                        : () {
+                            final d = Motion.of(context, Motion.medium);
+                            // A zero-length page animation crashes inside
+                            // Flutter (LateInitializationError), which
+                            // happens when the phone turns animations off.
+                            if (d == Duration.zero) {
+                              _page.jumpToPage((_page.page ?? 0).round() + 1);
+                            } else {
+                              _page.nextPage(duration: d, curve: Motion.curve);
+                            }
+                          },
                   ),
                 ),
               ),

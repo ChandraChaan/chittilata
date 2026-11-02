@@ -373,7 +373,7 @@ class LateBanner extends StatelessWidget {
     return AnimatedSize(
       duration: Motion.of(context, Motion.medium),
       curve: Motion.curve,
-      alignment: Alignment.bottomCenter,
+      alignment: Alignment.topCenter,
       child: l == null
           ? const SizedBox(width: double.infinity)
           : ctrl.iAmLate
@@ -544,6 +544,7 @@ class _OthersLate extends StatelessWidget {
         color: c.surfaceHigh,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: c.marigold.withValues(alpha: 0.6)),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 16)],
       ),
       child: Row(
         children: [
