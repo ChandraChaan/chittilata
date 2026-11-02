@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/services/feedback.dart';
+import 'core/services/invite_links.dart';
 import 'core/services/preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'data/game_repository.dart';
@@ -13,11 +14,19 @@ class AppServices {
     required this.repo,
     required this.prefs,
     required this.feedback,
-  });
+    InviteLinks? invites,
+  }) : invites = invites ?? InviteLinks();
   final GameRepository repo;
   final Preferences prefs;
   final GameFeedback feedback;
+  final InviteLinks invites;
 }
+
+/// Lets screens know when they come back to the top (e.g. home after a game).
+final routeObserver = RouteObserver<ModalRoute<void>>();
+
+/// Shows messages from anywhere, even when no screen has its own context.
+final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class Services extends InheritedWidget {
   const Services({super.key, required this.services, required super.child});
@@ -57,7 +66,11 @@ class ChittilataApp extends StatelessWidget {
             'system' => ThemeMode.system,
             _ => ThemeMode.dark,
           },
-          navigatorObservers: [services.feedback.navigatorObserver],
+          scaffoldMessengerKey: scaffoldMessengerKey,
+          navigatorObservers: [
+            services.feedback.navigatorObserver,
+            routeObserver,
+          ],
           home: home ?? const SplashScreen(),
           builder: (context, child) => UpdateGate(child: child!),
         ),

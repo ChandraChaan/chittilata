@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join a Chittilata game</title>
+  <meta name="description" content="You're invited to a game of Chittilata, the Telugu paper-slip game.">
+  <meta property="og:title" content="Join my Chittilata game! 🎬">
+  <meta property="og:description" content="Tap to join the room on Chittilata, the Telugu paper-slip game.">
+  <meta property="og:image" content="https://chittilata-game.web.app/og.png">
+  <meta name="theme-color" content="#2A1563">
+  <link rel="icon" href="/icon.png">
+  <style>
+    :root { --bg1:#2A1563; --bg2:#0C0620; --gold:#FFB627; --goldHi:#FFDA6B; --goldLo:#FF9F1C; --lip:#B45F06; --ink:#2B1B3D; --text:#F8F2FF; --muted:#BEAEE0; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; font-family: system-ui, -apple-system, Roboto, "Noto Sans Telugu", sans-serif;
+      color:var(--text); background: radial-gradient(circle at 10% 0%, rgba(224,69,123,.25), transparent 55%),
+      radial-gradient(circle at 100% 95%, rgba(255,182,39,.16), transparent 50%), linear-gradient(var(--bg1), var(--bg2));
+      display:flex; align-items:center; justify-content:center; padding:24px 16px; }
+    main { width:100%; max-width:420px; text-align:center; }
+    img.icon { width:96px; height:96px; border-radius:24px; box-shadow:0 10px 30px rgba(0,0,0,.4); }
+    h1 { margin:18px 0 4px; font-size:30px; font-weight:900; background:linear-gradient(var(--goldHi),var(--goldLo));
+      -webkit-background-clip:text; background-clip:text; color:transparent; }
+    p { color:var(--muted); line-height:1.5; margin:6px 0; }
+    .code { margin:22px 0 8px; padding:16px; border-radius:22px; background:rgba(57,38,115,.85); border:1px solid rgba(255,255,255,.18); }
+    .code small { display:block; color:var(--muted); letter-spacing:2px; font-weight:800; font-size:12px; }
+    .code b { display:block; font-size:40px; letter-spacing:10px; color:var(--gold); margin-top:4px; }
+    a.btn { display:block; margin:14px 0 0; padding:16px 20px; border-radius:18px; font-weight:900; font-size:18px; text-decoration:none;
+      color:var(--ink); background:linear-gradient(var(--goldHi),var(--goldLo)); box-shadow:0 5px 0 var(--lip), 0 10px 24px rgba(255,182,39,.35); }
+    a.btn:active { transform: translateY(4px); box-shadow:0 1px 0 var(--lip); }
+    a.btn.secondary { color:var(--text); background:#392673; box-shadow:0 5px 0 #170D35; }
+    .steps { text-align:left; margin-top:22px; font-size:14px; }
+  </style>
+</head>
+<body>
+<main>
+  <img class="icon" src="/icon.png" alt="">
+  <h1>Chittilata</h1>
+  <p>You're invited to a game! 🎬👑</p>
+  <div class="code"><small>ROOM CODE</small><b id="code">——————</b></div>
+  <a class="btn" id="open" href="#">Open in Chittilata</a>
+  <a class="btn secondary" id="get" href="https://play.google.com/store/apps/details?id=com.chandra.chittilata">Get it on Google Play</a>
+  <div class="steps">
+    <p>Don't have the app yet? Install it, open it, tap <b>Join with a code</b> and enter the code above.</p>
+  </div>
+</main>
+<script>
+  // Only room codes made of 6 letters/numbers are used; nothing else from the URL.
+  var m = location.pathname.match(/^\/join\/([A-Za-z0-9]{6})\/?$/);
+  var code = m ? m[1].toUpperCase() : null;
+  var play = document.getElementById('get').href;
+  if (code) {
+    document.getElementById('code').textContent = code;
+    document.getElementById('open').href = 'intent://chittilata-game.web.app/join/' + code +
+      '#Intent;scheme=https;package=com.chandra.chittilata;S.browser_fallback_url=' + encodeURIComponent(play) + ';end';
+  } else {
+    document.getElementById('open').style.display = 'none';
+    document.getElementById('code').textContent = '?';
+  }
+</script>
+</body>
+</html>

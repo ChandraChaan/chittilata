@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.chandra.chittilata",
+      "sha256_cert_fingerprints": [
+        "AD:5B:D1:6C:1D:78:BC:90:9B:7A:55:33:10:BD:A8:4B:FF:1D:E8:42:C7:28:52:6A:EF:B6:4A:16:95:EC:94:5A"
+      ]
+    }
+  }
+]

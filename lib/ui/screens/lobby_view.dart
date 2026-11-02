@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app.dart';
+import '../../core/services/invite_links.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/models.dart';
@@ -533,21 +536,50 @@ class _CodeCard extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: Space.md),
+          BigButton(
+            label: 'Invite friends',
+            icon: Icons.share_rounded,
+            onPressed: () => SharePlus.instance
+                .share(
+                  ShareParams(
+                    text: InviteLinks.message(code),
+                    subject: 'Join my Chittilata game',
+                  ),
+                )
+                .catchError((_) => ShareResult.unavailable),
+          ),
           const SizedBox(height: Space.sm),
-          OutlinedButton.icon(
-            onPressed: () {
-              Clipboard.setData(
-                ClipboardData(
-                  text: 'Join my Chittilata game! Room code: $code',
-                ),
-              );
-              showGameSnack(
-                context,
-                'Invite copied — paste it in your group chat',
-              );
-            },
-            icon: const Icon(Icons.copy_rounded, size: 18),
-            label: const Text('Copy invite'),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: Space.sm,
+            children: [
+              TextButton.icon(
+                onPressed: withClick(context, () {
+                  // wa.me opens WhatsApp, or WhatsApp Web without the app.
+                  final text = Uri.encodeComponent(InviteLinks.message(code));
+                  launchUrl(
+                    Uri.parse('https://wa.me/?text=$text'),
+                    mode: LaunchMode.externalApplication,
+                  ).catchError((_) => false);
+                }),
+                icon: const Text('💬'),
+                label: const Text('WhatsApp'),
+              ),
+              TextButton.icon(
+                onPressed: withClick(context, () {
+                  Clipboard.setData(
+                    ClipboardData(text: InviteLinks.message(code)),
+                  );
+                  showGameSnack(
+                    context,
+                    'Invite link copied — paste it in your group chat',
+                  );
+                }),
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: const Text('Copy link'),
+              ),
+            ],
           ),
         ],
       ),

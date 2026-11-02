@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 
 import 'app.dart';
 import 'core/services/feedback.dart';
+import 'core/services/invite_links.dart';
 import 'core/services/preferences.dart';
 import 'data/game_repository.dart';
 import 'firebase_options.dart';
@@ -45,12 +46,14 @@ Future<void> main() async {
 
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final prefs = await Preferences.load();
+  final invites = InviteLinks()..start();
   runApp(
     ChittilataApp(
       services: AppServices(
         repo: FirebaseGameRepository(),
         prefs: prefs,
         feedback: GameFeedback(prefs),
+        invites: invites,
       ),
     ),
   );

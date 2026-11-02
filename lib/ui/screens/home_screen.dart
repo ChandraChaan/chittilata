@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../app.dart';
 import '../../core/services/feedback.dart';
+import '../../core/services/invite_links.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/game_repository.dart';
 import '../../data/models.dart';
@@ -20,10 +21,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   final _name = TextEditingController();
   bool _busy = false;
   bool _loadedName = false;
+  InviteLinks? _invites;
+
+  /// A code from an invite link, waiting for the player's name.
+  String? _inviteCode;
 
   @override
   void didChangeDependencies() {
@@ -35,12 +40,47 @@ class _HomeScreenState extends State<HomeScreen> {
     s.feedback
       ..setMusic(Music.menu)
       ..warmUp();
+    _invites = s.invites..addListener(_onInvite);
+    final route = ModalRoute.of(context);
+    if (route != null) routeObserver.subscribe(this, route);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onInvite());
   }
 
   @override
   void dispose() {
+    _invites?.removeListener(_onInvite);
+    routeObserver.unsubscribe(this);
     _name.dispose();
     super.dispose();
+  }
+
+  /// Back on the home screen after a game: join an invite that came in.
+  @override
+  void didPopNext() => _onInvite();
+
+  /// An invite link was opened. Joins straight away when we know the
+  /// player's name and nothing else is on screen.
+  void _onInvite() {
+    final invites = _invites;
+    if (!mounted || invites == null || invites.pending == null) return;
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Invite to room ${invites.pending} — it opens when you '
+            'come back to the home screen.',
+          ),
+        ),
+      );
+      return;
+    }
+    final code = invites.take()!;
+    if (_name.text.trim().isEmpty) {
+      setState(() => _inviteCode = code);
+      showGameSnack(context, 'Enter your name, then tap Join to enter $code');
+      return;
+    }
+    _join(code: code);
   }
 
   String? _validName() {
@@ -79,13 +119,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _join() async {
+  Future<void> _join({String? code}) async {
     final name = _validName();
     if (name == null) return;
+    code ??= _inviteCode;
+    _inviteCode = null;
     final roomId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => JoinSheet(name: name),
+      builder: (_) => JoinSheet(name: name, initialCode: code),
     );
     if (roomId != null) _open(roomId);
   }
@@ -157,7 +199,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: Space.lg),
                     BigButton(
-                      label: 'Join with a code',
+                      label: _inviteCode == null
+                          ? 'Join with a code'
+                          : 'Join room $_inviteCode',
                       icon: Icons.login_rounded,
                       secondary: true,
                       onPressed: _busy ? null : _join,
@@ -318,15 +362,27 @@ class _Hero extends StatelessWidget {
 }
 
 class JoinSheet extends StatefulWidget {
-  const JoinSheet({super.key, required this.name});
+  const JoinSheet({super.key, required this.name, this.initialCode});
   final String name;
+
+  /// From an invite link: filled in and joined right away.
+  final String? initialCode;
 
   @override
   State<JoinSheet> createState() => _JoinSheetState();
 }
 
 class _JoinSheetState extends State<JoinSheet> {
-  final _code = TextEditingController();
+  late final _code = TextEditingController(text: widget.initialCode ?? '');
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialCode != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _submit());
+    }
+  }
+
   bool _busy = false;
   String? _error;
 
@@ -381,7 +437,7 @@ class _JoinSheetState extends State<JoinSheet> {
           const SizedBox(height: Space.lg),
           TextField(
             controller: _code,
-            autofocus: true,
+            autofocus: widget.initialCode == null,
             maxLength: 6,
             textAlign: TextAlign.center,
             textCapitalization: TextCapitalization.characters,
