@@ -215,6 +215,8 @@ class Room {
     this.kingWins = const {},
     this.spectators = const {},
     this.groupName,
+    this.isPublic = false,
+    this.createdAt,
   });
 
   final String id;
@@ -241,6 +243,14 @@ class Room {
 
   /// The friend group whose monthly season this room counts for.
   final String? groupName;
+
+  /// A quick-match table (strangers can be matched in).
+  final bool isPublic;
+  final DateTime? createdAt;
+
+  /// Quick match: when the table starts by itself (bots fill empty seats).
+  DateTime? get publicStartsAt =>
+      isPublic ? createdAt?.add(const Duration(seconds: 40)) : null;
 
   bool get isKq => mode == GameMode.kingQueen;
 
@@ -297,6 +307,8 @@ class Room {
           : KqSettings.fromMap(m['kqSettings'] as Map),
       kingWins: _map(m['kingWins'], _int),
       groupName: m['groupName'] as String?,
+      isPublic: m['public'] == true,
+      createdAt: _time(m['createdAt']),
       spectators: {
         for (final u in List<String>.from(m['spectatorUids'] as List? ?? []))
           u: Spectator.fromMap(u, (m['spectators'] as Map?)?[u] as Map? ?? {}),

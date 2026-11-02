@@ -103,6 +103,12 @@ class FakeGameRepository implements GameRepository {
     );
   }
 
+  @override
+  Future<String> quickMatch(GameMode mode, String name, String? avatar) async {
+    await _record('quickMatch:${mode.name}:$name');
+    return 'room1';
+  }
+
   final groups = <Group>[];
   final seasons = <String, Season>{};
   @override
@@ -337,6 +343,8 @@ Room makeRoom({
   Map<String, int> kingWins = const {},
   Map<String, String> members = names,
   Map<String, Spectator> spectators = const {},
+  bool isPublic = false,
+  DateTime? createdAt,
 }) => Room(
   id: 'room1',
   code: 'ABC234',
@@ -365,6 +373,8 @@ Room makeRoom({
   kqSettings: kqDefaultSettings,
   kingWins: kingWins,
   spectators: spectators,
+  isPublic: isPublic,
+  createdAt: createdAt,
 );
 
 const kqDefaultSettings = KqSettings(

@@ -112,6 +112,22 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return n;
   }
 
+  Future<void> _quickMatch(GameMode mode) async {
+    final name = _validName();
+    if (name == null) return;
+    final s = Services.of(context);
+    setState(() => _busy = true);
+    try {
+      _open(await s.repo.quickMatch(mode, name, s.prefs.avatar));
+    } on GameException catch (e) {
+      if (mounted) showGameSnack(context, e.message);
+    } catch (_) {
+      if (mounted) showGameSnack(context, 'Could not reach the game server.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _create(GameMode mode, {int bots = 0}) async {
     final name = _validName();
     if (name == null) return;
@@ -257,6 +273,44 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       icon: Icons.login_rounded,
                       secondary: true,
                       onPressed: _busy ? null : _join,
+                    ),
+                    const SizedBox(height: Space.md),
+                    Panel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '🌐 Play online',
+                            style: context.text.titleMedium,
+                          ),
+                          Text(
+                            'Get matched with players right now. Bots fill '
+                            'any empty seats.',
+                            style: TextStyle(color: c.muted, height: 1.3),
+                          ),
+                          const SizedBox(height: Space.sm),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: BigButton(
+                                  label: '🎬 Movies',
+                                  busy: _busy,
+                                  onPressed: () => _quickMatch(GameMode.movie),
+                                ),
+                              ),
+                              const SizedBox(width: Space.sm),
+                              Expanded(
+                                child: BigButton(
+                                  label: '👑 K & Q',
+                                  busy: _busy,
+                                  onPressed: () =>
+                                      _quickMatch(GameMode.kingQueen),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: Space.lg),
                     Text(

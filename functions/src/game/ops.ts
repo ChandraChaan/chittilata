@@ -36,6 +36,7 @@ import {
 } from "../engine";
 import * as kq from "./kq";
 import { groupForRoom } from "./groups";
+import { publicName } from "./public";
 import {
   CHAR_CEREMONY_SECONDS,
   CHAR_PICK_SECONDS,
@@ -46,6 +47,8 @@ import {
   LastAction,
   MAX_SPECTATORS,
   OFFLINE_AFTER_MS,
+  PUBLIC_MIN,
+  PUBLIC_START_SECONDS,
   PICK_SECONDS,
   PLAY_FOR_AFTER_MS,
   REVEAL_DELAY_SECONDS,
@@ -237,15 +240,19 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
     const created = await db.runTransaction(async (tx) => {
       if ((await tx.get(codeRef)).exists) return false;
       const group = await groupForRoom(tx, db, uid, (data as Record<string, unknown> | null)?.groupId);
+      const isPublic = (data as Record<string, unknown> | null)?.public === true && !group;
       const ts = Timestamp.fromMillis(now());
       const room: RoomDoc = {
         code,
         hostUid: uid,
         status: "lobby",
         memberUids: [uid],
-        players: { [uid]: { name, joinedAt: now(), ready: true, left: false, ...(avatar ? { avatar } : {}) } },
+        players: {
+          [uid]: { name: isPublic ? publicName(name, 1) : name, joinedAt: now(), ready: true, left: false, ...(avatar ? { avatar } : {}) },
+        },
         banned: [],
         mode,
+        public: isPublic,
         groupId: group?.groupId ?? null,
         groupName: group?.groupName ?? null,
         settings: defaultSettings(),
@@ -456,6 +463,14 @@ export async function updateSettings(deps: Deps, uid: string, data: unknown) {
   });
 }
 
+/** A new bot seat for [room] with a name nobody there uses yet. */
+function newBot(room: RoomDoc, deps: Deps) {
+  const taken = new Set(room.memberUids.map((m) => room.players[m].name.toLowerCase()));
+  const name = BOT_NAMES.find((n) => !taken.has(n.toLowerCase())) ?? `Bot ${room.memberUids.length + 1} 🤖`;
+  const uid = `${BOT_PREFIX}${randomId(deps.rng, 12)}`;
+  return { uid, info: { name, joinedAt: deps.now(), ready: true, left: false, bot: true } };
+}
+
 /** The host adds a bot player in the lobby (practice, or to fill a table). */
 export async function addBot(deps: Deps, uid: string, data: unknown) {
   const roomId = str(data, "roomId");
@@ -464,15 +479,13 @@ export async function addBot(deps: Deps, uid: string, data: unknown) {
     requireHost(room, uid);
     if (room.status !== "lobby") fail("failed-precondition", "Bots can only join in the lobby.");
     if (room.memberUids.length >= MAX_PLAYERS) fail("resource-exhausted", "This room is full.");
-    const taken = new Set(room.memberUids.map((m) => room.players[m].name.toLowerCase()));
-    const name = BOT_NAMES.find((n) => !taken.has(n.toLowerCase())) ?? `Bot ${room.memberUids.length + 1} 🤖`;
-    const botUid = `${BOT_PREFIX}${randomId(deps.rng, 12)}`;
+    const bot = newBot(room, deps);
     tx.update(ref, {
-      memberUids: [...room.memberUids, botUid],
-      [`players.${botUid}`]: { name, joinedAt: deps.now(), ready: true, left: false, bot: true },
+      memberUids: [...room.memberUids, bot.uid],
+      [`players.${bot.uid}`]: bot.info,
       updatedAt: Timestamp.fromMillis(deps.now()),
     });
-    return { uid: botUid, name };
+    return { uid: bot.uid, name: bot.info.name };
   });
 }
 
@@ -682,12 +695,34 @@ function startRoundTx(
 export async function startGame(deps: Deps, uid: string, data: unknown) {
   const roomId = str(data, "roomId");
   const roundKey = await deps.db.runTransaction(async (tx) => {
-    const { room } = await loadRoom(tx, deps.db, roomId);
-    requireHost(room, uid);
+    const loaded = await loadRoom(tx, deps.db, roomId);
+    let room = loaded.room;
     if (room.status !== "lobby") fail("failed-precondition", "The game has already started.");
     const notReady = room.memberUids.filter((m) => m !== room.hostUid && !room.players[m].ready);
-    if (notReady.length) {
-      fail("failed-precondition", `Waiting for ${notReady.map((m) => room.players[m].name).join(", ")}.`);
+    if (room.public) {
+      // Quick match: anyone at the table can start it once everyone is
+      // ready (with enough players) or the countdown is over; bots fill
+      // the table up to PUBLIC_MIN so nobody waits forever.
+      requireMember(room, uid);
+      const due = deps.now() >= room.createdAt.toMillis() + PUBLIC_START_SECONDS * 1000;
+      if (!due && (notReady.length > 0 || room.memberUids.length < PUBLIC_MIN)) {
+        fail("failed-precondition", "Waiting for more players.");
+      }
+      const filled: RoomDoc = { ...room, memberUids: [...room.memberUids], players: { ...room.players } };
+      while (filled.memberUids.length < PUBLIC_MIN) {
+        const bot = newBot(filled, deps);
+        filled.memberUids.push(bot.uid);
+        filled.players[bot.uid] = bot.info;
+      }
+      if (filled.memberUids.length !== room.memberUids.length) {
+        tx.update(loaded.ref, { memberUids: filled.memberUids, players: filled.players });
+      }
+      room = filled;
+    } else {
+      requireHost(room, uid);
+      if (notReady.length) {
+        fail("failed-precondition", `Waiting for ${notReady.map((m) => room.players[m].name).join(", ")}.`);
+      }
     }
     const zero = Object.fromEntries(room.memberUids.map((m) => [m, 0]));
     const reset = { totals: zero, movieWins: zero, kingWins: { ...zero }, final: null, tiebreak: null, tiebreakScores: null };

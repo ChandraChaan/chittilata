@@ -631,6 +631,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _wasMyTurn = mine;
     _buzzIfLate();
     _driveBots();
+    _autoStartPublic();
     final pruned = _pruneChat();
     if (pruned ||
         p == Phase.picking ||
@@ -639,7 +640,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
         p == Phase.intro ||
         p == Phase.exchange ||
         p == Phase.characters ||
-        p == Phase.tiebreakVote) {
+        p == Phase.tiebreakVote ||
+        (p == Phase.lobby && (room?.isPublic ?? false))) {
       notifyListeners();
     }
   }
@@ -722,6 +724,42 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _botCallInFlight = true;
     // Losing a race with another phone or the server's timing is normal.
     move.$2().catchError((_) {}).whenComplete(() => _botCallInFlight = false);
+  }
+
+  // ---------- quick match ----------
+
+  DateTime _lastAutoStart = DateTime(0);
+
+  /// Seconds until a quick-match table starts by itself (null: not public).
+  int? get publicStartSeconds {
+    final at = room?.publicStartsAt;
+    if (at == null || phase != Phase.lobby) return null;
+    return max(0, (at.difference(now).inMilliseconds / 1000).ceil());
+  }
+
+  /// Whether anyone at a public table may start it now.
+  bool get canStartPublic {
+    final r = room;
+    if (r == null || !r.isPublic) return false;
+    return (publicStartSeconds ?? 1) == 0 ||
+        (r.memberUids.length >= 4 && r.everyoneReady());
+  }
+
+  /// When the countdown ends, the first person at the table starts it
+  /// (others step in if that phone is slow); bots fill empty seats.
+  void _autoStartPublic() {
+    if (publicStartSeconds != 0 || busy) return;
+    final humans = room!.memberUids.where((u) => !isBotUid(u)).toList();
+    final me = humans.indexOf(uid ?? '');
+    if (me < 0) return;
+    final late = now.difference(room!.publicStartsAt!);
+    if (late < Duration(seconds: 1 + me * 3)) return;
+    if (DateTime.now().difference(_lastAutoStart) <
+        const Duration(seconds: 4)) {
+      return;
+    }
+    _lastAutoStart = DateTime.now();
+    repo.startGame(roomId).catchError((_) {});
   }
 
   // ---------- late players ----------

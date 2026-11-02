@@ -5,6 +5,7 @@ import { Card, GameError, seededRng } from "../../src/engine";
 import { HandDoc, RoomDoc, RoundDoc } from "../../src/game/model";
 import * as ops from "../../src/game/ops";
 import * as groups from "../../src/game/groups";
+import * as publicTables from "../../src/game/public";
 
 const PROJECT = "demo-chittilata-ops";
 let db: Firestore;
@@ -876,5 +877,46 @@ describe("friend groups", () => {
     await groups.leaveGroup(deps(), "a", { groupId });
     expect((await db.doc(`groups/${groupId}`).get()).exists).toBe(false);
     expect((await db.doc(`groupCodes/${code}`).get()).exists).toBe(false);
+  });
+});
+
+describe("quick match", () => {
+  it("matches people into the same public table, numbering repeated names", async () => {
+    const a = await publicTables.quickMatch(deps(), "a", { name: "Ravi", mode: "movie" });
+    expect(a.created).toBe(true);
+    const b = await publicTables.quickMatch(deps(), "b", { name: "ravi", mode: "movie" });
+    expect(b.roomId).toBe(a.roomId);
+    const k = await publicTables.quickMatch(deps(), "c", { name: "Kiran", mode: "kingQueen" });
+    expect(k.roomId).not.toBe(a.roomId);
+    const r = await room(a.roomId);
+    expect(r.public).toBe(true);
+    expect(r.players.b.name).toBe("ravi 2");
+  });
+
+  it("hides abusive names from strangers", async () => {
+    expect(publicTables.publicName("F.u.c.k you", 3)).toBe("Player 3");
+    expect(publicTables.publicName("Lakshmi", 3)).toBe("Lakshmi");
+    const m = await publicTables.quickMatch(deps(), "x", { name: "Lanja123", mode: "movie" });
+    expect((await room(m.roomId)).players.x.name).toBe("Player 1");
+  });
+
+  it("a full table opens a new one", async () => {
+    const first = await publicTables.quickMatch(deps(), "p0", { name: "P0", mode: "movie" });
+    for (let i = 1; i < 6; i++) await publicTables.quickMatch(deps(), `p${i}`, { name: `P${i}`, mode: "movie" });
+    const seventh = await publicTables.quickMatch(deps(), "p6", { name: "P6", mode: "movie" });
+    expect(seventh.roomId).not.toBe(first.roomId);
+  });
+
+  it("starts when everyone's ready, or after the countdown with bots filling seats", async () => {
+    const { roomId } = await publicTables.quickMatch(deps(), "a", { name: "Asha", mode: "movie" });
+    await publicTables.quickMatch(deps(), "b", { name: "Bala", mode: "movie" });
+    // Too early, too few: nobody can start yet (not even the first player).
+    await expectCode(ops.startGame(deps(), "b", { roomId }), "failed-precondition");
+    clock += 41_000;
+    await ops.startGame(deps(), "b", { roomId });
+    const r = await room(roomId);
+    expect(r.status).toBe("playing");
+    expect(r.memberUids).toHaveLength(4);
+    expect(r.memberUids.filter(ops.isBot)).toHaveLength(2);
   });
 });

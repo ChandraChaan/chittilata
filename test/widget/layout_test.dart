@@ -104,6 +104,11 @@ final scenes = <String, Widget Function(FakeGameRepository)>{
     r.emitRoom(makeRoom(ready: {'v': true}));
     return const RoomScreen(roomId: 'room1');
   },
+  'quick match lobby': (r) {
+    r.me = 'v';
+    r.emitRoom(makeRoom(isPublic: true, createdAt: DateTime.now()));
+    return const RoomScreen(roomId: 'room1');
+  },
   'lobby (King & Queen guest)': (r) {
     r.emitRoom(makeRoom(mode: GameMode.kingQueen));
     return const RoomScreen(roomId: 'room1');

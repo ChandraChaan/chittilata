@@ -64,6 +64,8 @@ export interface RoomDoc {
   memberUids: string[];
   /** Everyone who has played this game, including players who left. */
   players: Record<string, PlayerInfo>;
+  /** A quick-match table anyone can be matched into. */
+  public?: boolean;
   /** A friend group whose monthly season this room's games count for. */
   groupId?: string | null;
   groupName?: string | null;
@@ -197,5 +199,11 @@ export const OFFLINE_AFTER_MS = 45_000;
 export const TIEBREAK_VOTE_SECONDS = 30;
 /** Rooms untouched this long are closed by the cleanup job. */
 export const ROOM_TTL_HOURS = 24;
+/** Quick match: seats per public table, and the countdown before it starts. */
+export const PUBLIC_TABLE = 6;
+export const PUBLIC_MIN = 4;
+export const PUBLIC_START_SECONDS = 40;
+/** Public lobbies older than this aren't matched into any more. */
+export const PUBLIC_MATCH_MINUTES = 10;
 /** Most people who can watch a room at once. */
 export const MAX_SPECTATORS = 10;

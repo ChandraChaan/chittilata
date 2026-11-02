@@ -163,7 +163,9 @@ class LobbyView extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.lg),
-          child: ctrl.isHost
+          child: room.isPublic
+              ? _PublicStart(ctrl: ctrl)
+              : ctrl.isHost
               ? Column(
                   children: [
                     if (!canStart)
@@ -1086,6 +1088,61 @@ class _SettingsSheetState extends State<SettingsSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Quick match: everyone sees the countdown; anyone can start once the
+/// table is ready, and bots fill empty seats when time runs out.
+class _PublicStart extends StatelessWidget {
+  const _PublicStart({required this.ctrl});
+  final RoomController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final room = ctrl.room!;
+    final me = room.players[ctrl.uid];
+    final secs = ctrl.publicStartSeconds ?? 0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          secs > 0
+              ? '🌐 Quick match · starts in ${secs}s'
+              : '🌐 Quick match · starting…',
+          style: TextStyle(color: c.teal, fontWeight: FontWeight.w900),
+        ),
+        Text(
+          'Bots fill empty seats. Tap Ready to start sooner.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: c.muted, fontSize: 12),
+        ),
+        const SizedBox(height: Space.sm),
+        Row(
+          children: [
+            if (!ctrl.isHost) ...[
+              Expanded(
+                child: BigButton(
+                  label: me?.ready == true ? 'Ready ✓' : "I'm ready",
+                  secondary: me?.ready == true,
+                  busy: ctrl.busy,
+                  onPressed: () => ctrl.setReady(!(me?.ready ?? false)),
+                ),
+              ),
+              const SizedBox(width: Space.sm),
+            ],
+            Expanded(
+              child: BigButton(
+                label: 'Start now',
+                icon: Icons.play_arrow_rounded,
+                busy: ctrl.busy,
+                onPressed: ctrl.canStartPublic ? ctrl.startGame : null,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

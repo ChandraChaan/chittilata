@@ -69,6 +69,9 @@ abstract class GameRepository {
     String? groupId,
   });
 
+  /// Joins (or opens) a public table for [mode]; returns its room id.
+  Future<String> quickMatch(GameMode mode, String name, String? avatar);
+
   // Friend groups
   Stream<List<Group>> watchMyGroups();
   Stream<Group?> watchGroup(String groupId);
@@ -435,6 +438,16 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> addBot(String roomId) => _run('addBot', {'roomId': roomId});
+
+  @override
+  Future<String> quickMatch(GameMode mode, String name, String? avatar) async {
+    final r = await _call('quickMatch', {
+      'mode': mode.name,
+      'name': name,
+      'avatar': avatar,
+    });
+    return r['roomId'] as String;
+  }
 
   @override
   Stream<List<Group>> watchMyGroups() => _db

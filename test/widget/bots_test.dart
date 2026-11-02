@@ -56,6 +56,8 @@ void main() {
   testWidgets('Practice with bots makes a room with 3 bots', (tester) async {
     repo.emitRoom(makeRoom(members: withBots));
     await pump(tester, const HomeScreen());
+    await tester.ensureVisible(find.text('Practice with bots').first);
+    await tester.pump();
     await tester.tap(find.text('Practice with bots').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
