@@ -56,7 +56,9 @@ class _SplashScreenState extends State<SplashScreen>
     final resume = s.prefs.activeRoomId;
     // Opened from an invite: home joins that room instead of resuming.
     if (resume != null && s.invites.pending == null) {
-      nav.push(gameRoute(RoomScreen(roomId: resume)));
+      nav.push(
+        gameRoute(RoomScreen(roomId: resume), name: RoomScreen.routeName),
+      );
     }
   }
 

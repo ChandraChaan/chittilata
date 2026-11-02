@@ -4,6 +4,11 @@ import { setGlobalOptions } from "firebase-functions/v2";
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { getMessaging } from "firebase-admin/messaging";
+import * as push from "./game/push";
+import type { RoomDoc, RoundDoc } from "./game/model";
+import type { KqRoundDoc } from "./game/kq";
 import { GameError, secureRng } from "./engine";
 import * as ops from "./game/ops";
 import * as kq from "./game/kq";
@@ -66,4 +71,46 @@ export const ping = callable("ping", async () => ({}));
 export const expireRooms = onSchedule({ schedule: "every 6 hours", timeZone: "Asia/Kolkata" }, async () => {
   const result = await ops.expireRooms(deps(), ROOM_TTL_HOURS * 3600 * 1000);
   logger.info("expireRooms", result);
+});
+
+// ---------- push notifications ----------
+
+/** Sends pushes for one change; a failed push never affects the game. */
+async function notify(roomId: string, make: (room: RoomDoc) => push.Push[]) {
+  try {
+    const db = getFirestore();
+    const room = (await db.collection("rooms").doc(roomId).get()).data() as RoomDoc | undefined;
+    if (!room || room.status === "closed") return;
+    const pushes = make(room).filter((p) => room.memberUids.includes(p.uid));
+    await push.deliver(db, getMessaging(), roomId, pushes, Date.now());
+  } catch (e) {
+    logger.warn("push failed", { roomId, error: (e as Error).message });
+  }
+}
+
+export const pushOnRound = onDocumentWritten("rooms/{roomId}/rounds/{key}", async (event) => {
+  const after = event.data?.after.data() as RoundDoc | undefined;
+  if (!after) return;
+  const before = event.data?.before.data() as RoundDoc | undefined;
+  await notify(event.params.roomId, (room) => push.roundPushes(before, after, push.namesOf(room)));
+});
+
+export const pushOnKqRound = onDocumentWritten("rooms/{roomId}/kqRounds/{key}", async (event) => {
+  const after = event.data?.after.data() as KqRoundDoc | undefined;
+  if (!after) return;
+  const before = event.data?.before.data() as KqRoundDoc | undefined;
+  await notify(event.params.roomId, () => push.kqPushes(before, after));
+});
+
+export const pushOnRoom = onDocumentWritten("rooms/{roomId}", async (event) => {
+  const after = event.data?.after.data() as RoomDoc | undefined;
+  const before = event.data?.before.data() as RoomDoc | undefined;
+  if (!after || after.status === before?.status) return;
+  await notify(event.params.roomId, () => push.roomPushes(before, after));
+});
+
+export const pushOnNudge = onDocumentWritten("rooms/{roomId}/chat/{uid}", async (event) => {
+  const after = event.data?.after.data() as { kind?: string; to?: string | null } | undefined;
+  if (after?.kind !== "nudge") return;
+  await notify(event.params.roomId, (room) => push.nudgePush(after, event.params.uid, push.namesOf(room)));
 });

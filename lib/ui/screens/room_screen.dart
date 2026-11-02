@@ -22,6 +22,8 @@ class RoomScreen extends StatefulWidget {
   const RoomScreen({super.key, required this.roomId, this.controller});
   final String roomId;
 
+  static const routeName = 'room';
+
   /// Injected in tests.
   final RoomController? controller;
 
@@ -51,6 +53,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (mounted) showGameSnack(context, m);
     });
     _feedback = s.feedback..setMusic(Music.game);
+    s.push?.enable();
     WakelockPlus.enable().catchError((_) {});
   }
 

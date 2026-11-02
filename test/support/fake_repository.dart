@@ -102,6 +102,12 @@ class FakeGameRepository implements GameRepository {
     );
   }
 
+  String? pushToken;
+  @override
+  Future<void> savePushToken(String token) async => pushToken = token;
+  @override
+  Future<void> deletePushToken() async => pushToken = null;
+
   final appConfig = StreamController<AppConfig>.broadcast();
   AppConfig config = AppConfig.none;
   @override

@@ -26,6 +26,9 @@ class Preferences extends ChangeNotifier {
   bool get music => _p.getBool('music') ?? true;
   set music(bool v) => _set('music', v);
 
+  bool get notifications => _p.getBool('notifications') ?? true;
+  set notifications(bool v) => _set('notifications', v);
+
   bool get haptics => _p.getBool('haptics') ?? true;
   set haptics(bool v) => _set('haptics', v);
 

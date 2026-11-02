@@ -135,7 +135,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   void _open(String roomId) {
     if (!mounted) return;
     Services.of(context).prefs.activeRoomId = roomId;
-    Navigator.of(context).push(gameRoute(RoomScreen(roomId: roomId)));
+    Navigator.of(
+      context,
+    ).push(gameRoute(RoomScreen(roomId: roomId), name: RoomScreen.routeName));
   }
 
   @override

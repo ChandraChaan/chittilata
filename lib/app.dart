@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/services/feedback.dart';
 import 'core/services/invite_links.dart';
+import 'core/services/push.dart';
 import 'core/services/preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'data/game_repository.dart';
@@ -15,12 +16,19 @@ class AppServices {
     required this.prefs,
     required this.feedback,
     InviteLinks? invites,
+    this.push,
   }) : invites = invites ?? InviteLinks();
   final GameRepository repo;
   final Preferences prefs;
   final GameFeedback feedback;
   final InviteLinks invites;
+
+  /// Null in tests (no Firebase Messaging there).
+  final PushService? push;
 }
+
+/// For opening a room from a tapped notification.
+final navigatorKey = GlobalKey<NavigatorState>();
 
 /// Lets screens know when they come back to the top (e.g. home after a game).
 final routeObserver = RouteObserver<ModalRoute<void>>();
@@ -67,6 +75,7 @@ class ChittilataApp extends StatelessWidget {
             _ => ThemeMode.dark,
           },
           scaffoldMessengerKey: scaffoldMessengerKey,
+          navigatorKey: navigatorKey,
           navigatorObservers: [
             services.feedback.navigatorObserver,
             routeObserver,
@@ -80,7 +89,8 @@ class ChittilataApp extends StatelessWidget {
 }
 
 /// Fade+slide page route used for every screen change.
-Route<T> gameRoute<T>(Widget page) => PageRouteBuilder<T>(
+Route<T> gameRoute<T>(Widget page, {String? name}) => PageRouteBuilder<T>(
+  settings: RouteSettings(name: name),
   transitionDuration: Motion.medium,
   reverseTransitionDuration: Motion.fast,
   pageBuilder: (_, _, _) => page,

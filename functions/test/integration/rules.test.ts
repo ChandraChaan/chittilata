@@ -82,6 +82,20 @@ describe("app config", () => {
   });
 });
 
+describe("push tokens", () => {
+  it("a player can save and remove only their own token", async () => {
+    await assertSucceeds(setDoc(doc(as("alice"), "pushTokens/alice"), { token: "t1", updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as("alice"), "pushTokens/bob"), { token: "t1", updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as("alice"), "pushTokens/alice"), { token: "t1", updatedAt: serverTimestamp(), x: 1 }));
+    await assertSucceeds(deleteDoc(doc(as("alice"), "pushTokens/alice")));
+  });
+
+  it("nobody can read tokens, not even their own", async () => {
+    await assertFails(getDoc(doc(as("alice"), "pushTokens/alice")));
+    await assertFails(getDoc(doc(as("bob"), "pushTokens/alice")));
+  });
+});
+
 describe("private hands", () => {
   it("a player can read only their own hand", async () => {
     await assertSucceeds(getDoc(doc(as("alice"), `rooms/${ROOM}/hands/alice`)));

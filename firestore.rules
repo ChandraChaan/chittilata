@@ -29,6 +29,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Each phone's push token. Write-only for its owner; the server reads it.
+    match /pushTokens/{uid} {
+      allow read: if false;
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['token', 'updatedAt'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() < 4096
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
     // Code -> room lookup is server-only so rooms cannot be enumerated.
     match /roomCodes/{code} {
       allow read, write: if false;

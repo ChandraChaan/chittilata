@@ -37,6 +37,10 @@ abstract class GameRepository {
   /// Minimum and latest app builds, for forced and optional updates.
   Stream<AppConfig> watchAppConfig();
 
+  /// This phone's push token, so the server can say "your turn".
+  Future<void> savePushToken(String token);
+  Future<void> deletePushToken();
+
   Stream<Room?> watchRoom(String roomId);
   Stream<Round?> watchRound(String roomId, String roundKey);
   Stream<Hand?> watchHand(String roomId);
@@ -130,6 +134,22 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Duration get clockOffset => _offset;
+
+  @override
+  Future<void> savePushToken(String token) async {
+    final me = uid;
+    if (me == null) return;
+    await _db.doc('pushTokens/$me').set({
+      'token': token,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> deletePushToken() async {
+    final me = uid;
+    if (me != null) await _db.doc('pushTokens/$me').delete();
+  }
 
   @override
   Stream<AppConfig> watchAppConfig() => _db

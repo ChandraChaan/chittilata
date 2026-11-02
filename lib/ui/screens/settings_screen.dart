@@ -51,6 +51,20 @@ class SettingsScreen extends StatelessWidget {
                         ),
                       ),
                       SwitchListTile(
+                        secondary: const Icon(Icons.notifications_rounded),
+                        title: const Text('Notifications'),
+                        subtitle: const Text(
+                          'Your turn and nudges, when the app is closed',
+                        ),
+                        value: prefs.notifications,
+                        onChanged: withClickValue(context, (v) {
+                          final push = Services.read(context).push;
+                          push == null
+                              ? prefs.notifications = v
+                              : push.setEnabled(v);
+                        }),
+                      ),
+                      SwitchListTile(
                         secondary: const Icon(Icons.vibration_rounded),
                         title: const Text('Vibration'),
                         value: prefs.haptics,
