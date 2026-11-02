@@ -481,46 +481,62 @@ class _IntroOverlay extends StatelessWidget {
             colors: [c.bgTop, c.bgBottom],
           ),
         ),
-        padding: const EdgeInsets.all(Space.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              round.tiebreak ? 'TIE-BREAKER' : 'ROUND ${round.roundNo}',
-              style: context.text.displaySmall?.copyWith(color: c.marigold),
+        // Scrolls rather than overflowing on short screens or large text.
+        child: LayoutBuilder(
+          builder: (context, box) => SingleChildScrollView(
+            padding: const EdgeInsets.all(Space.xl),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: box.maxHeight - 48),
+              child: _introColumn(context, c, round, room, first, box),
             ),
-            const SizedBox(height: Space.sm),
-            Text(
-              'This round\'s passing circle',
-              style: TextStyle(color: c.muted),
-            ),
-            const SizedBox(height: Space.lg),
-            CircleOrder(
-              seats: seats,
-              size: min(MediaQuery.sizeOf(context).width - 48, 300),
-            ),
-            const SizedBox(height: Space.lg),
-            Text(
-              '${round.order.map((u) => u == ctrl.uid ? 'You' : room.nameOf(u)).join(' → ')} → '
-              '${round.order.first == ctrl.uid ? 'You' : first}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: Space.xl),
-            Text(
-              round.order.first == ctrl.uid
-                  ? 'You pass first!'
-                  : '$first passes first',
-              style: context.text.titleMedium,
-            ),
-            const SizedBox(height: Space.sm),
-            Text(
-              'Starting in ${ctrl.introRemainingSeconds}…',
-              style: context.text.headlineSmall?.copyWith(color: c.teal),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _introColumn(
+    BuildContext context,
+    GameColors c,
+    Round round,
+    Room room,
+    String first,
+    BoxConstraints box,
+  ) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          round.tiebreak ? 'TIE-BREAKER' : 'ROUND ${round.roundNo}',
+          style: context.text.displaySmall?.copyWith(color: c.marigold),
+        ),
+        const SizedBox(height: Space.sm),
+        Text('This round\'s passing circle', style: TextStyle(color: c.muted)),
+        const SizedBox(height: Space.lg),
+        CircleOrder(
+          seats: seats,
+          size: min(min(box.maxWidth - 48, box.maxHeight * 0.42), 300),
+        ),
+        const SizedBox(height: Space.lg),
+        Text(
+          '${round.order.map((u) => u == ctrl.uid ? 'You' : room.nameOf(u)).join(' → ')} → '
+          '${round.order.first == ctrl.uid ? 'You' : first}',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: Space.xl),
+        Text(
+          round.order.first == ctrl.uid
+              ? 'You pass first!'
+              : '$first passes first',
+          style: context.text.titleMedium,
+        ),
+        const SizedBox(height: Space.sm),
+        Text(
+          'Starting in ${ctrl.introRemainingSeconds}…',
+          style: context.text.headlineSmall?.copyWith(color: c.teal),
+        ),
+      ],
     );
   }
 }

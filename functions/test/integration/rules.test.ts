@@ -70,6 +70,18 @@ describe("room access", () => {
   });
 });
 
+describe("app config", () => {
+  it("anyone, even before signing in, can read the update settings", async () => {
+    await assertSucceeds(getDoc(doc(as(null), "config/app")));
+    await assertSucceeds(getDoc(doc(as("mallory"), "config/app")));
+  });
+
+  it("nobody can change the update settings from the app", async () => {
+    await assertFails(setDoc(doc(as("alice"), "config/app"), { minBuild: 0 }));
+    await assertFails(setDoc(doc(as(null), "config/app"), { minBuild: 999 }));
+  });
+});
+
 describe("private hands", () => {
   it("a player can read only their own hand", async () => {
     await assertSucceeds(getDoc(doc(as("alice"), `rooms/${ROOM}/hands/alice`)));

@@ -36,6 +36,17 @@
 8. Beta: `firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk --app 1:158543185837:android:f9a1aad186465883e50324 --groups family-testers --release-notes "…"`
 9. GitHub: tag `vX.Y.Z` and push. The release workflow attaches signed APKs. Or attach manually with `gh release create`.
 10. Play Console: upload `build/app/outputs/bundle/release/app-release.aab` to Internal testing first.
+11. Once the new build is live on Play, tell older installs about it: in the Firebase console → Firestore → `config/app`, set `latestBuild` to the new build number (an optional "New version available" card). Only builds 6 (2.2.0) and later read this.
+
+## Forcing an update
+
+Use this when an old version is broken or incompatible with the server, after the new version is available on Play:
+
+1. Firebase console → Firestore → collection `config`, document `app` (create it the first time).
+2. Set number fields `minBuild` (builds below it are blocked with "Update required") and `latestBuild` (builds below it get an optional update card). Optional string fields: `message` (shown on the update page, e.g. "New: emoji chat!") and `updateUrl` (opened instead of the Play Store, e.g. the GitHub releases page for testers).
+3. It takes effect immediately on open apps. To undo, lower `minBuild` again.
+
+The app checks the installed build number (the `+N` in `pubspec.yaml`), not the version name.
 
 ## Play Console submission (when ready)
 

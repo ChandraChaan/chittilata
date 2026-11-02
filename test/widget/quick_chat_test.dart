@@ -8,14 +8,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/fake_repository.dart';
+import '../support/screen.dart';
 
 late FakeGameRepository repo;
 late Preferences prefs;
 
 Future<void> pumpRoom(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(1080, 2400);
-  tester.view.devicePixelRatio = 2.6;
-  addTearDown(tester.view.reset);
+  useTestScreen(tester);
   await tester.pumpWidget(
     ChittilataApp(
       services: AppServices(
@@ -40,7 +39,11 @@ Future<void> finish(WidgetTester tester) async {
 
 void main() {
   setUp(() async {
-    SharedPreferences.setMockInitialValues({'onboarded': true, 'sound': false});
+    SharedPreferences.setMockInitialValues({
+      'onboarded': true,
+      'sound': false,
+      'music': false,
+    });
     prefs = await Preferences.load();
     repo = FakeGameRepository();
     repo.emitRoom(makeRoom());

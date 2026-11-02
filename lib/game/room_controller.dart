@@ -344,7 +344,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
         () => repo.kqGuess(roomId, kr.key, kr.turnId, target, requestId),
       );
     } on GameException catch (e) {
-      _messages.add(e.message);
+      _fail(e.message);
     } finally {
       busy = false;
       kqSelectedTarget = null;
@@ -452,6 +452,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
           .watchRound(roomId, key)
           .listen(_onRound, onError: (_) {});
     }
+    if (previous != null) _feedbackForRoomChange(previous, r);
     if (r.status == RoomStatus.tiebreakVote &&
         previous?.status != RoomStatus.tiebreakVote) {
       feedback.play(Sfx.reveal);
@@ -460,13 +461,30 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (r.status == RoomStatus.finished &&
         previous?.status != RoomStatus.finished) {
       feedback.play(Sfx.fanfare);
-      feedback.heavy();
+      feedback.celebrate();
       _saveHistory(r);
     }
     if (r.status == RoomStatus.closed || !r.memberUids.contains(uid)) {
       prefs.activeRoomId = null;
     }
     notifyListeners();
+  }
+
+  void _feedbackForRoomChange(Room previous, Room r) {
+    if (previous.status == RoomStatus.lobby && r.status == RoomStatus.playing) {
+      feedback.play(Sfx.start);
+      feedback.start();
+      return;
+    }
+    if (r.status != RoomStatus.lobby) return;
+    final before = previous.activePlayers.map((p) => p.uid).toSet();
+    final after = r.activePlayers.map((p) => p.uid).toSet();
+    if (after.difference(before).any((u) => u != uid)) {
+      feedback.play(Sfx.join);
+      feedback.light();
+    } else if (before.difference(after).any((u) => u != uid)) {
+      feedback.play(Sfx.leave);
+    }
   }
 
   void _onRound(Round? rd) {
@@ -500,7 +518,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       _lastWinnerKey = winKey;
       if (prev != null) {
         feedback.play(Sfx.win);
-        feedback.heavy();
+        rd.winner?.uid == uid ? feedback.celebrate() : feedback.heavy();
       }
     }
     if (rd.status == RoundStatus.revealed &&
@@ -512,6 +530,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   DateTime _lastPickSound = DateTime(0);
+  bool _wasMyTurn = false;
 
   void _feedbackForOthersPicks(Round prev, Round rd) {
     final newPicks = [
@@ -543,6 +562,13 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// A move the server refused: say why, with a soft "no" sound and buzz.
+  void _fail(String message) {
+    feedback.play(Sfx.error);
+    feedback.error();
+    _messages.add(message);
+  }
+
   void _onStreamError(Object e) {
     // Permission denied means we are no longer a member (removed or closed).
     roomMissing = true;
@@ -559,8 +585,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       final s = (turnRemainingMs / 1000).ceil();
       if (s <= 5 && s > 0 && s != _lastWarnSecond) {
         _lastWarnSecond = s;
-        feedback.play(Sfx.tick);
-        if (s <= 3) feedback.warning();
+        feedback.play(s <= 3 ? Sfx.tickUrgent : Sfx.tick);
+        s <= 3 ? feedback.medium() : feedback.selection();
       }
     }
     if (rd != null && p == Phase.characters) _maybeReveal(rd);
@@ -570,10 +596,13 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       final s = (kqTurnRemainingMs / 1000).ceil();
       if (s <= 5 && s > 0 && s != _lastWarnSecond) {
         _lastWarnSecond = s;
-        feedback.play(Sfx.tick);
-        if (s <= 3) feedback.warning();
+        feedback.play(s <= 3 ? Sfx.tickUrgent : Sfx.tick);
+        s <= 3 ? feedback.medium() : feedback.selection();
       }
     }
+    final mine = myTurn || kqMyTurn;
+    if (mine && !_wasMyTurn) feedback.yourTurn();
+    _wasMyTurn = mine;
     _buzzIfLate();
     final pruned = _pruneChat();
     if (pruned ||
@@ -722,9 +751,10 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       );
       added = true;
       if (e.kind == ChatKind.nudge && e.to == uid) {
-        feedback.play(Sfx.timeout);
+        feedback.play(Sfx.nudge);
         feedback.buzz();
       } else if (e.uid != uid) {
+        feedback.play(Sfx.pop);
         feedback.selection();
       }
     }
@@ -747,6 +777,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     _lastSend = t;
+    feedback.play(Sfx.pop);
     feedback.selection();
     repo
         .sendChat(roomId, id: _chatId(), kind: kind, code: code)
@@ -768,6 +799,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (t.difference(_lastSend) < const Duration(milliseconds: 1100)) return;
     _lastSend = t;
     _lastNudge[target] = t;
+    feedback.play(Sfx.nudge);
     feedback.medium();
     repo
         .sendChat(
@@ -850,7 +882,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
         () => repo.passCard(roomId, rd.key, rd.turnId, cardId, requestId),
       );
     } on GameException catch (e) {
-      _messages.add(e.message);
+      _fail(e.message);
     } finally {
       busy = false;
       selectedCardId = null;
@@ -882,10 +914,10 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       await action();
       return true;
     } on GameException catch (e) {
-      _messages.add(e.message);
+      _fail(e.message);
       return false;
     } catch (e) {
-      _messages.add('Network problem. Check your connection and try again.');
+      _fail('Network problem. Check your connection and try again.');
       return false;
     } finally {
       busy = false;

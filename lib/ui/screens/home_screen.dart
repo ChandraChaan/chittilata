@@ -30,7 +30,11 @@ class _HomeScreenState extends State<HomeScreen> {
     super.didChangeDependencies();
     if (_loadedName) return;
     _loadedName = true;
-    _name.text = Services.of(context).prefs.playerName;
+    final s = Services.of(context);
+    _name.text = s.prefs.playerName;
+    s.feedback
+      ..setMusic(Music.menu)
+      ..warmUp();
   }
 
   @override
@@ -41,6 +45,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String? _validName() {
     final n = _name.text.trim();
+    if (n.isEmpty || n.length > 16) {
+      Services.read(context).feedback
+        ..play(Sfx.error)
+        ..error();
+    }
     if (n.isEmpty) {
       showGameSnack(context, 'Enter your name first');
       return null;
@@ -57,7 +66,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final name = _validName();
     if (name == null) return;
     final s = Services.of(context);
-    s.feedback.play(Sfx.tap);
     setState(() => _busy = true);
     try {
       final r = await s.repo.createRoom(name, mode: mode);
@@ -74,7 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _join() async {
     final name = _validName();
     if (name == null) return;
-    Services.of(context).feedback.play(Sfx.tap);
     final roomId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -127,13 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: Space.lg),
                     const _Hero(),
                     const SizedBox(height: Space.xl),
-                    Text(
-                      'Chittilata',
-                      textAlign: TextAlign.center,
-                      style: context.text.displaySmall?.copyWith(
-                        color: c.marigold,
-                      ),
-                    ),
+                    const GoldText('Chittilata', textAlign: TextAlign.center),
                     Text(
                       'చిట్టిలాట · collect four of a kind',
                       textAlign: TextAlign.center,

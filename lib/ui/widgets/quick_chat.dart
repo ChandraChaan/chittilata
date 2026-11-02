@@ -572,20 +572,32 @@ class _OthersLate extends StatelessWidget {
               ],
             ),
           ),
-          if (ctrl.canPlayForLate)
-            FilledButton(
-              onPressed: ctrl.busy ? null : ctrl.playForLate,
-              child: Text(
-                late.uids.length == 1 ? 'Play for $name' : 'Play for them',
-              ),
-            )
-          else
-            FilledButton.tonal(
-              onPressed: nudgeTarget == null
-                  ? null
-                  : () => ctrl.nudge(nudgeTarget),
-              child: const Text('Nudge 👋'),
-            ),
+          const SizedBox(width: Space.sm),
+          // Long names or big text: the button shrinks and ellipsizes
+          // instead of pushing off the screen.
+          Flexible(
+            child: ctrl.canPlayForLate
+                ? FilledButton(
+                    onPressed: ctrl.busy ? null : ctrl.playForLate,
+                    child: Text(
+                      late.uids.length == 1
+                          ? 'Play for $name'
+                          : 'Play for them',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )
+                : FilledButton.tonal(
+                    onPressed: nudgeTarget == null
+                        ? null
+                        : () => ctrl.nudge(nudgeTarget),
+                    child: const Text(
+                      'Nudge 👋',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+          ),
         ],
       ),
     );

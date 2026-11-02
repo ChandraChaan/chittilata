@@ -1,6 +1,6 @@
 # Google Play Data Safety — prepared answers
 
-These answers are based on the code in this repository (Firebase Auth anonymous, Cloud Firestore, Cloud Functions, Crashlytics + NDK; no ads or analytics SDKs). Re-check them if you add SDKs.
+These answers are based on the code in this repository (Firebase Auth anonymous, Cloud Firestore, Cloud Functions, Crashlytics + NDK, Google Play In-App Updates; no ads or analytics SDKs). Re-check them if you add SDKs.
 
 **Does your app collect or share any of the required user data types?** Yes.
 **Is all of the user data collected by your app encrypted in transit?** Yes (HTTPS/TLS via Firebase SDKs).

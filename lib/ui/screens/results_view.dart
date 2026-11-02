@@ -185,11 +185,15 @@ class _RevealRow extends StatelessWidget {
                             color: isWinner ? c.marigold : c.teal,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            isWinner ? 'Movie winner' : (char?.name ?? '—'),
-                            style: TextStyle(
-                              color: isWinner ? c.marigold : c.teal,
-                              fontWeight: FontWeight.w700,
+                          Flexible(
+                            child: Text(
+                              isWinner ? 'Movie winner' : (char?.name ?? '—'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isWinner ? c.marigold : c.teal,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],

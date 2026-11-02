@@ -86,20 +86,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   onPageChanged: (i) => setState(() => _index = i),
                   itemBuilder: (_, i) {
                     final r = _sections[i];
+                    // Smaller badge on short screens leaves room for text.
+                    final badge = (MediaQuery.sizeOf(context).height * 0.14)
+                        .clamp(64.0, 120.0);
                     return Padding(
                       padding: const EdgeInsets.all(Space.xl),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: 120,
-                            height: 120,
+                            width: badge,
+                            height: badge,
                             decoration: BoxDecoration(
                               color: c.surfaceHigh,
                               shape: BoxShape.circle,
                               border: Border.all(color: c.marigold, width: 3),
                             ),
-                            child: Icon(r.icon, size: 56, color: c.marigold),
+                            child: Icon(
+                              r.icon,
+                              size: badge * 0.47,
+                              color: c.marigold,
+                            ),
                           ),
                           const SizedBox(height: Space.xl),
                           Text(

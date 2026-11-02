@@ -53,18 +53,25 @@ class LobbyView extends StatelessWidget {
             children: [
               _CodeCard(code: room.code),
               const SizedBox(height: Space.lg),
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: Space.sm,
                 children: [
-                  Text('Players', style: context.text.titleMedium),
-                  const SizedBox(width: Space.sm),
-                  Text(
-                    '$count / 10',
-                    style: TextStyle(
-                      color: c.muted,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Wrap(
+                    spacing: Space.sm,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text('Players', style: context.text.titleMedium),
+                      Text(
+                        '$count / 10',
+                        style: TextStyle(
+                          color: c.muted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
-                  const Spacer(),
                   if (count < minPlayers)
                     Text(
                       'Need ${minPlayers - count} more',
@@ -381,10 +388,13 @@ class _KqSettingsSheetState extends State<KqSettingsSheet> {
                       ChoiceChip(
                         label: Text('$r'),
                         selected: rounds == r,
-                        onSelected: (_) => setState(() {
-                          rounds = r;
-                          _roundsCtl.text = '$r';
-                        }),
+                        onSelected: withClickValue(
+                          context,
+                          (_) => setState(() {
+                            rounds = r;
+                            _roundsCtl.text = '$r';
+                          }),
+                        ),
                       ),
                     SizedBox(
                       width: 96,
@@ -414,7 +424,10 @@ class _KqSettingsSheetState extends State<KqSettingsSheet> {
                       ChoiceChip(
                         label: Text(timerLabel(t)),
                         selected: turnSeconds == t,
-                        onSelected: (_) => setState(() => turnSeconds = t),
+                        onSelected: withClickValue(
+                          context,
+                          (_) => setState(() => turnSeconds = t),
+                        ),
                       ),
                   ],
                 ),
@@ -791,7 +804,10 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       ChoiceChip(
                         label: Text(categoryLabels[cat]!),
                         selected: category == cat,
-                        onSelected: (_) => setState(() => category = cat),
+                        onSelected: withClickValue(
+                          context,
+                          (_) => setState(() => category = cat),
+                        ),
                       ),
                   ],
                 ),
@@ -828,11 +844,14 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       ),
                   ],
                   selected: {difficulty},
-                  onSelectionChanged: (v) => setState(() {
-                    difficulty = v.first;
-                    turnSeconds =
-                        GameSettings.difficultyTurnSeconds[difficulty]!;
-                  }),
+                  onSelectionChanged: withClickValue(
+                    context,
+                    (v) => setState(() {
+                      difficulty = v.first;
+                      turnSeconds =
+                          GameSettings.difficultyTurnSeconds[difficulty]!;
+                    }),
+                  ),
                 ),
                 const SizedBox(height: Space.xs),
                 Text(switch (difficulty) {
@@ -852,14 +871,20 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       ChoiceChip(
                         label: Text(timerLabel(t)),
                         selected: turnSeconds == t,
-                        onSelected: (_) => setState(() => turnSeconds = t),
+                        onSelected: withClickValue(
+                          context,
+                          (_) => setState(() => turnSeconds = t),
+                        ),
                       ),
                   ],
                 ),
                 _label('If the table plays for a late player'),
                 RadioGroup<TimeoutPolicy>(
                   groupValue: policy,
-                  onChanged: (v) => setState(() => policy = v!),
+                  onChanged: withClickValue(
+                    context,
+                    (v) => setState(() => policy = v!),
+                  )!,
                   child: const Column(
                     children: [
                       RadioListTile(
@@ -885,10 +910,13 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       ChoiceChip(
                         label: Text('$r'),
                         selected: rounds == r,
-                        onSelected: (_) => setState(() {
-                          rounds = r;
-                          _roundsCtl.text = '$r';
-                        }),
+                        onSelected: withClickValue(
+                          context,
+                          (_) => setState(() {
+                            rounds = r;
+                            _roundsCtl.text = '$r';
+                          }),
+                        ),
                       ),
                     SizedBox(
                       width: 96,

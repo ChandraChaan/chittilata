@@ -725,11 +725,16 @@ class _ChitTableState extends State<ChitTable>
                     right: 0,
                     top: 0,
                     height: stripH,
-                    child: _PlayerStrip(
-                      players: players,
-                      counts: widget.counts,
-                      capacity: widget.capacity,
-                      myUid: widget.myUid,
+                    // A fixed-height strip over the mat: names may grow a
+                    // little with the system font size, but not past it.
+                    child: MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: 1.2,
+                      child: _PlayerStrip(
+                        players: players,
+                        counts: widget.counts,
+                        capacity: widget.capacity,
+                        myUid: widget.myUid,
+                      ),
                     ),
                   ),
                   if (!ceremonyDone && t < 0.55)

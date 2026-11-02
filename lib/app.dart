@@ -5,6 +5,7 @@ import 'core/services/preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'data/game_repository.dart';
 import 'ui/screens/splash_screen.dart';
+import 'ui/widgets/update_gate.dart';
 
 /// App-wide dependencies, provided to the widget tree.
 class AppServices {
@@ -24,6 +25,10 @@ class Services extends InheritedWidget {
 
   static AppServices of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<Services>()!.services;
+
+  /// For callbacks: looks the services up without subscribing to changes.
+  static AppServices read(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<Services>()!.services;
 
   @override
   bool updateShouldNotify(Services old) => old.services != services;
@@ -52,7 +57,9 @@ class ChittilataApp extends StatelessWidget {
             'system' => ThemeMode.system,
             _ => ThemeMode.dark,
           },
+          navigatorObservers: [services.feedback.navigatorObserver],
           home: home ?? const SplashScreen(),
+          builder: (context, child) => UpdateGate(child: child!),
         ),
       ),
     );

@@ -96,13 +96,16 @@ class TiebreakView extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            Text(
-                              tb.votes[u] == true
-                                  ? 'Wants a tie-breaker'
-                                  : 'Deciding…',
-                              style: TextStyle(
-                                color: tb.votes[u] == true ? c.leaf : c.muted,
-                                fontWeight: FontWeight.w700,
+                            Flexible(
+                              child: Text(
+                                tb.votes[u] == true
+                                    ? 'Wants a tie-breaker'
+                                    : 'Deciding…',
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                  color: tb.votes[u] == true ? c.leaf : c.muted,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],

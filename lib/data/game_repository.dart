@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'app_config.dart';
 import 'chat.dart';
 import 'models.dart';
 
@@ -32,6 +33,9 @@ abstract class GameRepository {
 
   /// Server time minus local time, refined after every server call.
   Duration get clockOffset;
+
+  /// Minimum and latest app builds, for forced and optional updates.
+  Stream<AppConfig> watchAppConfig();
 
   Stream<Room?> watchRoom(String roomId);
   Stream<Round?> watchRound(String roomId, String roundKey);
@@ -126,6 +130,14 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Duration get clockOffset => _offset;
+
+  @override
+  Stream<AppConfig> watchAppConfig() => _db
+      .doc('config/app')
+      .snapshots()
+      .map((d) => AppConfig.fromMap(d.data()))
+      // Offline or unreadable: never lock anyone out because of it.
+      .handleError((_) {});
 
   @override
   Future<String> signIn() async {
