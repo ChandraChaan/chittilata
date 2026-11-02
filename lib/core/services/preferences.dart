@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'stats.dart';
+
 /// Device-local preferences and history. Nothing here is game-authoritative.
 class Preferences extends ChangeNotifier {
   Preferences(this._p);
@@ -16,6 +18,16 @@ class Preferences extends ChangeNotifier {
     _p.setString('playerName', v);
     notifyListeners();
   }
+
+  /// Profile emoji shown to other players (null: initials).
+  String? get avatar => _p.getString('avatar');
+  set avatar(String? v) {
+    v == null ? _p.remove('avatar') : _p.setString('avatar', v);
+    notifyListeners();
+  }
+
+  /// Games, wins, XP and badges (this phone only).
+  late final stats = PlayerStats(_p);
 
   bool get onboarded => _p.getBool('onboarded') ?? false;
   set onboarded(bool v) => _p.setBool('onboarded', v);

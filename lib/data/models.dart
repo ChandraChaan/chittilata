@@ -106,12 +106,14 @@ class PlayerInfo {
     required this.ready,
     required this.left,
     required this.joinedAt,
+    this.avatar,
   });
   final String uid;
   final String name;
   final bool ready;
   final bool left;
   final int joinedAt;
+  final String? avatar;
   bool get bot => isBotUid(uid);
 }
 
@@ -262,6 +264,7 @@ class Room {
         ready: p['ready'] == true,
         left: p['left'] == true,
         joinedAt: _int(p['joinedAt']),
+        avatar: p['avatar'] as String?,
       );
     });
     return Room(

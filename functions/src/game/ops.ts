@@ -9,6 +9,7 @@ import {
   buildDeck,
   charactersFor,
   Card,
+  cleanAvatar,
   cleanPlayerName,
   dealHands,
   defaultSettings,
@@ -223,6 +224,7 @@ function endOfGameUpdate(room: RoomDoc, t: number): Record<string, unknown> {
 
 export async function createRoom(deps: Deps, uid: string, data: unknown) {
   const name = cleanPlayerName((data as Record<string, unknown> | null)?.name);
+  const avatar = cleanAvatar((data as Record<string, unknown> | null)?.avatar);
   const rawMode = (data as Record<string, unknown> | null)?.mode ?? "movie";
   if (rawMode !== "movie" && rawMode !== "kingQueen") fail("invalid-argument", "Unknown game mode.");
   const mode = rawMode as "movie" | "kingQueen";
@@ -239,7 +241,7 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
         hostUid: uid,
         status: "lobby",
         memberUids: [uid],
-        players: { [uid]: { name, joinedAt: now(), ready: true, left: false } },
+        players: { [uid]: { name, joinedAt: now(), ready: true, left: false, ...(avatar ? { avatar } : {}) } },
         banned: [],
         mode,
         settings: defaultSettings(),
@@ -270,6 +272,7 @@ export async function joinRoom(deps: Deps, uid: string, data: unknown) {
   const { db, now } = deps;
   const code = str(data, "code", 12).trim().toUpperCase();
   const name = cleanPlayerName((data as Record<string, unknown>).name);
+  const avatar = cleanAvatar((data as Record<string, unknown>).avatar);
   const codeSnap = await db.collection("roomCodes").doc(code).get();
   if (!codeSnap.exists) fail("not-found", "No room with that code.");
   const roomId = codeSnap.get("roomId") as string;
@@ -279,9 +282,15 @@ export async function joinRoom(deps: Deps, uid: string, data: unknown) {
     const { ref, room } = await loadRoom(tx, db, roomId);
     if (room.banned.includes(uid)) fail("permission-denied", "The host removed you from this room.");
     if (room.memberUids.includes(uid)) {
-      // Rejoining (same device/account): keep seat, refresh name only in lobby.
-      if (room.status === "lobby" && room.players[uid].name !== name) {
-        tx.update(ref, { [`players.${uid}.name`]: name, updatedAt: Timestamp.fromMillis(now()) });
+      // Rejoining (same device/account): keep seat, refresh name and
+      // avatar only in the lobby.
+      const p = room.players[uid];
+      if (room.status === "lobby" && (p.name !== name || (p.avatar ?? null) !== avatar)) {
+        tx.update(ref, {
+          [`players.${uid}.name`]: name,
+          [`players.${uid}.avatar`]: avatar,
+          updatedAt: Timestamp.fromMillis(now()),
+        });
       }
       return;
     }
@@ -303,7 +312,7 @@ export async function joinRoom(deps: Deps, uid: string, data: unknown) {
     if (taken) fail("already-exists", "Someone in this room already uses that name.");
     tx.update(ref, {
       memberUids: [...room.memberUids, uid],
-      [`players.${uid}`]: { name, joinedAt: now(), ready: false, left: false },
+      [`players.${uid}`]: { name, joinedAt: now(), ready: false, left: false, ...(avatar ? { avatar } : {}) },
       updatedAt: Timestamp.fromMillis(now()),
     });
   });

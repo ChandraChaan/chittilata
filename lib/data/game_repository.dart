@@ -64,8 +64,13 @@ abstract class GameRepository {
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
+    String? avatar,
   });
-  Future<({String roomId, String code})> joinRoom(String code, String name);
+  Future<({String roomId, String code})> joinRoom(
+    String code,
+    String name, {
+    String? avatar,
+  });
   Future<void> setReady(String roomId, bool ready);
   Future<void> updateSettings(String roomId, Map<String, Object?> patch);
 
@@ -306,8 +311,13 @@ class FirebaseGameRepository implements GameRepository {
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
+    String? avatar,
   }) async {
-    final r = await _call('createRoom', {'name': name, 'mode': mode.name});
+    final r = await _call('createRoom', {
+      'name': name,
+      'mode': mode.name,
+      'avatar': avatar,
+    });
     return (roomId: r['roomId'] as String, code: r['code'] as String);
   }
 
@@ -388,9 +398,14 @@ class FirebaseGameRepository implements GameRepository {
   @override
   Future<({String roomId, String code})> joinRoom(
     String code,
-    String name,
-  ) async {
-    final r = await _call('joinRoom', {'code': code, 'name': name});
+    String name, {
+    String? avatar,
+  }) async {
+    final r = await _call('joinRoom', {
+      'code': code,
+      'name': name,
+      'avatar': avatar,
+    });
     return (roomId: r['roomId'] as String, code: r['code'] as String);
   }
 

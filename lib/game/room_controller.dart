@@ -309,6 +309,9 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       if (kr.status == KqStatus.revealed && prev.status != KqStatus.revealed) {
         feedback.play(Sfx.roundEnd);
         feedback.heavy();
+        if (kr.revealedRoles?[uid] == 0) {
+          _stat('kq:$roomId:${kr.key}', {'kingRounds': 1, 'xp': 20});
+        }
       }
     }
     notifyListeners();
@@ -538,6 +541,9 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       if (prev != null) {
         feedback.play(Sfx.win);
         rd.winner?.uid == uid ? feedback.celebrate() : feedback.heavy();
+      }
+      if (rd.winner?.uid == uid && !rd.tiebreak) {
+        _stat('win:$roomId:${rd.key}', {'roundWins': 1, 'xp': 30});
       }
     }
     if (rd.status == RoundStatus.revealed &&
@@ -880,6 +886,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _lastSend = t;
     feedback.play(Sfx.pop);
     feedback.selection();
+    _stat('chat:${t.microsecondsSinceEpoch}', {'chats': 1});
     repo
         .sendChat(roomId, id: _chatId(), kind: kind, code: code)
         .catchError((_) {});
@@ -900,6 +907,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (t.difference(_lastSend) < const Duration(milliseconds: 1100)) return;
     _lastSend = t;
     _lastNudge[target] = t;
+    _stat('nudge:${t.microsecondsSinceEpoch}', {'nudges': 1});
     feedback.play(Sfx.nudge);
     feedback.medium();
     repo
@@ -1178,7 +1186,37 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     prefs.activeRoomId = null;
   }
 
+  /// Adds to my profile stats once per [key]; celebrates new badges.
+  void _stat(String key, Map<String, int> add) {
+    final unlocked = prefs.stats.record(key, add);
+    for (final b in unlocked) {
+      feedback.play(Sfx.coin);
+      feedback.celebrate();
+      _messages.add('🏅 New badge: ${b.emoji} ${b.title}!');
+    }
+  }
+
+  /// Profile stats for a finished game: played, titles, special badges.
+  void _statsForGame(Room r) {
+    final mine = r.finalStandings?.where((s) => s.uid == uid).firstOrNull;
+    if (mine == null) return;
+    final king = mine.title == 'King';
+    final queen = mine.title == 'Queen';
+    final hour = DateTime.now().hour;
+    _stat('game:${r.id}:${r.gameNo}', {
+      'games': 1,
+      'xp': 50 + (king ? 100 : 0) + (queen ? 60 : 0),
+      if (king) 'kings': 1,
+      if (queen) 'queens': 1,
+      if (king && r.memberUids.any(isBotUid)) 'botWins': 1,
+      if (r.memberUids.length >= 8) 'bigTables': 1,
+      if (hour < 5) 'nightGames': 1,
+      if (!r.isKq && mine.movieWins >= 3) 'hatTricks': 1,
+    });
+  }
+
   void _saveHistory(Room r) {
+    _statsForGame(r);
     final standings = r.finalStandings;
     if (standings == null) return;
     prefs.addHistory(

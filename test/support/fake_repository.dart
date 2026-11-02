@@ -183,6 +183,7 @@ class FakeGameRepository implements GameRepository {
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
+    String? avatar,
   }) async {
     await _record(
       mode == GameMode.movie
@@ -195,8 +196,9 @@ class FakeGameRepository implements GameRepository {
   @override
   Future<({String roomId, String code})> joinRoom(
     String code,
-    String name,
-  ) async {
+    String name, {
+    String? avatar,
+  }) async {
     await _record('joinRoom:$code:$name');
     return (roomId: 'room1', code: code);
   }

@@ -6,6 +6,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../app.dart';
 import '../../core/services/feedback.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models.dart';
 import '../../game/room_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/quick_chat.dart';
@@ -193,46 +194,52 @@ class _RoomScreenState extends State<RoomScreen> {
                   phase != Phase.loading &&
                   phase != Phase.closed &&
                   phase != Phase.removed;
-              return SafeArea(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: AnimatedSwitcher(
-                              duration: Motion.of(context, Motion.medium),
-                              child: KeyedSubtree(
-                                key: ValueKey(_viewKey(phase, ctrl)),
-                                child: body,
+              return AvatarScope(
+                avatars: {
+                  for (final p in ctrl.room?.players.values ?? <PlayerInfo>[])
+                    if (p.avatar != null) p.name: p.avatar!,
+                },
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: AnimatedSwitcher(
+                                duration: Motion.of(context, Motion.medium),
+                                child: KeyedSubtree(
+                                  key: ValueKey(_viewKey(phase, ctrl)),
+                                  child: body,
+                                ),
                               ),
                             ),
-                          ),
-                          if (inRoom)
-                            Positioned.fill(child: ChatLayer(ctrl: ctrl)),
-                          // Banners float over the top of the game instead of
-                          // taking space from it: resizing the screen when
-                          // time ran out moved every chit away from the
-                          // finger reaching for it.
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            top: 0,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ConnectionBanner(connected: ctrl.connected),
-                                if (inRoom && phase != Phase.spectating)
-                                  LateBanner(ctrl: ctrl),
-                                if (inRoom) SeatClaimBanner(ctrl: ctrl),
-                              ],
+                            if (inRoom)
+                              Positioned.fill(child: ChatLayer(ctrl: ctrl)),
+                            // Banners float over the top of the game instead of
+                            // taking space from it: resizing the screen when
+                            // time ran out moved every chit away from the
+                            // finger reaching for it.
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              top: 0,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ConnectionBanner(connected: ctrl.connected),
+                                  if (inRoom && phase != Phase.spectating)
+                                    LateBanner(ctrl: ctrl),
+                                  if (inRoom) SeatClaimBanner(ctrl: ctrl),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    if (inRoom) QuickChatBar(ctrl: ctrl),
-                  ],
+                      if (inRoom) QuickChatBar(ctrl: ctrl),
+                    ],
+                  ),
                 ),
               );
             },

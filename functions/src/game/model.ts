@@ -36,6 +36,8 @@ export interface PlayerInfo {
   left: boolean;
   /** A computer player added by the host (uid starts with "bot_"). */
   bot?: boolean;
+  /** Profile emoji from the fixed AVATARS list (null: initials). */
+  avatar?: string | null;
   /** This seat was handed to another phone (see `spectators[].approved`). */
   movedTo?: string;
 }

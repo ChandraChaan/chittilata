@@ -820,3 +820,16 @@ describe("watching and taking back a seat", () => {
     expect(r.spectatorUids).toEqual([]);
   });
 });
+
+describe("avatars", () => {
+  it("keeps only avatars from the list, and updates them on rejoining the lobby", async () => {
+    const { roomId, code } = await ops.createRoom(deps(), "a", { name: "Asha", avatar: "🦁" });
+    await ops.joinRoom(deps(), "b", { code, name: "Bala", avatar: "<script>" });
+    let r = await room(roomId);
+    expect(r.players.a.avatar).toBe("🦁");
+    expect(r.players.b.avatar ?? null).toBeNull();
+    await ops.joinRoom(deps(), "b", { code, name: "Bala", avatar: "🌶️" });
+    r = await room(roomId);
+    expect(r.players.b.avatar).toBe("🌶️");
+  });
+});

@@ -11,6 +11,7 @@ import '../widgets/common.dart';
 import '../widgets/paper_card.dart';
 import 'history_screen.dart';
 import 'onboarding_screen.dart';
+import 'profile_screen.dart';
 import 'room_screen.dart';
 import 'settings_screen.dart';
 
@@ -108,7 +109,11 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     final s = Services.of(context);
     setState(() => _busy = true);
     try {
-      final r = await s.repo.createRoom(name, mode: mode);
+      final r = await s.repo.createRoom(
+        name,
+        mode: mode,
+        avatar: s.prefs.avatar,
+      );
       // Practice: fill the table with bots; Start is one tap away.
       for (var i = 0; i < bots; i++) {
         await s.repo.addBot(r.roomId);
@@ -159,8 +164,14 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
+                        _ProfileChip(
+                          onTap: () => Navigator.push(
+                            context,
+                            gameRoute(const ProfileScreen()),
+                          ),
+                        ),
+                        const Spacer(),
                         IconButton(
                           tooltip: 'Match history',
                           icon: const Icon(Icons.history_rounded),
@@ -415,7 +426,12 @@ class _JoinSheetState extends State<JoinSheet> {
       _error = null;
     });
     try {
-      final r = await Services.of(context).repo.joinRoom(code, widget.name);
+      final s = Services.of(context);
+      final r = await s.repo.joinRoom(
+        code,
+        widget.name,
+        avatar: s.prefs.avatar,
+      );
       if (mounted) Navigator.pop(context, r.roomId);
     } on GameException catch (e) {
       setState(() => _error = e.message);
@@ -481,6 +497,56 @@ class _JoinSheetState extends State<JoinSheet> {
             onPressed: _submit,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Your avatar and level; opens the profile.
+class _ProfileChip extends StatelessWidget {
+  const _ProfileChip({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = Services.of(context).prefs;
+    final c = context.colors;
+    return ListenableBuilder(
+      listenable: prefs,
+      builder: (context, _) => Semantics(
+        button: true,
+        label: 'Your profile, level ${prefs.stats.level}',
+        excludeSemantics: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(99),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+            decoration: BoxDecoration(
+              color: c.surfaceHigh.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: c.outline),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PlayerAvatar(
+                  name: prefs.playerName.isEmpty ? '?' : prefs.playerName,
+                  size: 34,
+                  emoji: prefs.avatar,
+                ),
+                const SizedBox(width: Space.sm),
+                Text(
+                  'Lv ${prefs.stats.level}',
+                  style: TextStyle(
+                    color: c.marigold,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

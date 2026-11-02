@@ -7,6 +7,7 @@ import 'package:chittilata/data/models.dart';
 import 'package:chittilata/ui/screens/history_screen.dart';
 import 'package:chittilata/ui/screens/home_screen.dart';
 import 'package:chittilata/ui/screens/onboarding_screen.dart';
+import 'package:chittilata/ui/screens/profile_screen.dart';
 import 'package:chittilata/ui/screens/room_screen.dart';
 import 'package:chittilata/ui/screens/settings_screen.dart';
 import 'package:flutter/material.dart';
@@ -69,6 +70,7 @@ const standings = [
 final scenes = <String, Widget Function(FakeGameRepository)>{
   'home': (_) => const HomeScreen(),
   'settings': (_) => const SettingsScreen(),
+  'profile': (_) => const ProfileScreen(),
   'history': (_) => const HistoryScreen(),
   'how to play (movie)': (_) => const OnboardingScreen(),
   'how to play (King & Queen)': (_) =>

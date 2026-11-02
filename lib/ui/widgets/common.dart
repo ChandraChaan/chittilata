@@ -358,7 +358,23 @@ class GoldText extends StatelessWidget {
   }
 }
 
-/// Circular initial avatar with a stable colour per name.
+/// Avatar emojis of the players on screen, by name (names are unique in a
+/// room), so every [PlayerAvatar] below shows the player's chosen emoji.
+class AvatarScope extends InheritedWidget {
+  const AvatarScope({super.key, required this.avatars, required super.child});
+  final Map<String, String> avatars;
+
+  static String? of(BuildContext context, String name) =>
+      context.dependOnInheritedWidgetOfExactType<AvatarScope>()?.avatars[name];
+
+  @override
+  bool updateShouldNotify(AvatarScope old) =>
+      old.avatars.length != avatars.length ||
+      old.avatars.entries.any((e) => avatars[e.key] != e.value);
+}
+
+/// Circular avatar with a stable colour per name: the player's emoji, or
+/// their initial.
 class PlayerAvatar extends StatelessWidget {
   const PlayerAvatar({
     super.key,
@@ -367,9 +383,14 @@ class PlayerAvatar extends StatelessWidget {
     this.ring,
     this.online,
     this.dimmed = false,
+    this.emoji,
   });
 
   final String name;
+
+  /// Shown instead of the initial; defaults to the player's [AvatarScope]
+  /// emoji (bots are always 🤖).
+  final String? emoji;
   final double size;
   final Color? ring;
   final bool? online;
@@ -393,6 +414,10 @@ class PlayerAvatar extends StatelessWidget {
     final c = context.colors;
     final hue =
         _hues[name.codeUnits.fold<int>(0, (a, b) => a + b) % _hues.length];
+    final face =
+        emoji ??
+        AvatarScope.of(context, name) ??
+        (name.endsWith('🤖') ? '🤖' : null);
     final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
     return Opacity(
       opacity: dimmed ? 0.45 : 1,
@@ -413,14 +438,21 @@ class PlayerAvatar extends StatelessWidget {
                 border: Border.all(color: ring ?? Colors.transparent, width: 3),
               ),
               alignment: Alignment.center,
-              child: Text(
-                initial,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: size * 0.42,
-                ),
-              ),
+              child: face != null
+                  ? Text(
+                      face,
+                      textScaler: TextScaler.noScaling,
+                      style: TextStyle(fontSize: size * 0.52, height: 1.1),
+                    )
+                  : Text(
+                      initial,
+                      textScaler: TextScaler.noScaling,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: size * 0.42,
+                      ),
+                    ),
             ),
             if (online != null)
               Positioned(
