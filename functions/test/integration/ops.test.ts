@@ -6,6 +6,7 @@ import { HandDoc, RoomDoc, RoundDoc } from "../../src/game/model";
 import * as ops from "../../src/game/ops";
 import * as groups from "../../src/game/groups";
 import * as publicTables from "../../src/game/public";
+import * as charades from "../../src/game/charades";
 
 const PROJECT = "demo-chittilata-ops";
 let db: Firestore;
@@ -918,5 +919,81 @@ describe("quick match", () => {
     expect(r.status).toBe("playing");
     expect(r.memberUids).toHaveLength(4);
     expect(r.memberUids.filter(ops.isBot)).toHaveLength(2);
+  });
+});
+
+describe("dumb charades", () => {
+  async function charadesGame(n = 4, rounds = 2) {
+    const uids = Array.from({ length: n }, (_, i) => `c${i}`);
+    const { roomId, code } = await ops.createRoom(deps(), uids[0], { name: "Host", mode: "charades" });
+    for (let i = 1; i < n; i++) {
+      await ops.joinRoom(deps(), uids[i], { code, name: `P${i}` });
+      await ops.setReady(deps(), uids[i], { roomId, ready: true });
+    }
+    await ops.updateSettings(deps(), uids[0], { roomId, settings: { rounds } });
+    const { roundKey } = (await ops.startGame(deps(), uids[0], { roomId })) as { roundKey: string };
+    return { roomId, uids, roundKey };
+  }
+  const cr = async (roomId: string, key: string) =>
+    (await db.doc(`rooms/${roomId}/charades/${key}`).get()).data() as charades.CharadesRoundDoc;
+  const secretMovie = async (roomId: string, uid: string) => (await db.doc(`rooms/${roomId}/cards/${uid}`).get()).data()?.movie as string;
+
+  it("the actor secretly gets one of six choices; the first right guess scores, fast is better", async () => {
+    const { roomId, uids, roundKey } = await charadesGame();
+    let r = await cr(roomId, roundKey);
+    expect(r.actor).toBe(uids[0]);
+    expect(r.options).toHaveLength(6);
+    expect(r.answer).toBeNull();
+    const movie = await secretMovie(roomId, uids[0]);
+    const right = r.options.indexOf(movie);
+    const wrong = (right + 1) % 6;
+
+    await expectCode(charades.charadesGuess(deps(), uids[1], { roomId, roundKey, option: right }), "failed-precondition");
+    clock = r.startsAt.toMillis() + 10_000;
+    await expectCode(charades.charadesGuess(deps(), uids[0], { roomId, roundKey, option: right }), "permission-denied");
+    expect((await charades.charadesGuess(deps(), uids[1], { roomId, roundKey, option: wrong })).correct).toBe(false);
+    // One guess each.
+    expect((await charades.charadesGuess(deps(), uids[1], { roomId, roundKey, option: right })).correct).toBe(false);
+    expect((await charades.charadesGuess(deps(), uids[2], { roomId, roundKey, option: right })).correct).toBe(true);
+
+    r = await cr(roomId, roundKey);
+    expect(r.status).toBe("revealed");
+    expect(r.answer).toBe(right);
+    expect(r.solvedBy).toBe(uids[2]);
+    expect(r.scores![uids[2]]).toBe(charades.GUESS_POINTS + 65 * charades.SPEED_POINTS_PER_SECOND);
+    expect(r.scores![uids[0]]).toBe(charades.ACTOR_POINTS);
+    expect((await room(roomId)).totals[uids[2]]).toBe(r.scores![uids[2]]);
+  });
+
+  it("actors take turns; time's up reveals with no points; the game ends after its rounds", async () => {
+    const { roomId, uids, roundKey } = await charadesGame(3, 2);
+    let r = await cr(roomId, roundKey);
+    await expectCode(charades.charadesReveal(deps(), uids[1], { roomId, roundKey }), "failed-precondition");
+    clock = r.deadline.toMillis() + 2000;
+    await charades.charadesReveal(deps(), uids[1], { roomId, roundKey });
+    r = await cr(roomId, roundKey);
+    expect(r.status).toBe("revealed");
+    expect(r.scores).toEqual({});
+
+    const { roundKey: k2 } = await ops.nextRound(deps(), uids[0], { roomId });
+    const r2 = await cr(roomId, k2);
+    expect(r2.actor).toBe(uids[1]);
+    clock = r2.startsAt.toMillis() + 1000;
+    const wrong = (r2.options.indexOf(await secretMovie(roomId, uids[1])) + 1) % 6;
+    // Everyone guessing wrong ends the round straight away; it's the last.
+    await charades.charadesGuess(deps(), uids[0], { roomId, roundKey: k2, option: wrong });
+    await charades.charadesGuess(deps(), uids[2], { roomId, roundKey: k2, option: wrong });
+    expect((await cr(roomId, k2)).status).toBe("revealed");
+    const end = await room(roomId);
+    expect(end.status).toBe("finished");
+    expect(end.final).toHaveLength(3);
+  });
+
+  it("no bots in charades; the actor leaving ends the round", async () => {
+    const { roomId, uids, roundKey } = await charadesGame(4);
+    await expectCode(ops.addBot(deps(), uids[0], { roomId }), "failed-precondition");
+    await ops.leaveRoom(deps(), uids[0], { roomId });
+    expect((await cr(roomId, roundKey)).status).toBe("revealed");
+    expect((await room(roomId)).status).toBe("playing");
   });
 });

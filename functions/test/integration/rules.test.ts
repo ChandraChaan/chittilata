@@ -114,6 +114,19 @@ describe("groups", () => {
   });
 });
 
+describe("dumb charades", () => {
+  it("everyone sees the choices; only the actor sees the movie", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `rooms/${ROOM}/charades/g1r01`), { actor: "alice", options: ["A", "B"] });
+      await setDoc(doc(ctx.firestore(), `rooms/${ROOM}/cards/alice`), { movie: "A" });
+    });
+    await assertSucceeds(getDoc(doc(as("bob"), `rooms/${ROOM}/charades/g1r01`)));
+    await assertSucceeds(getDoc(doc(as("alice"), `rooms/${ROOM}/cards/alice`)));
+    await assertFails(getDoc(doc(as("bob"), `rooms/${ROOM}/cards/alice`)));
+    await assertFails(setDoc(doc(as("bob"), `rooms/${ROOM}/charades/g1r01`), { guesses: { bob: 0 } }));
+  });
+});
+
 describe("push tokens", () => {
   it("a player can save and remove only their own token", async () => {
     await assertSucceeds(setDoc(doc(as("alice"), "pushTokens/alice"), { token: "t1", updatedAt: serverTimestamp() }));

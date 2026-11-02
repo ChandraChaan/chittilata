@@ -10,6 +10,7 @@ import '../../data/models.dart';
 import '../../game/room_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/quick_chat.dart';
+import 'charades_views.dart';
 import 'final_view.dart';
 import 'game_view.dart';
 import 'lobby_view.dart';
@@ -171,6 +172,12 @@ class _RoomScreenState extends State<RoomScreen> {
                   ctrl: ctrl,
                   onLeave: _confirmLeave,
                 ),
+                Phase.charades => CharadesView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                ),
+                Phase.results || Phase.aborted when ctrl.room!.isCharades =>
+                  CharadesResultsView(ctrl: ctrl, onLeave: _confirmLeave),
                 Phase.results || Phase.aborted when ctrl.room!.isKq =>
                   KqResultsView(ctrl: ctrl, onLeave: _confirmLeave),
                 Phase.results || Phase.aborted => ResultsView(
@@ -255,8 +262,13 @@ class _RoomScreenState extends State<RoomScreen> {
     Phase.kqGuessing => 'kqguess-${c.kqRound?.key}',
     Phase.characters => 'characters-${c.round?.key}',
     Phase.intro || Phase.exchange => 'game-${c.round?.key}',
+    Phase.charades => 'charades-${c.charades?.key}',
     Phase.results || Phase.aborted =>
-      'results-${c.room?.isKq == true ? c.kqRound?.key : c.round?.key}',
+      'results-${c.room?.isCharades == true
+          ? c.charades?.key
+          : c.room?.isKq == true
+          ? c.kqRound?.key
+          : c.round?.key}',
     _ => p.name,
   };
 }

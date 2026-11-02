@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../core/services/feedback.dart';
 import '../core/services/preferences.dart';
 import '../core/theme/festivals.dart';
+import '../data/charades.dart';
 import '../data/chat.dart';
 import '../data/game_repository.dart';
 import '../data/models.dart';
@@ -28,6 +29,9 @@ enum Phase {
 
   /// Joined after the start: watching, maybe waiting for their seat back.
   spectating,
+
+  /// Dumb Charades: someone is acting, the others pick the movie.
+  charades,
 }
 
 /// Server-matching grace after a deadline (see DEADLINE_GRACE_MS on server).
@@ -129,6 +133,10 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription<Hand?>? _handSub;
   StreamSubscription<KqRound?>? _kqRoundSub;
   StreamSubscription<KqMyRole?>? _kqRoleSub;
+  StreamSubscription<CharadesRound?>? _charadesSub;
+  StreamSubscription<CharadesCard?>? _cardSub;
+  CharadesRound? charades;
+  CharadesCard? _card;
 
   /// King & Queen: the public round, my secret role, and who I'm about to guess.
   KqRound? kqRound;
@@ -185,6 +193,13 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (r.status == RoomStatus.lobby) return Phase.lobby;
     if (r.status == RoomStatus.finished) return Phase.finished;
     if (r.status == RoomStatus.tiebreakVote) return Phase.tiebreakVote;
+    if (r.isCharades) {
+      final cr = charades;
+      if (cr == null || cr.gameNo != r.gameNo) return Phase.loading;
+      // Next round requested but not loaded yet: keep the last result up.
+      if (cr.key != r.currentRoundKey || cr.revealed) return Phase.results;
+      return Phase.charades;
+    }
     if (r.isKq) return _kqPhase(r);
     final rd = round;
     if (rd == null) return Phase.loading;
@@ -450,11 +465,25 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       _watchHand();
       _kqRoleSub?.cancel();
       _kqRoleSub = null;
+      _cardSub?.cancel();
+      _cardSub = null;
     }
     final previous = room;
     room = r;
     final key = r.currentRoundKey;
-    if (r.isKq) {
+    if (r.isCharades) {
+      _cardSub ??= repo.watchMyCard(roomId).listen((c) {
+        _card = c;
+        notifyListeners();
+      }, onError: (_) {});
+      if (key != null && key != _watchingRoundKey) {
+        _watchingRoundKey = key;
+        _charadesSub?.cancel();
+        _charadesSub = repo
+            .watchCharades(roomId, key)
+            .listen(_onCharades, onError: (_) {});
+      }
+    } else if (r.isKq) {
       _kqRoleSub ??= repo
           .watchMyKqRole(roomId)
           .listen(_onKqRole, onError: (_) {});
@@ -632,6 +661,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _buzzIfLate();
     _driveBots();
     _autoStartPublic();
+    _revealCharadesIfDue();
     final pruned = _pruneChat();
     if (pruned ||
         p == Phase.picking ||
@@ -641,6 +671,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
         p == Phase.exchange ||
         p == Phase.characters ||
         p == Phase.tiebreakVote ||
+        p == Phase.charades ||
         (p == Phase.lobby && (room?.isPublic ?? false))) {
       notifyListeners();
     }
@@ -724,6 +755,102 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _botCallInFlight = true;
     // Losing a race with another phone or the server's timing is normal.
     move.$2().catchError((_) {}).whenComplete(() => _botCallInFlight = false);
+  }
+
+  // ---------- dumb charades ----------
+
+  bool get iAmActor => charades?.actor == uid;
+
+  /// The movie I have to act out (only on the actor's phone).
+  String? get myMovie {
+    final c = _card;
+    return c != null && c.roundKey == charades?.key ? c.movie : null;
+  }
+
+  int? get myGuess => charades?.guesses[uid];
+
+  /// Seconds until acting starts (0 once it has).
+  int get charadesReadySeconds {
+    final cr = charades;
+    if (cr == null) return 0;
+    return max(0, (cr.startsAt.difference(now).inMilliseconds / 1000).ceil());
+  }
+
+  int get charadesSecondsLeft {
+    final cr = charades;
+    if (cr == null) return 0;
+    return max(0, (cr.deadline.difference(now).inMilliseconds / 1000).ceil());
+  }
+
+  bool get canGuess =>
+      phase == Phase.charades &&
+      !iAmActor &&
+      myGuess == null &&
+      charadesReadySeconds == 0 &&
+      !busy;
+
+  Future<bool> guess(int option) {
+    final cr = charades;
+    if (cr == null || !canGuess) return Future.value(false);
+    feedback.play(Sfx.select);
+    feedback.medium();
+    return run(() => repo.charadesGuess(roomId, cr.key, option));
+  }
+
+  void _onCharades(CharadesRound? cr) {
+    if (cr == null) return;
+    final prev = charades;
+    charades = cr;
+    if (prev?.key != cr.key && !cr.revealed) {
+      if (cr.actor == uid) {
+        feedback.play(Sfx.start);
+        feedback.yourTurn();
+      } else {
+        feedback.play(Sfx.shuffle);
+      }
+    }
+    if (prev != null && prev.key == cr.key) {
+      final mine = cr.guesses[uid];
+      if (mine != null && prev.guesses[uid] == null && !cr.revealed) {
+        // Still acting after my guess: it wasn't the one.
+        feedback.play(Sfx.error);
+        feedback.error();
+      }
+      if (cr.revealed && !prev.revealed) {
+        if (cr.solvedBy == uid) {
+          feedback.play(Sfx.win);
+          feedback.celebrate();
+          _stat('charades:$roomId:${cr.key}', {'xp': 20});
+        } else if (cr.solvedBy != null && cr.actor == uid) {
+          feedback.play(Sfx.coin);
+          feedback.celebrate();
+        } else {
+          feedback.play(cr.solvedBy == null ? Sfx.timeout : Sfx.roundEnd);
+          feedback.heavy();
+        }
+      }
+    }
+    notifyListeners();
+  }
+
+  DateTime _lastCharadesReveal = DateTime(0);
+
+  /// When time runs out, the first person in the room ends the round
+  /// (others step in if that phone is slow). Nobody scores.
+  void _revealCharadesIfDue() {
+    final cr = charades;
+    if (phase != Phase.charades || cr == null) return;
+    final people = room!.memberUids.where((u) => !isBotUid(u)).toList();
+    final me = people.indexOf(uid ?? '');
+    if (me < 0) return;
+    final over = now.difference(cr.deadline);
+    if (over < Duration(milliseconds: 1500 + me * 2500)) return;
+    if (DateTime.now().difference(_lastCharadesReveal) <
+        const Duration(seconds: 3)) {
+      return;
+    }
+    _lastCharadesReveal = DateTime.now();
+    repo.charadesReveal(roomId, cr.key).catchError((_) {});
   }
 
   // ---------- quick match ----------
@@ -1279,6 +1406,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _handSub?.cancel();
     _kqRoundSub?.cancel();
     _kqRoleSub?.cancel();
+    _charadesSub?.cancel();
+    _cardSub?.cancel();
     _presenceSub?.cancel();
     _chatSub?.cancel();
     _connSub?.cancel();

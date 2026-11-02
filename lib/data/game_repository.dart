@@ -6,6 +6,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'app_config.dart';
+import 'charades.dart';
 import 'chat.dart';
 import 'groups.dart';
 import 'models.dart';
@@ -68,6 +69,12 @@ abstract class GameRepository {
     String? avatar,
     String? groupId,
   });
+
+  // Movie Dumb Charades
+  Stream<CharadesRound?> watchCharades(String roomId, String roundKey);
+  Stream<CharadesCard?> watchMyCard(String roomId);
+  Future<void> charadesGuess(String roomId, String roundKey, int option);
+  Future<void> charadesReveal(String roomId, String roundKey);
 
   /// Joins (or opens) a public table for [mode]; returns its room id.
   Future<String> quickMatch(GameMode mode, String name, String? avatar);
@@ -438,6 +445,40 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> addBot(String roomId) => _run('addBot', {'roomId': roomId});
+
+  @override
+  Stream<CharadesRound?> watchCharades(String roomId, String roundKey) =>
+      _room(roomId)
+          .collection('charades')
+          .doc(roundKey)
+          .snapshots()
+          .map((s) => s.exists ? CharadesRound.fromMap(s.id, s.data()!) : null);
+
+  @override
+  Stream<CharadesCard?> watchMyCard(String roomId) => _room(roomId)
+      .collection('cards')
+      .doc(uid)
+      .snapshots()
+      .map(
+        (s) => s.exists
+            ? CharadesCard(
+                s.data()!['roundKey'] as String,
+                s.data()!['movie'] as String,
+              )
+            : null,
+      );
+
+  @override
+  Future<void> charadesGuess(String roomId, String roundKey, int option) =>
+      _run('charadesGuess', {
+        'roomId': roomId,
+        'roundKey': roundKey,
+        'option': option,
+      });
+
+  @override
+  Future<void> charadesReveal(String roomId, String roundKey) =>
+      _run('charadesReveal', {'roomId': roomId, 'roundKey': roundKey});
 
   @override
   Future<String> quickMatch(GameMode mode, String name, String? avatar) async {

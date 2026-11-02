@@ -154,3 +154,38 @@ const kqRuleSections = [
         'the title is shared.',
   ),
 ];
+
+/// Movie Dumb Charades. Keep in sync with docs/CHARADES_RULES.md.
+const charadesRuleSections = [
+  RuleSection(
+    Icons.groups_rounded,
+    'Get together',
+    'Play with 3–10 people in the same room (or on a video call). Everyone '
+        'joins the room on their own phone.',
+  ),
+  RuleSection(
+    Icons.theater_comedy_rounded,
+    'Take turns acting',
+    'Each round one player secretly sees a movie title on their phone and '
+        'acts it out — no talking, no lip-syncing, no pointing at letters.',
+  ),
+  RuleSection(
+    Icons.touch_app_rounded,
+    'Pick the title',
+    'Everyone else sees six titles and taps the one they think it is. You '
+        'get one guess per round, so watch carefully!',
+  ),
+  RuleSection(
+    Icons.bolt_rounded,
+    'Fastest wins',
+    'The first right guess scores 100 points plus 2 for every second left. '
+        'The actor scores 75 when someone gets it. Nobody right in 75 seconds? '
+        'Nobody scores.',
+  ),
+  RuleSection(
+    Icons.emoji_events_rounded,
+    'King and Queen',
+    'After the last round, the top two are crowned King and Queen. Ties go '
+        'to whoever guessed right most often.',
+  ),
+];

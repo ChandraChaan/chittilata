@@ -51,7 +51,11 @@ class SpectatorView extends StatelessWidget {
                 child: Column(
                   children: [
                     GoldText(
-                      room.isKq ? '👑 King & Queen' : '🎬 Movie Chits',
+                      room.isCharades
+                          ? '🎭 Dumb Charades'
+                          : room.isKq
+                          ? '👑 King & Queen'
+                          : '🎬 Movie Chits',
                       textAlign: TextAlign.center,
                       style: context.text.titleLarge,
                     ),
@@ -95,7 +99,11 @@ class SpectatorView extends StatelessWidget {
                         ),
                         subtitle: Text(
                           p.uid == turn
-                              ? (room.isKq ? 'Guessing now' : 'Passing now')
+                              ? (room.isCharades
+                                    ? 'Acting now'
+                                    : room.isKq
+                                    ? 'Guessing now'
+                                    : 'Passing now')
                               : p.bot
                               ? 'Bot'
                               : ctrl.isOffline(p.uid)
@@ -127,6 +135,10 @@ class SpectatorView extends StatelessWidget {
   String? _whoseTurn() {
     final rd = ctrl.round;
     final kr = ctrl.kqRound;
+    if (ctrl.room!.isCharades) {
+      final cr = ctrl.charades;
+      return cr != null && !cr.revealed ? cr.actor : null;
+    }
     if (ctrl.room!.isKq) {
       return kr?.status == KqStatus.guessing ? kr?.guesser : null;
     }
@@ -137,6 +149,9 @@ class SpectatorView extends StatelessWidget {
     final room = ctrl.room!;
     if (room.status == RoomStatus.tiebreakVote) return 'tie-breaker vote';
     if (room.status == RoomStatus.finished) return 'game over';
+    if (room.isCharades) {
+      return ctrl.charades?.revealed == false ? 'acting' : 'round over';
+    }
     if (room.isKq) {
       return switch (ctrl.kqRound?.status) {
         KqStatus.picking => 'picking roles',

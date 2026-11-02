@@ -11,6 +11,9 @@ DateTime? _time(Object? v) => switch (v) {
   _ => null,
 };
 
+/// A Firestore timestamp (or epoch ms) as a DateTime.
+DateTime? timeOf(Object? v) => _time(v);
+
 Map<String, T> _map<T>(Object? v, T Function(Object? e) f) =>
     (v as Map?)?.map((k, e) => MapEntry(k as String, f(e))) ?? {};
 
@@ -253,6 +256,7 @@ class Room {
       isPublic ? createdAt?.add(const Duration(seconds: 40)) : null;
 
   bool get isKq => mode == GameMode.kingQueen;
+  bool get isCharades => mode == GameMode.charades;
 
   /// Rounds in the game, for either mode.
   int get totalRounds => isKq ? (kqSettings?.rounds ?? 7) : settings.rounds;
@@ -301,7 +305,11 @@ class Room {
       tiebreakScores: m['tiebreakScores'] == null
           ? null
           : _map(m['tiebreakScores'], _int),
-      mode: m['mode'] == 'kingQueen' ? GameMode.kingQueen : GameMode.movie,
+      mode: switch (m['mode']) {
+        'kingQueen' => GameMode.kingQueen,
+        'charades' => GameMode.charades,
+        _ => GameMode.movie,
+      },
       kqSettings: m['kqSettings'] == null
           ? null
           : KqSettings.fromMap(m['kqSettings'] as Map),
@@ -533,7 +541,7 @@ String? matchingName(List<GameCard> cards, {int need = 4}) {
 // King & Queen (docs/KING_QUEEN_RULES.md)
 // ---------------------------------------------------------------------------
 
-enum GameMode { movie, kingQueen }
+enum GameMode { movie, kingQueen, charades }
 
 class KqRoleDef {
   const KqRoleDef({

@@ -41,15 +41,16 @@ class LobbyView extends StatelessWidget {
     final players = room.activePlayers;
     final count = players.length;
     final minPlayers = room.isKq ? 4 : 3;
+    final title = room.isCharades
+        ? '🎭 Dumb Charades lobby'
+        : room.isKq
+        ? '👑 King & Queen lobby'
+        : '🎬 Movie Chits lobby';
     final canStart = count >= minPlayers && count <= 10 && room.everyoneReady();
 
     return Column(
       children: [
-        _TopBar(
-          title: room.isKq ? '👑 King & Queen lobby' : '🎬 Movie Chits lobby',
-          onLeave: onLeave,
-          mode: room.mode,
-        ),
+        _TopBar(title: title, onLeave: onLeave, mode: room.mode),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: Space.lg),
@@ -141,7 +142,7 @@ class LobbyView extends StatelessWidget {
                   ],
                 ),
               ),
-              if (ctrl.isHost && count < 10)
+              if (ctrl.isHost && count < 10 && !room.isCharades)
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
@@ -153,7 +154,9 @@ class LobbyView extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: Space.lg),
-              if (room.isKq)
+              if (room.isCharades)
+                _CharadesSettings(ctrl: ctrl)
+              else if (room.isKq)
                 _KqSettingsSummary(ctrl: ctrl)
               else
                 _SettingsSummary(ctrl: ctrl),
@@ -1143,6 +1146,81 @@ class _PublicStart extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Dumb Charades settings: which movies, and how many rounds (people take
+/// turns acting). The host taps to change them.
+class _CharadesSettings extends StatelessWidget {
+  const _CharadesSettings({required this.ctrl});
+  final RoomController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final s = ctrl.room!.settings;
+    final host = ctrl.isHost;
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Game settings', style: context.text.titleMedium),
+          const SizedBox(height: Space.sm),
+          Text('Movies', style: TextStyle(color: c.muted, fontSize: 13)),
+          const SizedBox(height: Space.xs),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final cat in Category.values.where(
+                (x) => x != Category.custom,
+              ))
+                ChoiceChip(
+                  label: Text(categoryLabels[cat]!),
+                  selected: s.category == cat,
+                  onSelected: host
+                      ? withClickValue(
+                          context,
+                          (_) => ctrl.updateSettings({'category': cat.name}),
+                        )
+                      : null,
+                ),
+            ],
+          ),
+          const SizedBox(height: Space.md),
+          Text(
+            'Rounds (everyone takes turns acting)',
+            style: TextStyle(color: c.muted, fontSize: 13),
+          ),
+          const SizedBox(height: Space.xs),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final r in const [3, 5, 7, 10, 15])
+                ChoiceChip(
+                  label: Text('$r'),
+                  selected: s.rounds == r,
+                  onSelected: host
+                      ? withClickValue(
+                          context,
+                          (_) => ctrl.updateSettings({'rounds': r}),
+                        )
+                      : null,
+                ),
+            ],
+          ),
+          if (!host)
+            Padding(
+              padding: const EdgeInsets.only(top: Space.sm),
+              child: Text(
+                'Only the host can change settings.',
+                style: TextStyle(color: c.muted, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

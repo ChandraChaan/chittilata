@@ -12,7 +12,7 @@ import type { Card, CharacterDef, GameSettings, Standing } from "../engine";
  *   rooms/{roomId}/secrets/{key} server-only: undealt slips and sealed character chits
  */
 
-export type GameMode = "movie" | "kingQueen";
+export type GameMode = "movie" | "kingQueen" | "charades";
 
 export type RoomStatus = "lobby" | "playing" | "tiebreakVote" | "finished" | "closed";
 

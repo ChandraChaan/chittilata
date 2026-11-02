@@ -35,6 +35,7 @@ import {
   kqChain,
 } from "../engine";
 import * as kq from "./kq";
+import * as charades from "./charades";
 import { groupForRoom } from "./groups";
 import { publicName } from "./public";
 import {
@@ -230,8 +231,10 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
   const name = cleanPlayerName((data as Record<string, unknown> | null)?.name);
   const avatar = cleanAvatar((data as Record<string, unknown> | null)?.avatar);
   const rawMode = (data as Record<string, unknown> | null)?.mode ?? "movie";
-  if (rawMode !== "movie" && rawMode !== "kingQueen") fail("invalid-argument", "Unknown game mode.");
-  const mode = rawMode as "movie" | "kingQueen";
+  if (rawMode !== "movie" && rawMode !== "kingQueen" && rawMode !== "charades") {
+    fail("invalid-argument", "Unknown game mode.");
+  }
+  const mode = rawMode as "movie" | "kingQueen" | "charades";
   const { db, now, rng } = deps;
   for (let attempt = 0; attempt < 6; attempt++) {
     const code = roomCode(rng);
@@ -478,6 +481,7 @@ export async function addBot(deps: Deps, uid: string, data: unknown) {
     const { ref, room } = await loadRoom(tx, deps.db, roomId);
     requireHost(room, uid);
     if (room.status !== "lobby") fail("failed-precondition", "Bots can only join in the lobby.");
+    if (room.mode === "charades") fail("failed-precondition", "Bots can't act! Invite friends instead.");
     if (room.memberUids.length >= MAX_PLAYERS) fail("resource-exhausted", "This room is full.");
     const bot = newBot(room, deps);
     tx.update(ref, {
@@ -527,8 +531,13 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
     }
     if (!room.memberUids.includes(uid)) return;
     const isKq = room.mode === "kingQueen";
+    const isCharades = room.mode === "charades";
+    const charadesRound =
+      isCharades && room.status === "playing"
+        ? await charades.currentCharades(tx, db, roomId, room.currentRoundKey)
+        : null;
     const round =
-      !isKq && room.status === "playing" && room.currentRoundKey
+      !isKq && !isCharades && room.status === "playing" && room.currentRoundKey
         ? ((await tx.get(roundRef(db, roomId, room.currentRoundKey))).data() as RoundDoc | undefined)
         : undefined;
 
@@ -537,6 +546,7 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
     const members = room.memberUids.filter((m) => m !== uid);
     if (!members.some((m) => !isBot(m))) members.length = 0;
     const kqEffects = isKq ? await kq.kqLeaveEffects(tx, deps, roomId, room, uid, members) : null;
+    if (members.length > 0) charades.charadesLeaveEffects(tx, deps, roomId, charadesRound, uid);
     const next: Partial<RoomDoc> & Record<string, unknown> = { memberUids: members, updatedAt: ts };
 
     if (members.length === 0) {
@@ -568,7 +578,11 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
     } else if (kqEffects) {
       kqEffects.apply();
       Object.assign(next, kqEffects.out);
-    } else if (room.status === "playing" && members.length > 0 && members.length < MIN_PLAYERS) {
+    } else if (
+      room.status === "playing" &&
+      members.length > 0 &&
+      members.length < (isCharades ? charades.CHARADES_MIN_PLAYERS : MIN_PLAYERS)
+    ) {
       // Too few players to continue: finish with the scores so far.
       const leftRoom = {
         ...room,
@@ -732,6 +746,10 @@ export async function startGame(deps: Deps, uid: string, data: unknown) {
       tx.update(roomRef(deps.db, roomId), reset);
       return kq.startKqRoundTx(tx, deps, roomId, fresh);
     }
+    if (room.mode === "charades") {
+      tx.update(roomRef(deps.db, roomId), reset);
+      return charades.startCharadesRoundTx(tx, deps, roomId, fresh);
+    }
     validateForStart(room.settings, room.memberUids.length);
     tx.update(roomRef(deps.db, roomId), reset);
     return startRoundTx(tx, deps, roomId, fresh);
@@ -760,6 +778,13 @@ export async function nextRound(deps: Deps, uid: string, data: unknown) {
       kqChainCheck(room);
       moveSeats();
       return kq.startKqRoundTx(tx, deps, roomId, room);
+    }
+    if (room.mode === "charades") {
+      const cur = await charades.currentCharades(tx, deps.db, roomId, room.currentRoundKey);
+      if (cur && cur.status !== "revealed") fail("failed-precondition", "The current round has not finished.");
+      if (room.currentRound >= room.settings.rounds) fail("failed-precondition", "All rounds are complete.");
+      moveSeats();
+      return charades.startCharadesRoundTx(tx, deps, roomId, room);
     }
     const current = room.currentRoundKey
       ? ((await tx.get(roundRef(deps.db, roomId, room.currentRoundKey))).data() as RoundDoc)

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:chittilata/data/app_config.dart';
+import 'package:chittilata/data/charades.dart';
 import 'package:chittilata/data/chat.dart';
 import 'package:chittilata/data/game_repository.dart';
 import 'package:chittilata/data/groups.dart';
@@ -102,6 +103,33 @@ class FakeGameRepository implements GameRepository {
       ),
     );
   }
+
+  final _charades = StreamController<CharadesRound?>.broadcast();
+  final _card = StreamController<CharadesCard?>.broadcast();
+  CharadesRound? charades;
+  CharadesCard? card;
+  void emitCharades(CharadesRound r) {
+    charades = r;
+    _charades.add(r);
+  }
+
+  void emitCard(CharadesCard c) {
+    card = c;
+    _card.add(c);
+  }
+
+  @override
+  Stream<CharadesRound?> watchCharades(String roomId, String roundKey) =>
+      _seeded(_charades.stream, charades);
+  @override
+  Stream<CharadesCard?> watchMyCard(String roomId) =>
+      _seeded(_card.stream, card);
+  @override
+  Future<void> charadesGuess(String roomId, String roundKey, int option) =>
+      _record('guess:$option');
+  @override
+  Future<void> charadesReveal(String roomId, String roundKey) =>
+      _record('charadesReveal');
 
   @override
   Future<String> quickMatch(GameMode mode, String name, String? avatar) async {

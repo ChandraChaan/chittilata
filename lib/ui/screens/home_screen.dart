@@ -349,6 +349,19 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       onPractice: () => _create(GameMode.kingQueen, bots: 3),
                       mode: GameMode.kingQueen,
                     ),
+                    const SizedBox(height: Space.md),
+                    _ModeCard(
+                      emoji: '🎭',
+                      title: 'Dumb Charades',
+                      tagline:
+                          'Act out a movie without a word. Everyone else '
+                          'picks the title on their phone — fastest wins!',
+                      players: '3–10 players, in the same room',
+                      button: 'New Charades room',
+                      busy: _busy,
+                      onCreate: () => _create(GameMode.charades),
+                      mode: GameMode.charades,
+                    ),
                   ],
                 ),
               ),
@@ -370,7 +383,7 @@ class _ModeCard extends StatelessWidget {
     required this.button,
     required this.busy,
     required this.onCreate,
-    required this.onPractice,
+    this.onPractice,
     required this.mode,
   });
 
@@ -382,7 +395,9 @@ class _ModeCard extends StatelessWidget {
   final String button;
   final bool busy;
   final VoidCallback onCreate;
-  final VoidCallback onPractice;
+
+  /// Null for modes bots can't play (they can't act out charades).
+  final VoidCallback? onPractice;
 
   @override
   Widget build(BuildContext context) {
@@ -425,14 +440,16 @@ class _ModeCard extends StatelessWidget {
             busy: busy,
             onPressed: onCreate,
           ),
-          const SizedBox(height: Space.sm),
-          BigButton(
-            label: 'Practice with bots',
-            icon: Icons.smart_toy_rounded,
-            secondary: true,
-            busy: busy,
-            onPressed: onPractice,
-          ),
+          if (onPractice != null) ...[
+            const SizedBox(height: Space.sm),
+            BigButton(
+              label: 'Practice with bots',
+              icon: Icons.smart_toy_rounded,
+              secondary: true,
+              busy: busy,
+              onPressed: onPractice,
+            ),
+          ],
           TextButton.icon(
             onPressed: () => Navigator.push(
               context,

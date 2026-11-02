@@ -3,6 +3,7 @@ import 'package:chittilata/core/services/app_updater.dart';
 import 'package:chittilata/core/services/feedback.dart';
 import 'package:chittilata/core/services/preferences.dart';
 import 'package:chittilata/data/app_config.dart';
+import 'package:chittilata/data/charades.dart';
 import 'package:chittilata/data/models.dart';
 import 'package:chittilata/data/groups.dart';
 import 'package:chittilata/ui/screens/groups_screen.dart';
@@ -286,6 +287,43 @@ final scenes = <String, Widget Function(FakeGameRepository)>{
     r.emitHand(hand);
     return const RoomScreen(roomId: 'room1');
   },
+  'charades (acting)': (r) {
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        mode: GameMode.charades,
+      ),
+    );
+    r.emitCharades(_charades(actor: 'me'));
+    r.emitCard(const CharadesCard('g1r01', 'Sankranthiki Vasthunnam'));
+    return const RoomScreen(roomId: 'room1');
+  },
+  'charades (guessing)': (r) {
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        mode: GameMode.charades,
+      ),
+    );
+    r.emitCharades(_charades(actor: 'v'));
+    return const RoomScreen(roomId: 'room1');
+  },
+  'charades (result)': (r) {
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        mode: GameMode.charades,
+      ),
+    );
+    r.emitCharades(_charades(actor: 'v', revealed: true));
+    return const RoomScreen(roomId: 'room1');
+  },
   'update required': (r) {
     r.config = const AppConfig(minBuild: 99, message: 'Please update.');
     return const HomeScreen();
@@ -295,6 +333,29 @@ final scenes = <String, Widget Function(FakeGameRepository)>{
     return const HomeScreen();
   },
 };
+
+CharadesRound _charades({required String actor, bool revealed = false}) =>
+    CharadesRound(
+      key: 'g1r01',
+      gameNo: 1,
+      roundNo: 1,
+      revealed: revealed,
+      actor: actor,
+      options: const [
+        'Sankranthiki Vasthunnam',
+        'Seethamma Vakitlo Sirimalle Chettu',
+        'Ala Vaikunthapurramuloo',
+        'Pushpa 2',
+        'RRR',
+        'Jersey',
+      ],
+      startsAt: DateTime.now().subtract(const Duration(seconds: 3)),
+      deadline: DateTime.now().add(const Duration(seconds: 60)),
+      guesses: const {},
+      solvedBy: revealed ? 's' : null,
+      answer: revealed ? 1 : null,
+      scores: revealed ? const {'s': 230, 'v': 75} : null,
+    );
 
 void main() {
   setUp(() {

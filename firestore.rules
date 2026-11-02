@@ -130,6 +130,18 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Dumb Charades: the public round (choices, guesses), and the actor's
+      // secret movie, readable only by the actor.
+      match /charades/{roundKey} {
+        allow read: if inRoom(roomId);
+        allow write: if false;
+      }
+
+      match /cards/{uid} {
+        allow read: if signedIn() && request.auth.uid == uid && isMember(roomId);
+        allow write: if false;
+      }
+
       // Server-only debug log (contains card details).
       match /audit/{id} {
         allow read, write: if false;

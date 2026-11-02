@@ -22,8 +22,11 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  List<RuleSection> get _sections =>
-      widget.mode == GameMode.kingQueen ? kqRuleSections : ruleSections;
+  List<RuleSection> get _sections => switch (widget.mode) {
+    GameMode.kingQueen => kqRuleSections,
+    GameMode.charades => charadesRuleSections,
+    GameMode.movie => ruleSections,
+  };
   final _page = PageController();
   int _index = 0;
 
@@ -73,12 +76,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ],
                 ),
               ),
-              Text(
-                widget.mode == GameMode.kingQueen
-                    ? 'How to play King & Queen'
-                    : 'How to play Movie Chits',
-                style: context.text.titleLarge?.copyWith(color: c.marigold),
-              ),
+              Text(switch (widget.mode) {
+                GameMode.kingQueen => 'How to play King & Queen',
+                GameMode.charades => 'How to play Dumb Charades',
+                GameMode.movie => 'How to play Movie Chits',
+              }, style: context.text.titleLarge?.copyWith(color: c.marigold)),
               Expanded(
                 child: PageView.builder(
                   controller: _page,
