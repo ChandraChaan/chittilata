@@ -25,12 +25,12 @@ Real-time, cheat-proof multiplayer for 3–10 friends, built with Flutter and Fi
 
 Paper-chit games like *Chittilu Aata* and *Raja Rani* are a staple of Telugu family gatherings, but they need paper, a pen and everyone in one room. Chittilata keeps the feel of real paper: chits are written, folded, shuffled and scattered on a mat, and you pick them with your finger. It also adds what paper can't do: a fair dealer, a referee that can't be fooled, timers, and scores that add themselves up.
 
-## Two games
+## Three games
 
-| 🎬 **Movie Chits** · 3–10 players | 👑 **King & Queen** · 4–10 players |
-|---|---|
-| Each player picks four folded movie chits. Slips travel one at a time around a random circle, and the first to hold **four of a kind** wins the round. Everyone else picks a secret character chit: **Queen 800 · Police 500 · Thief 100**. After several rounds the top two are crowned **King** and **Queen**. | Everyone picks one folded role chit: **King, Queen, Police, Thief**, plus Minister, Commander and more for bigger groups. The King must find the Queen, the Queen finds the next role, and so on down the chain. **A wrong guess swaps roles.** Everyone scores the role they end with. |
-| [Full rules →](docs/GAME_RULES.md) | [Full rules →](docs/KING_QUEEN_RULES.md) |
+| 🎬 **Movie Chits** · 3–10 players | 👑 **King & Queen** · 4–10 players | 🎭 **Dumb Charades** · 3–10 together |
+|---|---|---|
+| Each player picks four folded movie chits. Slips travel one at a time around a random circle, and the first to hold **four of a kind** wins the round. Everyone else picks a secret character chit: **Queen 800 · Police 500 · Thief 100**. After several rounds the top two are crowned **King** and **Queen**. | Everyone picks one folded role chit: **King, Queen, Police, Thief**, plus Minister, Commander and more for bigger groups. The King must find the Queen, the Queen finds the next role, and so on down the chain. **A wrong guess swaps roles.** Everyone scores the role they end with. | One player secretly gets a movie and **acts it out without a word**. Everyone else picks the title from six on their phone, one guess each. The fastest right guess scores most, and the actor scores too. Everyone takes turns acting. |
+| [Full rules →](docs/GAME_RULES.md) | [Full rules →](docs/KING_QUEEN_RULES.md) | [Full rules →](docs/CHARADES_RULES.md) |
 
 ## Screenshots
 
@@ -68,7 +68,10 @@ Paper-chit games like *Chittilu Aata* and *Raja Rani* are a staple of Telugu fam
 - ⚖️ **Fair by construction.** Shuffles use cryptographic randomness, and the deal never gives anyone three copies of a name at the start. Every pick, pass and guess is checked on the server.
 - ⏱️ **Timers that never play for you.** Turn deadlines live on the server. When time runs out, the late player's phone buzzes and everyone else can nudge them 👋. Only after 45 seconds, or if their phone is offline, can someone at the table choose to play for them, and the server makes that move fairly.
 - 💬 **Quick chat.** One-tap emojis and preset phrases in Telugu and English float up on everyone's screen. Presets only, so there's no free text to moderate.
-- 🔁 **Reconnect and resume.** Close the app mid-round and come back to exactly where you were.
+- 🔁 **Reconnect and resume.** Close the app mid-round and come back to exactly where you were. Changed phones? Watch the game and ask the host for your seat back.
+- 🤖 **Practice with bots**, 🌐 **quick match** with players online, and 📨 **invite links** that open the app straight into the room.
+- 🔔 **Turn notifications** when the app is closed, never while you're watching the game.
+- 😀 **Profiles, levels and badges**, 👥 **friend groups** with a monthly leaderboard, and 🪔 **festival themes** for Sankranti, Ugadi and Diwali.
 - 🤝 **Ties handled gracefully.** Tied for King? Vote for a tie-breaker round or share the crown.
 - 🎨 **Polished UI.** Light and dark themes, confetti, round reveals, history of past games, and an Android app icon and store assets.
 
@@ -146,7 +149,7 @@ docs/                  Rules, architecture, store assets, media
 
 ## Documentation
 
-- **Players:** [How to play](docs/HOW_TO_PLAY.md) · [Movie Chits rules](docs/GAME_RULES.md) · [King & Queen rules and state model](docs/KING_QUEEN_RULES.md) · [Video walkthrough](docs/media/chittilata-how-to-play.mp4)
+- **Players:** [How to play](docs/HOW_TO_PLAY.md) · [Movie Chits rules](docs/GAME_RULES.md) · [King & Queen rules and state model](docs/KING_QUEEN_RULES.md) · [Dumb Charades rules](docs/CHARADES_RULES.md) · [Video walkthrough](docs/media/chittilata-how-to-play.mp4)
 - **Developers:** [Architecture & security](docs/ARCHITECTURE.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Changelog](CHANGELOG.md)
 - **Store:** [Listing](docs/store/LISTING.md) · [Data Safety](docs/store/DATA_SAFETY.md) · [Privacy policy draft](docs/PRIVACY_POLICY.md)
 

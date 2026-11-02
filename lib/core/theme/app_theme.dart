@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'festivals.dart';
+
 /// Chittilata palette: festive night-time indigo with marigold, kumkum and
 /// leaf accents, and warm cream "paper" for the slips themselves.
 @immutable
@@ -97,7 +99,28 @@ class GameColors extends ThemeExtension<GameColors> {
   );
 
   @override
-  GameColors copyWith() => this;
+  GameColors copyWith({Color? bgTop, Color? bgBottom, Color? glow}) =>
+      GameColors(
+        bgTop: bgTop ?? this.bgTop,
+        bgBottom: bgBottom ?? this.bgBottom,
+        surface: surface,
+        surfaceHigh: surfaceHigh,
+        onSurface: onSurface,
+        muted: muted,
+        paper: paper,
+        paperEdge: paperEdge,
+        ink: ink,
+        marigold: marigold,
+        kumkum: kumkum,
+        leaf: leaf,
+        teal: teal,
+        outline: outline,
+        goldHi: goldHi,
+        goldLo: goldLo,
+        goldLip: goldLip,
+        lip: lip,
+        glow: glow ?? this.glow,
+      );
 
   @override
   GameColors lerp(ThemeExtension<GameColors>? other, double t) {
@@ -152,8 +175,12 @@ extension GameThemeX on BuildContext {
   TextTheme get text => Theme.of(this).textTheme;
 }
 
-ThemeData buildTheme(Brightness brightness) {
-  final c = brightness == Brightness.dark ? GameColors.dark : GameColors.light;
+ThemeData buildTheme(Brightness brightness, {Festival? festival}) {
+  var c = brightness == Brightness.dark ? GameColors.dark : GameColors.light;
+  if (festival != null) {
+    final f = festivalColors(festival, brightness);
+    c = c.copyWith(bgTop: f.bgTop, bgBottom: f.bgBottom, glow: f.glow);
+  }
   final scheme = ColorScheme.fromSeed(
     seedColor: c.marigold,
     brightness: brightness,
@@ -175,7 +202,7 @@ ThemeData buildTheme(Brightness brightness) {
   );
   return base.copyWith(
     scaffoldBackgroundColor: c.bgBottom,
-    extensions: [c],
+    extensions: [c, FestivalTheme(festival)],
     textTheme: text.copyWith(
       displaySmall: text.displaySmall?.copyWith(
         fontWeight: FontWeight.w900,

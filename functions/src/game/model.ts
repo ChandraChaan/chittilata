@@ -12,7 +12,7 @@ import type { Card, CharacterDef, GameSettings, Standing } from "../engine";
  *   rooms/{roomId}/secrets/{key} server-only: undealt slips and sealed character chits
  */
 
-export type GameMode = "movie" | "kingQueen";
+export type GameMode = "movie" | "kingQueen" | "charades";
 
 export type RoomStatus = "lobby" | "playing" | "tiebreakVote" | "finished" | "closed";
 
@@ -34,6 +34,26 @@ export interface PlayerInfo {
   joinedAt: number;
   ready: boolean;
   left: boolean;
+  /** A computer player added by the host (uid starts with "bot_"). */
+  bot?: boolean;
+  /** Profile emoji from the fixed AVATARS list (null: initials). */
+  avatar?: string | null;
+  /** This seat was handed to another phone (see `spectators[].approved`). */
+  movedTo?: string;
+}
+
+/**
+ * Someone who joined after the start. They watch, and get a seat when the
+ * game is played again — or take back their own seat (after reinstalling
+ * the app, say) once the host approves.
+ */
+export interface Spectator {
+  name: string;
+  joinedAt: number;
+  /** The seat they say is theirs, waiting for the host. */
+  claims: string | null;
+  /** Host approved: the seat moves to them when the next round starts. */
+  approved: string | null;
 }
 
 export interface RoomDoc {
@@ -44,6 +64,14 @@ export interface RoomDoc {
   memberUids: string[];
   /** Everyone who has played this game, including players who left. */
   players: Record<string, PlayerInfo>;
+  /** A quick-match table anyone can be matched into. */
+  public?: boolean;
+  /** A friend group whose monthly season this room's games count for. */
+  groupId?: string | null;
+  groupName?: string | null;
+  /** Watchers (read access in security rules). Absent on older rooms. */
+  spectatorUids?: string[];
+  spectators?: Record<string, Spectator>;
   banned: string[];
   /** Absent on rooms created before modes existed: treated as "movie". */
   mode?: GameMode;
@@ -171,3 +199,11 @@ export const OFFLINE_AFTER_MS = 45_000;
 export const TIEBREAK_VOTE_SECONDS = 30;
 /** Rooms untouched this long are closed by the cleanup job. */
 export const ROOM_TTL_HOURS = 24;
+/** Quick match: seats per public table, and the countdown before it starts. */
+export const PUBLIC_TABLE = 6;
+export const PUBLIC_MIN = 4;
+export const PUBLIC_START_SECONDS = 40;
+/** Public lobbies older than this aren't matched into any more. */
+export const PUBLIC_MATCH_MINUTES = 10;
+/** Most people who can watch a room at once. */
+export const MAX_SPECTATORS = 10;

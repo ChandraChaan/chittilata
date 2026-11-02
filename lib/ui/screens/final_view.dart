@@ -22,6 +22,8 @@ class _FinalViewState extends State<FinalView> {
   Future<List<RoundSummary>> _load() async {
     final ctrl = widget.ctrl;
     final room = ctrl.room!;
+    // Charades rounds have no per-round table (just who guessed right).
+    if (room.isCharades) return const [];
     if (room.isKq) {
       final rounds = await ctrl.repo.loadKqRounds(ctrl.roomId, room.gameNo);
       return [
@@ -116,7 +118,9 @@ class _FinalViewState extends State<FinalView> {
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       subtitle: Text(
-                        room.isKq
+                        room.isCharades
+                            ? '${s.movieWins} right guess${s.movieWins == 1 ? '' : 'es'}'
+                            : room.isKq
                             ? '${s.movieWins} round${s.movieWins == 1 ? '' : 's'} as King'
                             : '${s.movieWins} movie win${s.movieWins == 1 ? '' : 's'}'
                                   '${s.tiebreak == null ? '' : ' · tie-breaker ${s.tiebreak}'}',
@@ -130,25 +134,27 @@ class _FinalViewState extends State<FinalView> {
                 ],
               ),
             ),
-            const SizedBox(height: Space.xl),
-            Text('Round by round', style: context.text.titleMedium),
-            const SizedBox(height: Space.sm),
-            FutureBuilder<List<RoundSummary>>(
-              future: _rounds,
-              builder: (context, snap) {
-                if (!snap.hasData) {
-                  return const Padding(
-                    padding: EdgeInsets.all(Space.lg),
-                    child: Center(child: CircularProgressIndicator()),
+            if (!room.isCharades) ...[
+              const SizedBox(height: Space.xl),
+              Text('Round by round', style: context.text.titleMedium),
+              const SizedBox(height: Space.sm),
+              FutureBuilder<List<RoundSummary>>(
+                future: _rounds,
+                builder: (context, snap) {
+                  if (!snap.hasData) {
+                    return const Padding(
+                      padding: EdgeInsets.all(Space.lg),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  return _RoundTable(
+                    room: room,
+                    rounds: snap.data!,
+                    standings: standings,
                   );
-                }
-                return _RoundTable(
-                  room: room,
-                  rounds: snap.data!,
-                  standings: standings,
-                );
-              },
-            ),
+                },
+              ),
+            ],
             const SizedBox(height: Space.sm),
             Text(switch (room.tiebreak?.stage) {
               'done' =>
@@ -158,6 +164,9 @@ class _FinalViewState extends State<FinalView> {
                 'The tied players chose to share the ${room.tiebreak!.title} title.',
               'cancelled' =>
                 'A tied player left, so the ${room.tiebreak!.title} title is shared.',
+              _ when room.isCharades =>
+                'Ties: most points, then most right guesses. Players still '
+                    'tied share the title.',
               _ when room.isKq =>
                 'Ties: most points, then most rounds finished as King. Players '
                     'still tied share the title. Gold = that round\'s King.',

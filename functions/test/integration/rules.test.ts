@@ -82,6 +82,65 @@ describe("app config", () => {
   });
 });
 
+describe("spectators", () => {
+  it("watchers read the room, rounds and chat, can chat, but never see hands", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `rooms/${ROOM}`), { spectatorUids: ["watcher"] });
+    });
+    const w = as("watcher");
+    await assertSucceeds(getDoc(doc(w, `rooms/${ROOM}`)));
+    await assertSucceeds(getDoc(doc(w, `rooms/${ROOM}/rounds/g1r01`)));
+    await assertFails(getDoc(doc(w, `rooms/${ROOM}/hands/alice`)));
+    await assertFails(getDoc(doc(w, `rooms/${ROOM}/hands/watcher`)));
+    await assertSucceeds(
+      setDoc(doc(w, `rooms/${ROOM}/chat/watcher`), { id: "abc", kind: "emoji", code: "laugh", to: null, at: serverTimestamp() }),
+    );
+    await assertFails(getDoc(doc(as("mallory"), `rooms/${ROOM}`)));
+  });
+});
+
+describe("groups", () => {
+  it("only members read a group and its seasons; nobody writes them", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "groups/g1"), { name: "Family", memberUids: ["alice"] });
+      await setDoc(doc(ctx.firestore(), "groups/g1/seasons/2026-11"), { points: { alice: 10 } });
+    });
+    await assertSucceeds(getDoc(doc(as("alice"), "groups/g1")));
+    await assertSucceeds(getDoc(doc(as("alice"), "groups/g1/seasons/2026-11")));
+    await assertFails(getDoc(doc(as("mallory"), "groups/g1")));
+    await assertFails(getDoc(doc(as("mallory"), "groups/g1/seasons/2026-11")));
+    await assertFails(setDoc(doc(as("alice"), "groups/g1/seasons/2026-11"), { points: { alice: 99999 } }));
+    await assertFails(getDoc(doc(as("alice"), "groupCodes/ABC234")));
+  });
+});
+
+describe("dumb charades", () => {
+  it("everyone sees the choices; only the actor sees the movie", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `rooms/${ROOM}/charades/g1r01`), { actor: "alice", options: ["A", "B"] });
+      await setDoc(doc(ctx.firestore(), `rooms/${ROOM}/cards/alice`), { movie: "A" });
+    });
+    await assertSucceeds(getDoc(doc(as("bob"), `rooms/${ROOM}/charades/g1r01`)));
+    await assertSucceeds(getDoc(doc(as("alice"), `rooms/${ROOM}/cards/alice`)));
+    await assertFails(getDoc(doc(as("bob"), `rooms/${ROOM}/cards/alice`)));
+    await assertFails(setDoc(doc(as("bob"), `rooms/${ROOM}/charades/g1r01`), { guesses: { bob: 0 } }));
+  });
+});
+
+describe("push tokens", () => {
+  it("a player can save and remove only their own token", async () => {
+    await assertSucceeds(setDoc(doc(as("alice"), "pushTokens/alice"), { token: "t1", updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as("alice"), "pushTokens/bob"), { token: "t1", updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as("alice"), "pushTokens/alice"), { token: "t1", updatedAt: serverTimestamp(), x: 1 }));
+    await assertSucceeds(deleteDoc(doc(as("alice"), "pushTokens/alice")));
+  });
+
+  it("nobody can read tokens, not even their own", async () => {
+    await assertFails(getDoc(doc(as("alice"), "pushTokens/alice")));
+    await assertFails(getDoc(doc(as("bob"), "pushTokens/alice")));
+  });
+});
+
 describe("private hands", () => {
   it("a player can read only their own hand", async () => {
     await assertSucceeds(getDoc(doc(as("alice"), `rooms/${ROOM}/hands/alice`)));

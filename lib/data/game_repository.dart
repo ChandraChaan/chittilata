@@ -6,7 +6,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'app_config.dart';
+import 'charades.dart';
 import 'chat.dart';
+import 'groups.dart';
 import 'models.dart';
 
 /// A user-facing error from the game server.
@@ -37,6 +39,10 @@ abstract class GameRepository {
   /// Minimum and latest app builds, for forced and optional updates.
   Stream<AppConfig> watchAppConfig();
 
+  /// This phone's push token, so the server can say "your turn".
+  Future<void> savePushToken(String token);
+  Future<void> deletePushToken();
+
   Stream<Room?> watchRoom(String roomId);
   Stream<Round?> watchRound(String roomId, String roundKey);
   Stream<Hand?> watchHand(String roomId);
@@ -60,8 +66,31 @@ abstract class GameRepository {
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
+    String? avatar,
+    String? groupId,
   });
-  Future<({String roomId, String code})> joinRoom(String code, String name);
+
+  // Movie Dumb Charades
+  Stream<CharadesRound?> watchCharades(String roomId, String roundKey);
+  Stream<CharadesCard?> watchMyCard(String roomId);
+  Future<void> charadesGuess(String roomId, String roundKey, int option);
+  Future<void> charadesReveal(String roomId, String roundKey);
+
+  /// Joins (or opens) a public table for [mode]; returns its room id.
+  Future<String> quickMatch(GameMode mode, String name, String? avatar);
+
+  // Friend groups
+  Stream<List<Group>> watchMyGroups();
+  Stream<Group?> watchGroup(String groupId);
+  Stream<Season> watchSeason(String groupId, String season);
+  Future<String> createGroup(String name, String playerName, String? avatar);
+  Future<String> joinGroup(String code, String playerName, String? avatar);
+  Future<void> leaveGroup(String groupId);
+  Future<({String roomId, String code})> joinRoom(
+    String code,
+    String name, {
+    String? avatar,
+  });
   Future<void> setReady(String roomId, bool ready);
   Future<void> updateSettings(String roomId, Map<String, Object?> patch);
 
@@ -81,6 +110,15 @@ abstract class GameRepository {
   );
   Future<void> kqClaimTimeout(String roomId, String roundKey, int turnId);
   Future<void> kickPlayer(String roomId, String uid);
+
+  /// Host only, in the lobby: adds a computer player.
+  Future<void> addBot(String roomId);
+
+  /// A spectator asks for [seat] (theirs, from another phone); null cancels.
+  Future<void> claimSeat(String roomId, String? seat);
+
+  /// Host only: answers a spectator's seat claim.
+  Future<void> answerSeatClaim(String roomId, String spectator, bool approve);
   Future<void> leaveRoom(String roomId);
   Future<void> startGame(String roomId);
   Future<void> nextRound(String roomId);
@@ -130,6 +168,22 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Duration get clockOffset => _offset;
+
+  @override
+  Future<void> savePushToken(String token) async {
+    final me = uid;
+    if (me == null) return;
+    await _db.doc('pushTokens/$me').set({
+      'token': token,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> deletePushToken() async {
+    final me = uid;
+    if (me != null) await _db.doc('pushTokens/$me').delete();
+  }
 
   @override
   Stream<AppConfig> watchAppConfig() => _db
@@ -277,8 +331,15 @@ class FirebaseGameRepository implements GameRepository {
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
+    String? avatar,
+    String? groupId,
   }) async {
-    final r = await _call('createRoom', {'name': name, 'mode': mode.name});
+    final r = await _call('createRoom', {
+      'name': name,
+      'mode': mode.name,
+      'avatar': avatar,
+      'groupId': ?groupId,
+    });
     return (roomId: r['roomId'] as String, code: r['code'] as String);
   }
 
@@ -359,9 +420,14 @@ class FirebaseGameRepository implements GameRepository {
   @override
   Future<({String roomId, String code})> joinRoom(
     String code,
-    String name,
-  ) async {
-    final r = await _call('joinRoom', {'code': code, 'name': name});
+    String name, {
+    String? avatar,
+  }) async {
+    final r = await _call('joinRoom', {
+      'code': code,
+      'name': name,
+      'avatar': avatar,
+    });
     return (roomId: r['roomId'] as String, code: r['code'] as String);
   }
 
@@ -376,6 +442,116 @@ class FirebaseGameRepository implements GameRepository {
   @override
   Future<void> kickPlayer(String roomId, String uid) =>
       _run('kickPlayer', {'roomId': roomId, 'uid': uid});
+
+  @override
+  Future<void> addBot(String roomId) => _run('addBot', {'roomId': roomId});
+
+  @override
+  Stream<CharadesRound?> watchCharades(String roomId, String roundKey) =>
+      _room(roomId)
+          .collection('charades')
+          .doc(roundKey)
+          .snapshots()
+          .map((s) => s.exists ? CharadesRound.fromMap(s.id, s.data()!) : null);
+
+  @override
+  Stream<CharadesCard?> watchMyCard(String roomId) => _room(roomId)
+      .collection('cards')
+      .doc(uid)
+      .snapshots()
+      .map(
+        (s) => s.exists
+            ? CharadesCard(
+                s.data()!['roundKey'] as String,
+                s.data()!['movie'] as String,
+              )
+            : null,
+      );
+
+  @override
+  Future<void> charadesGuess(String roomId, String roundKey, int option) =>
+      _run('charadesGuess', {
+        'roomId': roomId,
+        'roundKey': roundKey,
+        'option': option,
+      });
+
+  @override
+  Future<void> charadesReveal(String roomId, String roundKey) =>
+      _run('charadesReveal', {'roomId': roomId, 'roundKey': roundKey});
+
+  @override
+  Future<String> quickMatch(GameMode mode, String name, String? avatar) async {
+    final r = await _call('quickMatch', {
+      'mode': mode.name,
+      'name': name,
+      'avatar': avatar,
+    });
+    return r['roomId'] as String;
+  }
+
+  @override
+  Stream<List<Group>> watchMyGroups() => _db
+      .collection('groups')
+      .where('memberUids', arrayContains: uid)
+      .snapshots()
+      .map((q) => q.docs.map(Group.fromSnapshot).toList());
+
+  @override
+  Stream<Group?> watchGroup(String groupId) => _db
+      .doc('groups/$groupId')
+      .snapshots()
+      .map((s) => s.exists ? Group.fromSnapshot(s) : null);
+
+  @override
+  Stream<Season> watchSeason(String groupId, String season) => _db
+      .doc('groups/$groupId/seasons/$season')
+      .snapshots()
+      .map((s) => Season.fromMap(season, s.data()));
+
+  @override
+  Future<String> createGroup(
+    String name,
+    String playerName,
+    String? avatar,
+  ) async {
+    final r = await _call('createGroup', {
+      'name': name,
+      'playerName': playerName,
+      'avatar': avatar,
+    });
+    return r['groupId'] as String;
+  }
+
+  @override
+  Future<String> joinGroup(
+    String code,
+    String playerName,
+    String? avatar,
+  ) async {
+    final r = await _call('joinGroup', {
+      'code': code,
+      'playerName': playerName,
+      'avatar': avatar,
+    });
+    return r['groupId'] as String;
+  }
+
+  @override
+  Future<void> leaveGroup(String groupId) =>
+      _run('leaveGroup', {'groupId': groupId});
+
+  @override
+  Future<void> claimSeat(String roomId, String? seat) =>
+      _run('claimSeat', {'roomId': roomId, 'seat': seat});
+
+  @override
+  Future<void> answerSeatClaim(String roomId, String spectator, bool approve) =>
+      _run('answerSeatClaim', {
+        'roomId': roomId,
+        'spectator': spectator,
+        'approve': approve,
+      });
 
   @override
   Future<void> leaveRoom(String roomId) =>

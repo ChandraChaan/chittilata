@@ -11,6 +11,9 @@ DateTime? _time(Object? v) => switch (v) {
   _ => null,
 };
 
+/// A Firestore timestamp (or epoch ms) as a DateTime.
+DateTime? timeOf(Object? v) => _time(v);
+
 Map<String, T> _map<T>(Object? v, T Function(Object? e) f) =>
     (v as Map?)?.map((k, e) => MapEntry(k as String, f(e))) ?? {};
 
@@ -96,6 +99,9 @@ class GameSettings {
   );
 }
 
+/// Bot players have server-made uids starting with "bot_".
+bool isBotUid(String uid) => uid.startsWith('bot_');
+
 class PlayerInfo {
   const PlayerInfo({
     required this.uid,
@@ -103,12 +109,15 @@ class PlayerInfo {
     required this.ready,
     required this.left,
     required this.joinedAt,
+    this.avatar,
   });
   final String uid;
   final String name;
   final bool ready;
   final bool left;
   final int joinedAt;
+  final String? avatar;
+  bool get bot => isBotUid(uid);
 }
 
 class Standing {
@@ -207,6 +216,10 @@ class Room {
     this.mode = GameMode.movie,
     this.kqSettings,
     this.kingWins = const {},
+    this.spectators = const {},
+    this.groupName,
+    this.isPublic = false,
+    this.createdAt,
   });
 
   final String id;
@@ -228,7 +241,22 @@ class Room {
   final KqSettings? kqSettings;
   final Map<String, int> kingWins;
 
+  /// People watching (joined after the start), by uid.
+  final Map<String, Spectator> spectators;
+
+  /// The friend group whose monthly season this room counts for.
+  final String? groupName;
+
+  /// A quick-match table (strangers can be matched in).
+  final bool isPublic;
+  final DateTime? createdAt;
+
+  /// Quick match: when the table starts by itself (bots fill empty seats).
+  DateTime? get publicStartsAt =>
+      isPublic ? createdAt?.add(const Duration(seconds: 40)) : null;
+
   bool get isKq => mode == GameMode.kingQueen;
+  bool get isCharades => mode == GameMode.charades;
 
   /// Rounds in the game, for either mode.
   int get totalRounds => isKq ? (kqSettings?.rounds ?? 7) : settings.rounds;
@@ -254,6 +282,7 @@ class Room {
         ready: p['ready'] == true,
         left: p['left'] == true,
         joinedAt: _int(p['joinedAt']),
+        avatar: p['avatar'] as String?,
       );
     });
     return Room(
@@ -276,13 +305,49 @@ class Room {
       tiebreakScores: m['tiebreakScores'] == null
           ? null
           : _map(m['tiebreakScores'], _int),
-      mode: m['mode'] == 'kingQueen' ? GameMode.kingQueen : GameMode.movie,
+      mode: switch (m['mode']) {
+        'kingQueen' => GameMode.kingQueen,
+        'charades' => GameMode.charades,
+        _ => GameMode.movie,
+      },
       kqSettings: m['kqSettings'] == null
           ? null
           : KqSettings.fromMap(m['kqSettings'] as Map),
       kingWins: _map(m['kingWins'], _int),
+      groupName: m['groupName'] as String?,
+      isPublic: m['public'] == true,
+      createdAt: _time(m['createdAt']),
+      spectators: {
+        for (final u in List<String>.from(m['spectatorUids'] as List? ?? []))
+          u: Spectator.fromMap(u, (m['spectators'] as Map?)?[u] as Map? ?? {}),
+      },
     );
   }
+}
+
+/// Someone watching a game they joined after it started.
+class Spectator {
+  const Spectator({
+    required this.uid,
+    required this.name,
+    this.claims,
+    this.approved,
+  });
+  final String uid;
+  final String name;
+
+  /// The seat they asked the host for (their own, from another phone).
+  final String? claims;
+
+  /// The host said yes: they take it over from the next round.
+  final String? approved;
+
+  factory Spectator.fromMap(String uid, Map m) => Spectator(
+    uid: uid,
+    name: m['name'] as String? ?? 'Player',
+    claims: m['claims'] as String?,
+    approved: m['approved'] as String?,
+  );
 }
 
 enum RoundStatus { picking, exchange, characters, revealed, aborted }
@@ -476,7 +541,7 @@ String? matchingName(List<GameCard> cards, {int need = 4}) {
 // King & Queen (docs/KING_QUEEN_RULES.md)
 // ---------------------------------------------------------------------------
 
-enum GameMode { movie, kingQueen }
+enum GameMode { movie, kingQueen, charades }
 
 class KqRoleDef {
   const KqRoleDef({

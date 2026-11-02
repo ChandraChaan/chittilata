@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app.dart';
+import '../../core/services/invite_links.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/models.dart';
@@ -38,20 +41,34 @@ class LobbyView extends StatelessWidget {
     final players = room.activePlayers;
     final count = players.length;
     final minPlayers = room.isKq ? 4 : 3;
+    final title = room.isCharades
+        ? '🎭 Dumb Charades lobby'
+        : room.isKq
+        ? '👑 King & Queen lobby'
+        : '🎬 Movie Chits lobby';
     final canStart = count >= minPlayers && count <= 10 && room.everyoneReady();
 
     return Column(
       children: [
-        _TopBar(
-          title: room.isKq ? '👑 King & Queen lobby' : '🎬 Movie Chits lobby',
-          onLeave: onLeave,
-          mode: room.mode,
-        ),
+        _TopBar(title: title, onLeave: onLeave, mode: room.mode),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: Space.lg),
             children: [
               _CodeCard(code: room.code),
+              if (room.groupName != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: Space.sm),
+                  child: Text(
+                    '👥 ${room.groupName} · counts for this month\'s '
+                    'leaderboard',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: c.teal,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
               const SizedBox(height: Space.lg),
               Wrap(
                 alignment: WrapAlignment.spaceBetween,
@@ -91,7 +108,7 @@ class LobbyView extends StatelessWidget {
                       ListTile(
                         leading: PlayerAvatar(
                           name: p.name,
-                          online: ctrl.isOnline(p.uid),
+                          online: p.bot || ctrl.isOnline(p.uid),
                         ),
                         title: Text(
                           p.uid == ctrl.uid ? '${p.name} (you)' : p.name,
@@ -100,6 +117,8 @@ class LobbyView extends StatelessWidget {
                         subtitle: Text(
                           p.uid == room.hostUid
                               ? 'Host'
+                              : p.bot
+                              ? 'Bot · always ready'
                               : ctrl.isAway(p.uid)
                               ? 'App in background'
                               : ctrl.isOnline(p.uid)
@@ -123,8 +142,21 @@ class LobbyView extends StatelessWidget {
                   ],
                 ),
               ),
+              if (ctrl.isHost && count < 10 && !room.isCharades)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: ctrl.busy
+                        ? null
+                        : withClick(context, ctrl.addBot),
+                    icon: const Text('🤖'),
+                    label: const Text('Add a bot'),
+                  ),
+                ),
               const SizedBox(height: Space.lg),
-              if (room.isKq)
+              if (room.isCharades)
+                _CharadesSettings(ctrl: ctrl)
+              else if (room.isKq)
                 _KqSettingsSummary(ctrl: ctrl)
               else
                 _SettingsSummary(ctrl: ctrl),
@@ -134,7 +166,9 @@ class LobbyView extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.lg),
-          child: ctrl.isHost
+          child: room.isPublic
+              ? _PublicStart(ctrl: ctrl)
+              : ctrl.isHost
               ? Column(
                   children: [
                     if (!canStart)
@@ -533,21 +567,50 @@ class _CodeCard extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: Space.md),
+          BigButton(
+            label: 'Invite friends',
+            icon: Icons.share_rounded,
+            onPressed: () => SharePlus.instance
+                .share(
+                  ShareParams(
+                    text: InviteLinks.message(code),
+                    subject: 'Join my Chittilata game',
+                  ),
+                )
+                .catchError((_) => ShareResult.unavailable),
+          ),
           const SizedBox(height: Space.sm),
-          OutlinedButton.icon(
-            onPressed: () {
-              Clipboard.setData(
-                ClipboardData(
-                  text: 'Join my Chittilata game! Room code: $code',
-                ),
-              );
-              showGameSnack(
-                context,
-                'Invite copied — paste it in your group chat',
-              );
-            },
-            icon: const Icon(Icons.copy_rounded, size: 18),
-            label: const Text('Copy invite'),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: Space.sm,
+            children: [
+              TextButton.icon(
+                onPressed: withClick(context, () {
+                  // wa.me opens WhatsApp, or WhatsApp Web without the app.
+                  final text = Uri.encodeComponent(InviteLinks.message(code));
+                  launchUrl(
+                    Uri.parse('https://wa.me/?text=$text'),
+                    mode: LaunchMode.externalApplication,
+                  ).catchError((_) => false);
+                }),
+                icon: const Text('💬'),
+                label: const Text('WhatsApp'),
+              ),
+              TextButton.icon(
+                onPressed: withClick(context, () {
+                  Clipboard.setData(
+                    ClipboardData(text: InviteLinks.message(code)),
+                  );
+                  showGameSnack(
+                    context,
+                    'Invite link copied — paste it in your group chat',
+                  );
+                }),
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: const Text('Copy link'),
+              ),
+            ],
           ),
         ],
       ),
@@ -1026,6 +1089,136 @@ class _SettingsSheetState extends State<SettingsSheet> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Quick match: everyone sees the countdown; anyone can start once the
+/// table is ready, and bots fill empty seats when time runs out.
+class _PublicStart extends StatelessWidget {
+  const _PublicStart({required this.ctrl});
+  final RoomController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final room = ctrl.room!;
+    final me = room.players[ctrl.uid];
+    final secs = ctrl.publicStartSeconds ?? 0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          secs > 0
+              ? '🌐 Quick match · starts in ${secs}s'
+              : '🌐 Quick match · starting…',
+          style: TextStyle(color: c.teal, fontWeight: FontWeight.w900),
+        ),
+        Text(
+          'Bots fill empty seats. Tap Ready to start sooner.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: c.muted, fontSize: 12),
+        ),
+        const SizedBox(height: Space.sm),
+        Row(
+          children: [
+            if (!ctrl.isHost) ...[
+              Expanded(
+                child: BigButton(
+                  label: me?.ready == true ? 'Ready ✓' : "I'm ready",
+                  secondary: me?.ready == true,
+                  busy: ctrl.busy,
+                  onPressed: () => ctrl.setReady(!(me?.ready ?? false)),
+                ),
+              ),
+              const SizedBox(width: Space.sm),
+            ],
+            Expanded(
+              child: BigButton(
+                label: 'Start now',
+                icon: Icons.play_arrow_rounded,
+                busy: ctrl.busy,
+                onPressed: ctrl.canStartPublic ? ctrl.startGame : null,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Dumb Charades settings: which movies, and how many rounds (people take
+/// turns acting). The host taps to change them.
+class _CharadesSettings extends StatelessWidget {
+  const _CharadesSettings({required this.ctrl});
+  final RoomController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final s = ctrl.room!.settings;
+    final host = ctrl.isHost;
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Game settings', style: context.text.titleMedium),
+          const SizedBox(height: Space.sm),
+          Text('Movies', style: TextStyle(color: c.muted, fontSize: 13)),
+          const SizedBox(height: Space.xs),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final cat in Category.values.where(
+                (x) => x != Category.custom,
+              ))
+                ChoiceChip(
+                  label: Text(categoryLabels[cat]!),
+                  selected: s.category == cat,
+                  onSelected: host
+                      ? withClickValue(
+                          context,
+                          (_) => ctrl.updateSettings({'category': cat.name}),
+                        )
+                      : null,
+                ),
+            ],
+          ),
+          const SizedBox(height: Space.md),
+          Text(
+            'Rounds (everyone takes turns acting)',
+            style: TextStyle(color: c.muted, fontSize: 13),
+          ),
+          const SizedBox(height: Space.xs),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final r in const [3, 5, 7, 10, 15])
+                ChoiceChip(
+                  label: Text('$r'),
+                  selected: s.rounds == r,
+                  onSelected: host
+                      ? withClickValue(
+                          context,
+                          (_) => ctrl.updateSettings({'rounds': r}),
+                        )
+                      : null,
+                ),
+            ],
+          ),
+          if (!host)
+            Padding(
+              padding: const EdgeInsets.only(top: Space.sm),
+              child: Text(
+                'Only the host can change settings.',
+                style: TextStyle(color: c.muted, fontSize: 12),
+              ),
+            ),
         ],
       ),
     );

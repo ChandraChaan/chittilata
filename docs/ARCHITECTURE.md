@@ -44,6 +44,14 @@ Android app (Flutter)                Firebase project: chittilata-game (asia-sou
 | `presence/{uid}` | members | `lastSeen` (must equal server time), `state` |
 | `secrets/{key}` | nobody (server only) | each player's not-yet-picked slips, chit→card bindings, sealed character chits |
 | `audit/*`, `roomCodes/*` | nobody (server only) | debug log with card details; code → room index |
+| `charades/{key}` | members and spectators | Dumb Charades round: actor, six choices, guesses; the answer and scores only after the reveal |
+| `cards/{uid}` | **that player only** | the Charades actor's secret movie |
+| `groups/{id}`, `groups/{id}/seasons/{YYYY-MM}` | group members | friend group (name, code, members) and each month's points/games/titles; written by the server |
+| `groupCodes/*` | nobody (server only) | group code → group index |
+| `pushTokens/{uid}` | nobody (owner may write/delete) | this phone's FCM token |
+| `config/app` | everyone | `minBuild` / `latestBuild` for update prompts |
+
+**Spectators** (people who joined after the start, in `spectatorUids`) can read the room, rounds, presence and chat, never hands, roles or cards. **Bots** have server-made uids starting with `bot_`; their moves go through the same "play for" operations (allowed `BOT_THINK_MS` after a move opens) and are driven by the people's phones. **Push notifications** are sent by Firestore triggers only to players whose app isn't showing the game (no fresh foreground heartbeat). **Public quick-match** rooms (`public: true`) start when everyone is ready or after a countdown, with bots filling seats.
 
 Because card ids are random per round and never appear in public documents, watching the public round state reveals nothing about which slip moved.
 

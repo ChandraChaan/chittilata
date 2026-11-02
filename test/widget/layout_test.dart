@@ -3,10 +3,14 @@ import 'package:chittilata/core/services/app_updater.dart';
 import 'package:chittilata/core/services/feedback.dart';
 import 'package:chittilata/core/services/preferences.dart';
 import 'package:chittilata/data/app_config.dart';
+import 'package:chittilata/data/charades.dart';
 import 'package:chittilata/data/models.dart';
+import 'package:chittilata/data/groups.dart';
+import 'package:chittilata/ui/screens/groups_screen.dart';
 import 'package:chittilata/ui/screens/history_screen.dart';
 import 'package:chittilata/ui/screens/home_screen.dart';
 import 'package:chittilata/ui/screens/onboarding_screen.dart';
+import 'package:chittilata/ui/screens/profile_screen.dart';
 import 'package:chittilata/ui/screens/room_screen.dart';
 import 'package:chittilata/ui/screens/settings_screen.dart';
 import 'package:flutter/material.dart';
@@ -69,12 +73,41 @@ const standings = [
 final scenes = <String, Widget Function(FakeGameRepository)>{
   'home': (_) => const HomeScreen(),
   'settings': (_) => const SettingsScreen(),
+  'profile': (_) => const ProfileScreen(),
+  'friend groups': (_) => const GroupsScreen(),
+  'a group': (r) {
+    r.groups.add(
+      const Group(
+        id: 'g1',
+        name: 'Cousins of Rajahmundry',
+        code: 'FAM123',
+        ownerUid: 'me',
+        memberUids: ['me', 'v'],
+        members: {
+          'me': GroupMember(name: 'Chandrasekhar'),
+          'v': GroupMember(name: 'Vasavi'),
+        },
+      ),
+    );
+    r.seasons['g1/${Season.idFor(DateTime.now())}'] = const Season(
+      id: '',
+      points: {'me': 123456, 'v': 2500},
+      games: {'me': 22, 'v': 2},
+      kings: {'me': 11},
+    );
+    return const GroupScreen(groupId: 'g1');
+  },
   'history': (_) => const HistoryScreen(),
   'how to play (movie)': (_) => const OnboardingScreen(),
   'how to play (King & Queen)': (_) =>
       const OnboardingScreen(mode: GameMode.kingQueen),
   'lobby (host)': (r) {
     r.emitRoom(makeRoom(ready: {'v': true}));
+    return const RoomScreen(roomId: 'room1');
+  },
+  'quick match lobby': (r) {
+    r.me = 'v';
+    r.emitRoom(makeRoom(isPublic: true, createdAt: DateTime.now()));
     return const RoomScreen(roomId: 'room1');
   },
   'lobby (King & Queen guest)': (r) {
@@ -220,6 +253,77 @@ final scenes = <String, Widget Function(FakeGameRepository)>{
     );
     return const RoomScreen(roomId: 'room1');
   },
+  'watching a game': (r) {
+    r.me = 'newphone';
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        spectators: const {
+          'newphone': Spectator(uid: 'newphone', name: 'Sai', claims: 'k'),
+        },
+      ),
+    );
+    r.emitRound(makeRound(current: 'v', next: 's'));
+    return const RoomScreen(roomId: 'room1');
+  },
+  'host asked for a seat': (r) {
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        spectators: const {
+          'newphone': Spectator(
+            uid: 'newphone',
+            name: 'Lakshmi Prasanna',
+            claims: 'k',
+          ),
+        },
+      ),
+    );
+    r.emitRound(makeRound());
+    r.emitHand(hand);
+    return const RoomScreen(roomId: 'room1');
+  },
+  'charades (acting)': (r) {
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        mode: GameMode.charades,
+      ),
+    );
+    r.emitCharades(_charades(actor: 'me'));
+    r.emitCard(const CharadesCard('g1r01', 'Sankranthiki Vasthunnam'));
+    return const RoomScreen(roomId: 'room1');
+  },
+  'charades (guessing)': (r) {
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        mode: GameMode.charades,
+      ),
+    );
+    r.emitCharades(_charades(actor: 'v'));
+    return const RoomScreen(roomId: 'room1');
+  },
+  'charades (result)': (r) {
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        mode: GameMode.charades,
+      ),
+    );
+    r.emitCharades(_charades(actor: 'v', revealed: true));
+    return const RoomScreen(roomId: 'room1');
+  },
   'update required': (r) {
     r.config = const AppConfig(minBuild: 99, message: 'Please update.');
     return const HomeScreen();
@@ -229,6 +333,29 @@ final scenes = <String, Widget Function(FakeGameRepository)>{
     return const HomeScreen();
   },
 };
+
+CharadesRound _charades({required String actor, bool revealed = false}) =>
+    CharadesRound(
+      key: 'g1r01',
+      gameNo: 1,
+      roundNo: 1,
+      revealed: revealed,
+      actor: actor,
+      options: const [
+        'Sankranthiki Vasthunnam',
+        'Seethamma Vakitlo Sirimalle Chettu',
+        'Ala Vaikunthapurramuloo',
+        'Pushpa 2',
+        'RRR',
+        'Jersey',
+      ],
+      startsAt: DateTime.now().subtract(const Duration(seconds: 3)),
+      deadline: DateTime.now().add(const Duration(seconds: 60)),
+      guesses: const {},
+      solvedBy: revealed ? 's' : null,
+      answer: revealed ? 1 : null,
+      scores: revealed ? const {'s': 230, 'v': 75} : null,
+    );
 
 void main() {
   setUp(() {

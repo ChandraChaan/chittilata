@@ -9,6 +9,7 @@ import {
   buildDeck,
   charactersFor,
   Card,
+  cleanAvatar,
   cleanPlayerName,
   dealHands,
   defaultSettings,
@@ -34,6 +35,9 @@ import {
   kqChain,
 } from "../engine";
 import * as kq from "./kq";
+import * as charades from "./charades";
+import { groupForRoom } from "./groups";
+import { publicName } from "./public";
 import {
   CHAR_CEREMONY_SECONDS,
   CHAR_PICK_SECONDS,
@@ -42,7 +46,10 @@ import {
   HandDoc,
   INTRO_SECONDS,
   LastAction,
+  MAX_SPECTATORS,
   OFFLINE_AFTER_MS,
+  PUBLIC_MIN,
+  PUBLIC_START_SECONDS,
   PICK_SECONDS,
   PLAY_FOR_AFTER_MS,
   REVEAL_DELAY_SECONDS,
@@ -103,6 +110,52 @@ export async function requirePlayFor(
   if (!offline) fail("failed-precondition", "Give them a little longer, or send a nudge.");
 }
 
+/** Bot players have server-made ids that a real (Firebase Auth) uid can't have. */
+export const BOT_PREFIX = "bot_";
+export const isBot = (uid: string) => uid.startsWith(BOT_PREFIX);
+/** How long a bot "thinks" after its turn (or picking) opens. */
+export const BOT_THINK_MS = 1500;
+const BOT_NAMES = ["Chitti 🤖", "Robo Raju 🤖", "Bujji Bot 🤖", "Robo Rani 🤖", "Tinku Bot 🤖", "Golu Bot 🤖", "Robo Ramu 🤖", "Pinky Bot 🤖", "Robo Seenu 🤖"];
+
+/**
+ * Who another member may move for right now: bots once they've "thought"
+ * for BOT_THINK_MS after [opensAt], and late humans as [requirePlayFor]
+ * allows. Fails with the humans' reason when nobody is due yet.
+ */
+export async function playForWhom(
+  tx: Transaction,
+  db: Firestore,
+  roomId: string,
+  late: string[],
+  deadline: number,
+  opensAt: number,
+  t: number,
+): Promise<string[]> {
+  const bots = late.filter(isBot);
+  const humans = late.filter((u) => !isBot(u));
+  const due = t >= opensAt + BOT_THINK_MS ? bots : [];
+  if (humans.length === 0) {
+    if (due.length === 0) fail("failed-precondition", "The bots are still thinking.");
+    return due;
+  }
+  try {
+    await requirePlayFor(tx, db, roomId, humans, deadline, t);
+    return [...humans, ...due];
+  } catch (e) {
+    if (due.length > 0) return due;
+    throw e;
+  }
+}
+
+/** A bot keeps what it has most of and passes from what it has least of. */
+export function botCard(hand: Card[], rng: (n: number) => number): Card {
+  const count = new Map<string, number>();
+  for (const c of hand) count.set(c.name, (count.get(c.name) ?? 0) + 1);
+  const fewest = Math.min(...count.values());
+  const options = hand.filter((c) => count.get(c.name) === fewest);
+  return options[rng(options.length)];
+}
+
 export function str(data: unknown, field: string, max = 64): string {
   const v = (data as Record<string, unknown> | null)?.[field];
   if (typeof v !== "string" || !v || v.length > max) fail("invalid-argument", `Missing ${field}.`);
@@ -140,7 +193,9 @@ function migrateHost(room: RoomDoc): string {
 
 export function standingsFor(room: RoomDoc) {
   return rankPlayers(
-    Object.entries(room.players).map(([uid, p]) => ({
+    Object.entries(room.players)
+      .filter(([, p]) => !p.movedTo)
+      .map(([uid, p]) => ({
       uid,
       name: p.name,
       total: room.totals[uid] ?? 0,
@@ -174,9 +229,12 @@ function endOfGameUpdate(room: RoomDoc, t: number): Record<string, unknown> {
 
 export async function createRoom(deps: Deps, uid: string, data: unknown) {
   const name = cleanPlayerName((data as Record<string, unknown> | null)?.name);
+  const avatar = cleanAvatar((data as Record<string, unknown> | null)?.avatar);
   const rawMode = (data as Record<string, unknown> | null)?.mode ?? "movie";
-  if (rawMode !== "movie" && rawMode !== "kingQueen") fail("invalid-argument", "Unknown game mode.");
-  const mode = rawMode as "movie" | "kingQueen";
+  if (rawMode !== "movie" && rawMode !== "kingQueen" && rawMode !== "charades") {
+    fail("invalid-argument", "Unknown game mode.");
+  }
+  const mode = rawMode as "movie" | "kingQueen" | "charades";
   const { db, now, rng } = deps;
   for (let attempt = 0; attempt < 6; attempt++) {
     const code = roomCode(rng);
@@ -184,15 +242,22 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
     const ref = db.collection("rooms").doc() as DocumentReference<RoomDoc>;
     const created = await db.runTransaction(async (tx) => {
       if ((await tx.get(codeRef)).exists) return false;
+      const group = await groupForRoom(tx, db, uid, (data as Record<string, unknown> | null)?.groupId);
+      const isPublic = (data as Record<string, unknown> | null)?.public === true && !group;
       const ts = Timestamp.fromMillis(now());
       const room: RoomDoc = {
         code,
         hostUid: uid,
         status: "lobby",
         memberUids: [uid],
-        players: { [uid]: { name, joinedAt: now(), ready: true, left: false } },
+        players: {
+          [uid]: { name: isPublic ? publicName(name, 1) : name, joinedAt: now(), ready: true, left: false, ...(avatar ? { avatar } : {}) },
+        },
         banned: [],
         mode,
+        public: isPublic,
+        groupId: group?.groupId ?? null,
+        groupName: group?.groupName ?? null,
         settings: defaultSettings(),
         kqSettings: kq.defaultKqSettings(),
         kingWins: {},
@@ -221,31 +286,154 @@ export async function joinRoom(deps: Deps, uid: string, data: unknown) {
   const { db, now } = deps;
   const code = str(data, "code", 12).trim().toUpperCase();
   const name = cleanPlayerName((data as Record<string, unknown>).name);
+  const avatar = cleanAvatar((data as Record<string, unknown>).avatar);
   const codeSnap = await db.collection("roomCodes").doc(code).get();
   if (!codeSnap.exists) fail("not-found", "No room with that code.");
   const roomId = codeSnap.get("roomId") as string;
 
+  let spectating = false;
   await db.runTransaction(async (tx) => {
     const { ref, room } = await loadRoom(tx, db, roomId);
     if (room.banned.includes(uid)) fail("permission-denied", "The host removed you from this room.");
     if (room.memberUids.includes(uid)) {
-      // Rejoining (same device/account): keep seat, refresh name only in lobby.
-      if (room.status === "lobby" && room.players[uid].name !== name) {
-        tx.update(ref, { [`players.${uid}.name`]: name, updatedAt: Timestamp.fromMillis(now()) });
+      // Rejoining (same device/account): keep seat, refresh name and
+      // avatar only in the lobby.
+      const p = room.players[uid];
+      if (room.status === "lobby" && (p.name !== name || (p.avatar ?? null) !== avatar)) {
+        tx.update(ref, {
+          [`players.${uid}.name`]: name,
+          [`players.${uid}.avatar`]: avatar,
+          updatedAt: Timestamp.fromMillis(now()),
+        });
       }
       return;
     }
-    if (room.status !== "lobby") fail("failed-precondition", "This game has already started.");
+    if (room.status !== "lobby") {
+      // Joining a game in progress: watch it (and maybe take back a seat).
+      const spectators = room.spectatorUids ?? [];
+      if (spectators.includes(uid)) return;
+      if (spectators.length >= MAX_SPECTATORS) fail("resource-exhausted", "Too many people are watching this game.");
+      tx.update(ref, {
+        spectatorUids: [...spectators, uid],
+        [`spectators.${uid}`]: { name, joinedAt: now(), claims: null, approved: null },
+        updatedAt: Timestamp.fromMillis(now()),
+      });
+      spectating = true;
+      return;
+    }
     if (room.memberUids.length >= MAX_PLAYERS) fail("resource-exhausted", "This room is full.");
     const taken = room.memberUids.some((m) => room.players[m].name.toLowerCase() === name.toLowerCase());
     if (taken) fail("already-exists", "Someone in this room already uses that name.");
     tx.update(ref, {
       memberUids: [...room.memberUids, uid],
-      [`players.${uid}`]: { name, joinedAt: now(), ready: false, left: false },
+      [`players.${uid}`]: { name, joinedAt: now(), ready: false, left: false, ...(avatar ? { avatar } : {}) },
       updatedAt: Timestamp.fromMillis(now()),
     });
   });
-  return { roomId, code };
+  return { roomId, code, spectating };
+}
+
+// ---------- watching and taking back a seat ----------
+
+/** A spectator says an offline player's seat is theirs (e.g. a new phone). */
+export async function claimSeat(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  const seat = (data as Record<string, unknown>).seat;
+  await deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    if (!room.spectatorUids?.includes(uid)) fail("permission-denied", "Only people watching can claim a seat.");
+    if (seat === null) {
+      tx.update(ref, { [`spectators.${uid}.claims`]: null });
+      return;
+    }
+    if (typeof seat !== "string" || !room.memberUids.includes(seat) || isBot(seat)) {
+      fail("invalid-argument", "That seat isn't in this game.");
+    }
+    const taken = Object.entries(room.spectators ?? {}).some(([s, v]) => s !== uid && (v.claims === seat || v.approved === seat));
+    if (taken) fail("already-exists", "Someone else already asked for that seat.");
+    tx.update(ref, { [`spectators.${uid}.claims`]: seat, updatedAt: Timestamp.fromMillis(deps.now()) });
+  });
+  return { ok: true };
+}
+
+/**
+ * The host answers a seat claim. Approving needs the seat's player to be
+ * offline (so nobody's seat is taken from under them); the seat moves when
+ * the next round starts, keeping its score.
+ */
+export async function answerSeatClaim(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  const spectator = str(data, "spectator", 128);
+  const approve = (data as Record<string, unknown>).approve === true;
+  const t = deps.now();
+  await deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    requireHost(room, uid);
+    const claim = room.spectators?.[spectator]?.claims;
+    if (!claim) fail("failed-precondition", "That request was withdrawn.");
+    if (!approve) {
+      tx.update(ref, { [`spectators.${spectator}.claims`]: null });
+      return;
+    }
+    if (claim === uid) fail("failed-precondition", "That's your own seat.");
+    const seen = (await tx.get(presenceRef(deps.db, roomId, claim!))).data()?.lastSeen as Timestamp | undefined;
+    if (seen && seen.toMillis() > t - OFFLINE_AFTER_MS) {
+      fail("failed-precondition", `${room.players[claim!]?.name ?? "That player"} is still online.`);
+    }
+    tx.update(ref, {
+      [`spectators.${spectator}.claims`]: null,
+      [`spectators.${spectator}.approved`]: claim,
+      updatedAt: Timestamp.fromMillis(t),
+    });
+  });
+  return { ok: true };
+}
+
+/**
+ * Hands approved seats to their new phones: the new uid takes the old
+ * one's place, score and titles. Old rounds keep the old uid, whose player
+ * entry stays (marked movedTo) so names still show in history.
+ */
+export function withSeatMoves(room: RoomDoc): { room: RoomDoc; update: Record<string, unknown> } {
+  const moves = Object.entries(room.spectators ?? {})
+    .filter(([, s]) => s.approved && room.memberUids.includes(s.approved))
+    .map(([to, s]) => [s.approved!, to, s] as const);
+  if (moves.length === 0) return { room, update: {} };
+  const next: RoomDoc = {
+    ...room,
+    memberUids: [...room.memberUids],
+    players: { ...room.players },
+    totals: { ...room.totals },
+    movieWins: { ...room.movieWins },
+    kingWins: { ...(room.kingWins ?? {}) },
+    spectators: { ...room.spectators },
+    spectatorUids: [...(room.spectatorUids ?? [])],
+  };
+  for (const [from, to, s] of moves) {
+    next.memberUids[next.memberUids.indexOf(from)] = to;
+    next.players[to] = { ...room.players[from], name: s.name, joinedAt: s.joinedAt, left: false };
+    next.players[from] = { ...room.players[from], left: true, movedTo: to };
+    for (const map of [next.totals, next.movieWins, next.kingWins!]) {
+      if (map[from] !== undefined) {
+        map[to] = map[from];
+        delete map[from];
+      }
+    }
+    if (next.hostUid === from) next.hostUid = to;
+    delete next.spectators![to];
+    next.spectatorUids = next.spectatorUids!.filter((u) => u !== to);
+  }
+  const update = {
+    memberUids: next.memberUids,
+    players: next.players,
+    totals: next.totals,
+    movieWins: next.movieWins,
+    kingWins: next.kingWins,
+    hostUid: next.hostUid,
+    spectators: next.spectators,
+    spectatorUids: next.spectatorUids,
+  };
+  return { room: next, update };
 }
 
 export async function setReady(deps: Deps, uid: string, data: unknown) {
@@ -278,6 +466,33 @@ export async function updateSettings(deps: Deps, uid: string, data: unknown) {
   });
 }
 
+/** A new bot seat for [room] with a name nobody there uses yet. */
+function newBot(room: RoomDoc, deps: Deps) {
+  const taken = new Set(room.memberUids.map((m) => room.players[m].name.toLowerCase()));
+  const name = BOT_NAMES.find((n) => !taken.has(n.toLowerCase())) ?? `Bot ${room.memberUids.length + 1} 🤖`;
+  const uid = `${BOT_PREFIX}${randomId(deps.rng, 12)}`;
+  return { uid, info: { name, joinedAt: deps.now(), ready: true, left: false, bot: true } };
+}
+
+/** The host adds a bot player in the lobby (practice, or to fill a table). */
+export async function addBot(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  return deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    requireHost(room, uid);
+    if (room.status !== "lobby") fail("failed-precondition", "Bots can only join in the lobby.");
+    if (room.mode === "charades") fail("failed-precondition", "Bots can't act! Invite friends instead.");
+    if (room.memberUids.length >= MAX_PLAYERS) fail("resource-exhausted", "This room is full.");
+    const bot = newBot(room, deps);
+    tx.update(ref, {
+      memberUids: [...room.memberUids, bot.uid],
+      [`players.${bot.uid}`]: bot.info,
+      updatedAt: Timestamp.fromMillis(deps.now()),
+    });
+    return { uid: bot.uid, name: bot.info.name };
+  });
+}
+
 export async function kickPlayer(deps: Deps, uid: string, data: unknown) {
   const roomId = str(data, "roomId");
   const target = str(data, "uid", 128);
@@ -292,7 +507,8 @@ export async function kickPlayer(deps: Deps, uid: string, data: unknown) {
     tx.update(ref, {
       memberUids: room.memberUids.filter((m) => m !== target),
       players,
-      banned: [...room.banned, target],
+      // Removed bots just go; removed people can't come back.
+      banned: isBot(target) ? room.banned : [...room.banned, target],
       updatedAt: Timestamp.fromMillis(deps.now()),
     });
   });
@@ -307,16 +523,30 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
     const snap = await tx.get(ref);
     if (!snap.exists) return;
     const room = snap.data() as RoomDoc;
+    if (room.spectatorUids?.includes(uid)) {
+      const spectators = { ...room.spectators };
+      delete spectators[uid];
+      tx.update(ref, { spectatorUids: room.spectatorUids.filter((s) => s !== uid), spectators });
+      return;
+    }
     if (!room.memberUids.includes(uid)) return;
     const isKq = room.mode === "kingQueen";
+    const isCharades = room.mode === "charades";
+    const charadesRound =
+      isCharades && room.status === "playing"
+        ? await charades.currentCharades(tx, db, roomId, room.currentRoundKey)
+        : null;
     const round =
-      !isKq && room.status === "playing" && room.currentRoundKey
+      !isKq && !isCharades && room.status === "playing" && room.currentRoundKey
         ? ((await tx.get(roundRef(db, roomId, room.currentRoundKey))).data() as RoundDoc | undefined)
         : undefined;
 
     const ts = Timestamp.fromMillis(now());
+    // Bots don't keep a room alive on their own.
     const members = room.memberUids.filter((m) => m !== uid);
+    if (!members.some((m) => !isBot(m))) members.length = 0;
     const kqEffects = isKq ? await kq.kqLeaveEffects(tx, deps, roomId, room, uid, members) : null;
+    if (members.length > 0) charades.charadesLeaveEffects(tx, deps, roomId, charadesRound, uid);
     const next: Partial<RoomDoc> & Record<string, unknown> = { memberUids: members, updatedAt: ts };
 
     if (members.length === 0) {
@@ -348,7 +578,11 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
     } else if (kqEffects) {
       kqEffects.apply();
       Object.assign(next, kqEffects.out);
-    } else if (room.status === "playing" && members.length > 0 && members.length < MIN_PLAYERS) {
+    } else if (
+      room.status === "playing" &&
+      members.length > 0 &&
+      members.length < (isCharades ? charades.CHARADES_MIN_PLAYERS : MIN_PLAYERS)
+    ) {
       // Too few players to continue: finish with the scores so far.
       const leftRoom = {
         ...room,
@@ -475,12 +709,34 @@ function startRoundTx(
 export async function startGame(deps: Deps, uid: string, data: unknown) {
   const roomId = str(data, "roomId");
   const roundKey = await deps.db.runTransaction(async (tx) => {
-    const { room } = await loadRoom(tx, deps.db, roomId);
-    requireHost(room, uid);
+    const loaded = await loadRoom(tx, deps.db, roomId);
+    let room = loaded.room;
     if (room.status !== "lobby") fail("failed-precondition", "The game has already started.");
     const notReady = room.memberUids.filter((m) => m !== room.hostUid && !room.players[m].ready);
-    if (notReady.length) {
-      fail("failed-precondition", `Waiting for ${notReady.map((m) => room.players[m].name).join(", ")}.`);
+    if (room.public) {
+      // Quick match: anyone at the table can start it once everyone is
+      // ready (with enough players) or the countdown is over; bots fill
+      // the table up to PUBLIC_MIN so nobody waits forever.
+      requireMember(room, uid);
+      const due = deps.now() >= room.createdAt.toMillis() + PUBLIC_START_SECONDS * 1000;
+      if (!due && (notReady.length > 0 || room.memberUids.length < PUBLIC_MIN)) {
+        fail("failed-precondition", "Waiting for more players.");
+      }
+      const filled: RoomDoc = { ...room, memberUids: [...room.memberUids], players: { ...room.players } };
+      while (filled.memberUids.length < PUBLIC_MIN) {
+        const bot = newBot(filled, deps);
+        filled.memberUids.push(bot.uid);
+        filled.players[bot.uid] = bot.info;
+      }
+      if (filled.memberUids.length !== room.memberUids.length) {
+        tx.update(loaded.ref, { memberUids: filled.memberUids, players: filled.players });
+      }
+      room = filled;
+    } else {
+      requireHost(room, uid);
+      if (notReady.length) {
+        fail("failed-precondition", `Waiting for ${notReady.map((m) => room.players[m].name).join(", ")}.`);
+      }
     }
     const zero = Object.fromEntries(room.memberUids.map((m) => [m, 0]));
     const reset = { totals: zero, movieWins: zero, kingWins: { ...zero }, final: null, tiebreak: null, tiebreakScores: null };
@@ -489,6 +745,10 @@ export async function startGame(deps: Deps, uid: string, data: unknown) {
       kqChainCheck(room);
       tx.update(roomRef(deps.db, roomId), reset);
       return kq.startKqRoundTx(tx, deps, roomId, fresh);
+    }
+    if (room.mode === "charades") {
+      tx.update(roomRef(deps.db, roomId), reset);
+      return charades.startCharadesRoundTx(tx, deps, roomId, fresh);
     }
     validateForStart(room.settings, room.memberUids.length);
     tx.update(roomRef(deps.db, roomId), reset);
@@ -500,8 +760,14 @@ export async function startGame(deps: Deps, uid: string, data: unknown) {
 export async function nextRound(deps: Deps, uid: string, data: unknown) {
   const roomId = str(data, "roomId");
   const roundKey = await deps.db.runTransaction(async (tx) => {
-    const { room } = await loadRoom(tx, deps.db, roomId);
-    requireHost(room, uid);
+    const loaded = await loadRoom(tx, deps.db, roomId);
+    requireHost(loaded.room, uid);
+    // Approved seat claims take effect between rounds.
+    const { room, update: seatMoves } = withSeatMoves(loaded.room);
+    // Written after every read (transactions read first, then write).
+    const moveSeats = () => {
+      if (Object.keys(seatMoves).length > 0) tx.update(loaded.ref, seatMoves);
+    };
     if (room.status !== "playing") fail("failed-precondition", "The game is not in progress.");
     if (room.mode === "kingQueen") {
       const cur = await kq.kqCurrentRound(tx, deps.db, roomId, room.currentRoundKey);
@@ -510,7 +776,15 @@ export async function nextRound(deps: Deps, uid: string, data: unknown) {
       }
       if (room.currentRound >= (room.kqSettings?.rounds ?? 7)) fail("failed-precondition", "All rounds are complete.");
       kqChainCheck(room);
+      moveSeats();
       return kq.startKqRoundTx(tx, deps, roomId, room);
+    }
+    if (room.mode === "charades") {
+      const cur = await charades.currentCharades(tx, deps.db, roomId, room.currentRoundKey);
+      if (cur && cur.status !== "revealed") fail("failed-precondition", "The current round has not finished.");
+      if (room.currentRound >= room.settings.rounds) fail("failed-precondition", "All rounds are complete.");
+      moveSeats();
+      return charades.startCharadesRoundTx(tx, deps, roomId, room);
     }
     const current = room.currentRoundKey
       ? ((await tx.get(roundRef(deps.db, roomId, room.currentRoundKey))).data() as RoundDoc)
@@ -520,6 +794,7 @@ export async function nextRound(deps: Deps, uid: string, data: unknown) {
     }
     if (room.currentRound >= room.settings.rounds) fail("failed-precondition", "All rounds are complete.");
     validateForStart(room.settings, room.memberUids.length);
+    moveSeats();
     return startRoundTx(tx, deps, roomId, room);
   });
   return { roundKey };
@@ -562,8 +837,10 @@ async function passTx(
       // A late player can still make their own move: nothing is auto-played.
       if (round.currentUid !== actor.uid) fail("permission-denied", "It is not your turn.");
     } else {
-      await requirePlayFor(tx, db, roomId, [round.currentUid], deadline, t);
+      const turnOpened = Math.max(round.introEndsAt.toMillis(), round.lastAction?.at.toMillis() ?? 0);
+      await playForWhom(tx, db, roomId, [round.currentUid], deadline, turnOpened, t);
     }
+    const botTurn = actor.kind === "timeout" && isBot(round.currentUid);
 
     const fromUid = round.currentUid;
     const toUid = round.nextUid;
@@ -580,7 +857,9 @@ async function passTx(
     const cardId =
       actor.kind === "player"
         ? actor.cardId
-        : timeoutCard(fromHand.cards, fromHand.incomingCardId, room.settings.timeoutPolicy, rng).id;
+        : botTurn
+          ? botCard(fromHand.cards, rng).id
+          : timeoutCard(fromHand.cards, fromHand.incomingCardId, room.settings.timeoutPolicy, rng).id;
 
     const state: ExchangeState = {
       order: round.order,
@@ -594,7 +873,8 @@ async function passTx(
     const s = result.state;
     const nextIndex = s.turnIndex;
     const lastAction: LastAction = {
-      type: actor.kind === "player" ? "pass" : "timeout",
+      // A bot's move is an ordinary pass, not a "took too long".
+      type: actor.kind === "player" || botTurn ? "pass" : "timeout",
       fromUid,
       toUid,
       turnId,
@@ -615,7 +895,7 @@ async function passTx(
       [`handSizes.${toUid}`]: s.hands[toUid].length,
       lastAction,
     };
-    if (actor.kind === "timeout") roundUpdate[`timeouts.${fromUid}`] = (round.timeouts[fromUid] ?? 0) + 1;
+    if (actor.kind === "timeout" && !botTurn) roundUpdate[`timeouts.${fromUid}`] = (round.timeouts[fromUid] ?? 0) + 1;
 
     if (result.winner) {
       const w = result.winner;
@@ -772,10 +1052,10 @@ export async function autoPickChits(deps: Deps, uid: string, data: unknown) {
     const hands: Record<string, HandDoc> = {};
     round.order.forEach((u, i) => (hands[u] = snaps[i].data() as HandDoc));
     const late = round.order.filter((u) => hands[u].cards.length < HAND_SIZE);
-    await requirePlayFor(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), t);
+    const who = await playForWhom(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), round.pickOpensAt.toMillis(), t);
     const free = shuffle(round.chits.filter((c) => !round.picks[c]), deps.rng);
     const assignments: [string, string][] = [];
-    for (const u of round.order) {
+    for (const u of who) {
       for (let n = hands[u].cards.length; n < HAND_SIZE; n++) assignments.push([free.pop()!, u]);
     }
     bindMovieChits(tx, deps, roomId, round, secret, hands, assignments, t, true);
@@ -844,9 +1124,17 @@ export async function autoPickCharacters(deps: Deps, uid: string, data: unknown)
     const t = deps.now();
     const picked = new Set(Object.values(round.charPicks));
     const waiting = round.order.filter((u) => u !== round.winner!.uid && !picked.has(u));
-    await requirePlayFor(tx, deps.db, roomId, waiting, round.charPickDeadline!.toMillis(), t);
+    const who = await playForWhom(
+      tx,
+      deps.db,
+      roomId,
+      waiting,
+      round.charPickDeadline!.toMillis(),
+      round.charPickOpensAt!.toMillis(),
+      t,
+    );
     const free = shuffle(round.charChits.filter((c) => !round.charPicks[c]), deps.rng);
-    const assignments = waiting.map((u) => [free.pop()!, u] as [string, string]);
+    const assignments = who.map((u) => [free.pop()!, u] as [string, string]);
     bindCharacterChits(tx, deps, roomId, round, secret, assignments, t, true);
     return { assigned: assignments.length };
   });
@@ -930,10 +1218,25 @@ export async function playAgain(deps: Deps, uid: string, data: unknown) {
     const { ref, room } = await loadRoom(tx, deps.db, roomId);
     requireHost(room, uid);
     if (room.status !== "finished") fail("failed-precondition", "The game has not finished.");
+    const moved = withSeatMoves(room).room;
     const players: RoomDoc["players"] = {};
-    for (const m of room.memberUids) players[m] = { ...room.players[m], ready: m === room.hostUid, left: false };
+    for (const m of moved.memberUids) players[m] = { ...moved.players[m], ready: m === moved.hostUid, left: false, movedTo: undefined };
+    for (const m of Object.keys(players)) if (players[m].movedTo === undefined) delete players[m].movedTo;
+    // Everyone who watched gets a seat in the new game, while there's room.
+    const memberUids = [...moved.memberUids];
+    for (const s of moved.spectatorUids ?? []) {
+      if (memberUids.length >= MAX_PLAYERS) break;
+      const sp = moved.spectators![s];
+      memberUids.push(s);
+      players[s] = { name: sp.name, joinedAt: sp.joinedAt, ready: false, left: false };
+    }
+    const stillWatching = (moved.spectatorUids ?? []).filter((s) => !memberUids.includes(s));
     tx.update(ref, {
       status: "lobby",
+      hostUid: moved.hostUid,
+      memberUids,
+      spectatorUids: stillWatching,
+      spectators: Object.fromEntries(stillWatching.map((s) => [s, moved.spectators![s]])),
       players,
       gameNo: room.gameNo + 1,
       currentRound: 0,
@@ -976,7 +1279,9 @@ export async function tiebreakVote(deps: Deps, uid: string, data: unknown) {
     }
     if (!tb!.uids.includes(uid)) fail("permission-denied", "Only the tied players decide on a tie-breaker.");
     if (deps.now() > tb!.deadline.toMillis()) fail("failed-precondition", "The vote has closed.");
-    const votes = { ...tb!.votes, [uid]: accept };
+    // Tied bots always want to play it out.
+    const botVotes = Object.fromEntries(tb!.uids.filter(isBot).map((u) => [u, true]));
+    const votes = { ...botVotes, ...tb!.votes, [uid]: accept };
     if (!accept) {
       declineTiebreak(tx, deps, roomId, tb!, votes);
       return { outcome: "declined" };

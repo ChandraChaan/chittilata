@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../app.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/festivals.dart';
 import '../widgets/common.dart';
 
 /// Only builds made with --dart-define=CRASH_TEST=true show the test-crash
@@ -51,6 +52,20 @@ class SettingsScreen extends StatelessWidget {
                         ),
                       ),
                       SwitchListTile(
+                        secondary: const Icon(Icons.notifications_rounded),
+                        title: const Text('Notifications'),
+                        subtitle: const Text(
+                          'Your turn and nudges, when the app is closed',
+                        ),
+                        value: prefs.notifications,
+                        onChanged: withClickValue(context, (v) {
+                          final push = Services.read(context).push;
+                          push == null
+                              ? prefs.notifications = v
+                              : push.setEnabled(v);
+                        }),
+                      ),
+                      SwitchListTile(
                         secondary: const Icon(Icons.vibration_rounded),
                         title: const Text('Vibration'),
                         value: prefs.haptics,
@@ -83,6 +98,45 @@ class SettingsScreen extends StatelessWidget {
                           context,
                           (s) => prefs.themeMode = s.first,
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: Space.lg),
+                Panel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Festival theme',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: Space.xs),
+                      Text(
+                        'Auto decorates the app around Sankranti, Ugadi '
+                        'and Diwali.',
+                        style: TextStyle(color: c.muted, fontSize: 13),
+                      ),
+                      const SizedBox(height: Space.sm),
+                      Wrap(
+                        spacing: Space.sm,
+                        runSpacing: Space.sm,
+                        children: [
+                          for (final (value, label) in [
+                            ('auto', 'Auto'),
+                            ('off', 'Off'),
+                            for (final f in Festival.values)
+                              (f.name, '${f.emoji} ${f.label}'),
+                          ])
+                            ChoiceChip(
+                              label: Text(label),
+                              selected: prefs.festival == value,
+                              onSelected: withClickValue(
+                                context,
+                                (_) => prefs.festival = value,
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),

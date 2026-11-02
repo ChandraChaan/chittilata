@@ -54,12 +54,21 @@ void main() {
   ) async {
     repo.emitRoom(makeRoom());
     await pumpApp(tester, const HomeScreen());
+    await tester.ensureVisible(find.text('New Movie Chits room'));
+    await tester.pump();
     await tester.tap(find.text('New Movie Chits room'));
     await tester.pump();
     expect(find.text('Enter your name first'), findsOneWidget);
     expect(repo.calls, isEmpty);
 
     await tester.enterText(find.byType(TextField), 'Chandra');
+    // The page scrolls back to the name field while typing (that takes a
+    // few frames), and the "Enter your name" message slides away.
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(seconds: 2));
+    }
+    await tester.ensureVisible(find.text('New Movie Chits room'));
+    await tester.pump();
     await tester.tap(find.text('New Movie Chits room'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));

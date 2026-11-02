@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'stats.dart';
+
 /// Device-local preferences and history. Nothing here is game-authoritative.
 class Preferences extends ChangeNotifier {
   Preferences(this._p);
@@ -17,6 +19,16 @@ class Preferences extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Profile emoji shown to other players (null: initials).
+  String? get avatar => _p.getString('avatar');
+  set avatar(String? v) {
+    v == null ? _p.remove('avatar') : _p.setString('avatar', v);
+    notifyListeners();
+  }
+
+  /// Games, wins, XP and badges (this phone only).
+  late final stats = PlayerStats(_p);
+
   bool get onboarded => _p.getBool('onboarded') ?? false;
   set onboarded(bool v) => _p.setBool('onboarded', v);
 
@@ -25,6 +37,9 @@ class Preferences extends ChangeNotifier {
 
   bool get music => _p.getBool('music') ?? true;
   set music(bool v) => _set('music', v);
+
+  bool get notifications => _p.getBool('notifications') ?? true;
+  set notifications(bool v) => _set('notifications', v);
 
   bool get haptics => _p.getBool('haptics') ?? true;
   set haptics(bool v) => _set('haptics', v);
@@ -40,6 +55,13 @@ class Preferences extends ChangeNotifier {
   int get dismissedUpdate => _p.getInt('dismissedUpdate') ?? 0;
   set dismissedUpdate(int v) {
     _p.setInt('dismissedUpdate', v);
+    notifyListeners();
+  }
+
+  /// Festival look: 'auto' (around each festival), 'off', or a festival.
+  String get festival => _p.getString('festival') ?? 'auto';
+  set festival(String v) {
+    _p.setString('festival', v);
     notifyListeners();
   }
 

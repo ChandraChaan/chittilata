@@ -3,13 +3,17 @@ import 'package:flutter/services.dart';
 
 import '../../app.dart';
 import '../../core/services/feedback.dart';
+import '../../core/services/invite_links.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/festivals.dart';
 import '../../data/game_repository.dart';
 import '../../data/models.dart';
 import '../widgets/common.dart';
 import '../widgets/paper_card.dart';
+import 'groups_screen.dart';
 import 'history_screen.dart';
 import 'onboarding_screen.dart';
+import 'profile_screen.dart';
 import 'room_screen.dart';
 import 'settings_screen.dart';
 
@@ -20,10 +24,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   final _name = TextEditingController();
   bool _busy = false;
   bool _loadedName = false;
+  InviteLinks? _invites;
+
+  /// A code from an invite link, waiting for the player's name.
+  String? _inviteCode;
 
   @override
   void didChangeDependencies() {
@@ -35,12 +43,54 @@ class _HomeScreenState extends State<HomeScreen> {
     s.feedback
       ..setMusic(Music.menu)
       ..warmUp();
+    _invites = s.invites..addListener(_onInvite);
+    final route = ModalRoute.of(context);
+    if (route != null) routeObserver.subscribe(this, route);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onInvite());
   }
 
   @override
   void dispose() {
+    _invites?.removeListener(_onInvite);
+    routeObserver.unsubscribe(this);
     _name.dispose();
     super.dispose();
+  }
+
+  /// Back on the home screen after a game: join an invite that came in.
+  @override
+  void didPopNext() => _onInvite();
+
+  /// An invite link was opened. Joins straight away when we know the
+  /// player's name and nothing else is on screen.
+  void _onInvite() {
+    final invites = _invites;
+    if (!mounted || invites == null) return;
+    if (invites.pendingGroup != null &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      final code = invites.takeGroup()!;
+      Navigator.push(context, gameRoute(GroupsScreen(joinCode: code)));
+      return;
+    }
+    if (invites.pending == null) return;
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Invite to room ${invites.pending} — it opens when you '
+            'come back to the home screen.',
+          ),
+        ),
+      );
+      return;
+    }
+    final code = invites.take()!;
+    if (_name.text.trim().isEmpty) {
+      setState(() => _inviteCode = code);
+      showGameSnack(context, 'Enter your name, then tap Join to enter $code');
+      return;
+    }
+    _join(code: code);
   }
 
   String? _validName() {
@@ -62,13 +112,37 @@ class _HomeScreenState extends State<HomeScreen> {
     return n;
   }
 
-  Future<void> _create(GameMode mode) async {
+  Future<void> _quickMatch(GameMode mode) async {
     final name = _validName();
     if (name == null) return;
     final s = Services.of(context);
     setState(() => _busy = true);
     try {
-      final r = await s.repo.createRoom(name, mode: mode);
+      _open(await s.repo.quickMatch(mode, name, s.prefs.avatar));
+    } on GameException catch (e) {
+      if (mounted) showGameSnack(context, e.message);
+    } catch (_) {
+      if (mounted) showGameSnack(context, 'Could not reach the game server.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _create(GameMode mode, {int bots = 0}) async {
+    final name = _validName();
+    if (name == null) return;
+    final s = Services.of(context);
+    setState(() => _busy = true);
+    try {
+      final r = await s.repo.createRoom(
+        name,
+        mode: mode,
+        avatar: s.prefs.avatar,
+      );
+      // Practice: fill the table with bots; Start is one tap away.
+      for (var i = 0; i < bots; i++) {
+        await s.repo.addBot(r.roomId);
+      }
       _open(r.roomId);
     } on GameException catch (e) {
       if (mounted) showGameSnack(context, e.message);
@@ -79,13 +153,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _join() async {
+  Future<void> _join({String? code}) async {
     final name = _validName();
     if (name == null) return;
+    code ??= _inviteCode;
+    _inviteCode = null;
     final roomId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => JoinSheet(name: name),
+      builder: (_) => JoinSheet(name: name, initialCode: code),
     );
     if (roomId != null) _open(roomId);
   }
@@ -93,7 +169,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _open(String roomId) {
     if (!mounted) return;
     Services.of(context).prefs.activeRoomId = roomId;
-    Navigator.of(context).push(gameRoute(RoomScreen(roomId: roomId)));
+    Navigator.of(
+      context,
+    ).push(gameRoute(RoomScreen(roomId: roomId), name: RoomScreen.routeName));
   }
 
   @override
@@ -111,8 +189,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _ProfileChip(
+                              onTap: () => Navigator.push(
+                                context,
+                                gameRoute(const ProfileScreen()),
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Friend groups',
+                          icon: const Icon(Icons.groups_rounded),
+                          onPressed: () => Navigator.push(
+                            context,
+                            gameRoute(const GroupsScreen()),
+                          ),
+                        ),
                         IconButton(
                           tooltip: 'Match history',
                           icon: const Icon(Icons.history_rounded),
@@ -131,6 +227,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
+                    if (Theme.of(context).extension<FestivalTheme>()?.festival
+                        case final f?)
+                      Padding(
+                        padding: const EdgeInsets.only(top: Space.sm),
+                        child: Text(
+                          f.greeting,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: c.marigold,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: Space.lg),
                     const _Hero(),
                     const SizedBox(height: Space.xl),
@@ -157,10 +267,50 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: Space.lg),
                     BigButton(
-                      label: 'Join with a code',
+                      label: _inviteCode == null
+                          ? 'Join with a code'
+                          : 'Join room $_inviteCode',
                       icon: Icons.login_rounded,
                       secondary: true,
                       onPressed: _busy ? null : _join,
+                    ),
+                    const SizedBox(height: Space.md),
+                    Panel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '🌐 Play online',
+                            style: context.text.titleMedium,
+                          ),
+                          Text(
+                            'Get matched with players right now. Bots fill '
+                            'any empty seats.',
+                            style: TextStyle(color: c.muted, height: 1.3),
+                          ),
+                          const SizedBox(height: Space.sm),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: BigButton(
+                                  label: '🎬 Movies',
+                                  busy: _busy,
+                                  onPressed: () => _quickMatch(GameMode.movie),
+                                ),
+                              ),
+                              const SizedBox(width: Space.sm),
+                              Expanded(
+                                child: BigButton(
+                                  label: '👑 K & Q',
+                                  busy: _busy,
+                                  onPressed: () =>
+                                      _quickMatch(GameMode.kingQueen),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: Space.lg),
                     Text(
@@ -182,6 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       button: 'New Movie Chits room',
                       busy: _busy,
                       onCreate: () => _create(GameMode.movie),
+                      onPractice: () => _create(GameMode.movie, bots: 3),
                       mode: GameMode.movie,
                     ),
                     const SizedBox(height: Space.md),
@@ -195,7 +346,21 @@ class _HomeScreenState extends State<HomeScreen> {
                       button: 'New King & Queen room',
                       busy: _busy,
                       onCreate: () => _create(GameMode.kingQueen),
+                      onPractice: () => _create(GameMode.kingQueen, bots: 3),
                       mode: GameMode.kingQueen,
+                    ),
+                    const SizedBox(height: Space.md),
+                    _ModeCard(
+                      emoji: '🎭',
+                      title: 'Dumb Charades',
+                      tagline:
+                          'Act out a movie without a word. Everyone else '
+                          'picks the title on their phone — fastest wins!',
+                      players: '3–10 players, in the same room',
+                      button: 'New Charades room',
+                      busy: _busy,
+                      onCreate: () => _create(GameMode.charades),
+                      mode: GameMode.charades,
                     ),
                   ],
                 ),
@@ -218,6 +383,7 @@ class _ModeCard extends StatelessWidget {
     required this.button,
     required this.busy,
     required this.onCreate,
+    this.onPractice,
     required this.mode,
   });
 
@@ -229,6 +395,9 @@ class _ModeCard extends StatelessWidget {
   final String button;
   final bool busy;
   final VoidCallback onCreate;
+
+  /// Null for modes bots can't play (they can't act out charades).
+  final VoidCallback? onPractice;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +440,16 @@ class _ModeCard extends StatelessWidget {
             busy: busy,
             onPressed: onCreate,
           ),
+          if (onPractice != null) ...[
+            const SizedBox(height: Space.sm),
+            BigButton(
+              label: 'Practice with bots',
+              icon: Icons.smart_toy_rounded,
+              secondary: true,
+              busy: busy,
+              onPressed: onPractice,
+            ),
+          ],
           TextButton.icon(
             onPressed: () => Navigator.push(
               context,
@@ -318,15 +497,27 @@ class _Hero extends StatelessWidget {
 }
 
 class JoinSheet extends StatefulWidget {
-  const JoinSheet({super.key, required this.name});
+  const JoinSheet({super.key, required this.name, this.initialCode});
   final String name;
+
+  /// From an invite link: filled in and joined right away.
+  final String? initialCode;
 
   @override
   State<JoinSheet> createState() => _JoinSheetState();
 }
 
 class _JoinSheetState extends State<JoinSheet> {
-  final _code = TextEditingController();
+  late final _code = TextEditingController(text: widget.initialCode ?? '');
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialCode != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _submit());
+    }
+  }
+
   bool _busy = false;
   String? _error;
 
@@ -341,7 +532,12 @@ class _JoinSheetState extends State<JoinSheet> {
       _error = null;
     });
     try {
-      final r = await Services.of(context).repo.joinRoom(code, widget.name);
+      final s = Services.of(context);
+      final r = await s.repo.joinRoom(
+        code,
+        widget.name,
+        avatar: s.prefs.avatar,
+      );
       if (mounted) Navigator.pop(context, r.roomId);
     } on GameException catch (e) {
       setState(() => _error = e.message);
@@ -381,7 +577,7 @@ class _JoinSheetState extends State<JoinSheet> {
           const SizedBox(height: Space.lg),
           TextField(
             controller: _code,
-            autofocus: true,
+            autofocus: widget.initialCode == null,
             maxLength: 6,
             textAlign: TextAlign.center,
             textCapitalization: TextCapitalization.characters,
@@ -407,6 +603,61 @@ class _JoinSheetState extends State<JoinSheet> {
             onPressed: _submit,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Your avatar and level; opens the profile.
+class _ProfileChip extends StatelessWidget {
+  const _ProfileChip({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = Services.of(context).prefs;
+    final c = context.colors;
+    return ListenableBuilder(
+      listenable: prefs,
+      builder: (context, _) => Semantics(
+        button: true,
+        label: 'Your profile, level ${prefs.stats.level}',
+        excludeSemantics: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(99),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+            decoration: BoxDecoration(
+              color: c.surfaceHigh.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: c.outline),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PlayerAvatar(
+                  name: prefs.playerName.isEmpty ? '?' : prefs.playerName,
+                  size: 34,
+                  emoji: prefs.avatar,
+                ),
+                const SizedBox(width: Space.sm),
+                Flexible(
+                  child: Text(
+                    'Lv ${prefs.stats.level}',
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: TextStyle(
+                      color: c.marigold,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

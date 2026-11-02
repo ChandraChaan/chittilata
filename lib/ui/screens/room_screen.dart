@@ -6,21 +6,26 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../app.dart';
 import '../../core/services/feedback.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/models.dart';
 import '../../game/room_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/quick_chat.dart';
+import 'charades_views.dart';
 import 'final_view.dart';
 import 'game_view.dart';
 import 'lobby_view.dart';
 import 'kq_views.dart';
 import 'picking_view.dart';
 import 'results_view.dart';
+import 'spectator_view.dart';
 import 'tiebreak_view.dart';
 
 /// Hosts one room for its whole life: lobby → rounds → final ceremony.
 class RoomScreen extends StatefulWidget {
   const RoomScreen({super.key, required this.roomId, this.controller});
   final String roomId;
+
+  static const routeName = 'room';
 
   /// Injected in tests.
   final RoomController? controller;
@@ -51,6 +56,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (mounted) showGameSnack(context, m);
     });
     _feedback = s.feedback..setMusic(Music.game);
+    s.push?.enable();
     WakelockPlus.enable().catchError((_) {});
   }
 
@@ -70,7 +76,8 @@ class _RoomScreenState extends State<RoomScreen> {
         p != Phase.lobby &&
         p != Phase.finished &&
         p != Phase.closed &&
-        p != Phase.removed;
+        p != Phase.removed &&
+        p != Phase.spectating;
     final ok = p == Phase.closed || p == Phase.removed
         ? true
         : await showDialog<bool>(
@@ -140,6 +147,10 @@ class _RoomScreenState extends State<RoomScreen> {
                   body: 'You left, or the host removed you.',
                   action: BigButton(label: 'Back to home', onPressed: _home),
                 ),
+                Phase.spectating => SpectatorView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                ),
                 Phase.lobby => LobbyView(ctrl: ctrl, onLeave: _confirmLeave),
                 Phase.picking => PickingView(
                   ctrl: ctrl,
@@ -161,6 +172,12 @@ class _RoomScreenState extends State<RoomScreen> {
                   ctrl: ctrl,
                   onLeave: _confirmLeave,
                 ),
+                Phase.charades => CharadesView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
+                ),
+                Phase.results || Phase.aborted when ctrl.room!.isCharades =>
+                  CharadesResultsView(ctrl: ctrl, onLeave: _confirmLeave),
                 Phase.results || Phase.aborted when ctrl.room!.isKq =>
                   KqResultsView(ctrl: ctrl, onLeave: _confirmLeave),
                 Phase.results || Phase.aborted => ResultsView(
@@ -184,44 +201,52 @@ class _RoomScreenState extends State<RoomScreen> {
                   phase != Phase.loading &&
                   phase != Phase.closed &&
                   phase != Phase.removed;
-              return SafeArea(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: AnimatedSwitcher(
-                              duration: Motion.of(context, Motion.medium),
-                              child: KeyedSubtree(
-                                key: ValueKey(_viewKey(phase, ctrl)),
-                                child: body,
+              return AvatarScope(
+                avatars: {
+                  for (final p in ctrl.room?.players.values ?? <PlayerInfo>[])
+                    if (p.avatar != null) p.name: p.avatar!,
+                },
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: AnimatedSwitcher(
+                                duration: Motion.of(context, Motion.medium),
+                                child: KeyedSubtree(
+                                  key: ValueKey(_viewKey(phase, ctrl)),
+                                  child: body,
+                                ),
                               ),
                             ),
-                          ),
-                          if (inRoom)
-                            Positioned.fill(child: ChatLayer(ctrl: ctrl)),
-                          // Banners float over the top of the game instead of
-                          // taking space from it: resizing the screen when
-                          // time ran out moved every chit away from the
-                          // finger reaching for it.
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            top: 0,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ConnectionBanner(connected: ctrl.connected),
-                                if (inRoom) LateBanner(ctrl: ctrl),
-                              ],
+                            if (inRoom)
+                              Positioned.fill(child: ChatLayer(ctrl: ctrl)),
+                            // Banners float over the top of the game instead of
+                            // taking space from it: resizing the screen when
+                            // time ran out moved every chit away from the
+                            // finger reaching for it.
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              top: 0,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ConnectionBanner(connected: ctrl.connected),
+                                  if (inRoom && phase != Phase.spectating)
+                                    LateBanner(ctrl: ctrl),
+                                  if (inRoom) SeatClaimBanner(ctrl: ctrl),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    if (inRoom) QuickChatBar(ctrl: ctrl),
-                  ],
+                      if (inRoom) QuickChatBar(ctrl: ctrl),
+                    ],
+                  ),
                 ),
               );
             },
@@ -237,8 +262,13 @@ class _RoomScreenState extends State<RoomScreen> {
     Phase.kqGuessing => 'kqguess-${c.kqRound?.key}',
     Phase.characters => 'characters-${c.round?.key}',
     Phase.intro || Phase.exchange => 'game-${c.round?.key}',
+    Phase.charades => 'charades-${c.charades?.key}',
     Phase.results || Phase.aborted =>
-      'results-${c.room?.isKq == true ? c.kqRound?.key : c.round?.key}',
+      'results-${c.room?.isCharades == true
+          ? c.charades?.key
+          : c.room?.isKq == true
+          ? c.kqRound?.key
+          : c.round?.key}',
     _ => p.name,
   };
 }

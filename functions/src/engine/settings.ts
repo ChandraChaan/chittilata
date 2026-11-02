@@ -61,6 +61,17 @@ export function cleanPlayerName(value: unknown): string {
   return cleanText(value, "Name", 16);
 }
 
+/** Profile avatars players can pick (the app shows the same list). */
+export const AVATARS = [
+  "🦁", "🐯", "🐼", "🦊", "🐸", "🐵", "🦄", "🐲", "🐘", "🦚", "🐢", "🐙", "🦋", "🐝", "🌻", "🪷",
+  "🥭", "🌶️", "🍉", "🍿", "🎬", "👑", "⭐", "🔥", "🪁", "🎯", "🎲", "🎭", "🚀", "⚡", "🌙", "🏏",
+];
+
+/** A known avatar, or null (initials are shown instead). */
+export function cleanAvatar(value: unknown): string | null {
+  return typeof value === "string" && AVATARS.includes(value) ? value : null;
+}
+
 /** Merges a partial update over current settings, validating every field. */
 export function mergeSettings(current: GameSettings, patch: unknown): GameSettings {
   if (typeof patch !== "object" || patch === null || Array.isArray(patch)) {

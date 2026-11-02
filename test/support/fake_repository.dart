@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:chittilata/data/app_config.dart';
+import 'package:chittilata/data/charades.dart';
 import 'package:chittilata/data/chat.dart';
 import 'package:chittilata/data/game_repository.dart';
+import 'package:chittilata/data/groups.dart';
 import 'package:chittilata/data/models.dart';
 
 /// In-memory backend for widget tests. Tests push server state with the
@@ -10,7 +12,7 @@ import 'package:chittilata/data/models.dart';
 class FakeGameRepository implements GameRepository {
   FakeGameRepository({this.me = 'me'});
 
-  final String me;
+  String me;
   final calls = <String>[];
   final _room = StreamController<Room?>.broadcast();
   final _round = StreamController<Round?>.broadcast();
@@ -102,6 +104,70 @@ class FakeGameRepository implements GameRepository {
     );
   }
 
+  final _charades = StreamController<CharadesRound?>.broadcast();
+  final _card = StreamController<CharadesCard?>.broadcast();
+  CharadesRound? charades;
+  CharadesCard? card;
+  void emitCharades(CharadesRound r) {
+    charades = r;
+    _charades.add(r);
+  }
+
+  void emitCard(CharadesCard c) {
+    card = c;
+    _card.add(c);
+  }
+
+  @override
+  Stream<CharadesRound?> watchCharades(String roomId, String roundKey) =>
+      _seeded(_charades.stream, charades);
+  @override
+  Stream<CharadesCard?> watchMyCard(String roomId) =>
+      _seeded(_card.stream, card);
+  @override
+  Future<void> charadesGuess(String roomId, String roundKey, int option) =>
+      _record('guess:$option');
+  @override
+  Future<void> charadesReveal(String roomId, String roundKey) =>
+      _record('charadesReveal');
+
+  @override
+  Future<String> quickMatch(GameMode mode, String name, String? avatar) async {
+    await _record('quickMatch:${mode.name}:$name');
+    return 'room1';
+  }
+
+  final groups = <Group>[];
+  final seasons = <String, Season>{};
+  @override
+  Stream<List<Group>> watchMyGroups() => Stream.value(groups);
+  @override
+  Stream<Group?> watchGroup(String groupId) =>
+      Stream.value(groups.where((g) => g.id == groupId).firstOrNull);
+  @override
+  Stream<Season> watchSeason(String groupId, String season) =>
+      Stream.value(seasons['$groupId/$season'] ?? Season(id: season));
+  @override
+  Future<String> createGroup(String name, String playerName, String? a) async {
+    await _record('createGroup:$name');
+    return 'g1';
+  }
+
+  @override
+  Future<String> joinGroup(String code, String playerName, String? a) async {
+    await _record('joinGroup:$code');
+    return 'g1';
+  }
+
+  @override
+  Future<void> leaveGroup(String groupId) => _record('leaveGroup:$groupId');
+
+  String? pushToken;
+  @override
+  Future<void> savePushToken(String token) async => pushToken = token;
+  @override
+  Future<void> deletePushToken() async => pushToken = null;
+
   final appConfig = StreamController<AppConfig>.broadcast();
   AppConfig config = AppConfig.none;
   @override
@@ -177,6 +243,8 @@ class FakeGameRepository implements GameRepository {
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
+    String? avatar,
+    String? groupId,
   }) async {
     await _record(
       mode == GameMode.movie
@@ -189,8 +257,9 @@ class FakeGameRepository implements GameRepository {
   @override
   Future<({String roomId, String code})> joinRoom(
     String code,
-    String name,
-  ) async {
+    String name, {
+    String? avatar,
+  }) async {
     await _record('joinRoom:$code:$name');
     return (roomId: 'room1', code: code);
   }
@@ -203,6 +272,14 @@ class FakeGameRepository implements GameRepository {
       _record('updateSettings');
   @override
   Future<void> kickPlayer(String roomId, String uid) => _record('kick:$uid');
+  @override
+  Future<void> addBot(String roomId) => _record('addBot');
+  @override
+  Future<void> claimSeat(String roomId, String? seat) =>
+      _record('claimSeat:$seat');
+  @override
+  Future<void> answerSeatClaim(String roomId, String spectator, bool approve) =>
+      _record('answerSeat:$spectator:$approve');
   @override
   Future<void> leaveRoom(String roomId) => _record('leave');
   @override
@@ -292,14 +369,18 @@ Room makeRoom({
   TiebreakInfo? tiebreak,
   GameMode mode = GameMode.movie,
   Map<String, int> kingWins = const {},
+  Map<String, String> members = names,
+  Map<String, Spectator> spectators = const {},
+  bool isPublic = false,
+  DateTime? createdAt,
 }) => Room(
   id: 'room1',
   code: 'ABC234',
   hostUid: host,
   status: status,
-  memberUids: names.keys.toList(),
+  memberUids: members.keys.toList(),
   players: {
-    for (final e in names.entries)
+    for (final e in members.entries)
       e.key: PlayerInfo(
         uid: e.key,
         name: e.value,
@@ -319,6 +400,9 @@ Room makeRoom({
   mode: mode,
   kqSettings: kqDefaultSettings,
   kingWins: kingWins,
+  spectators: spectators,
+  isPublic: isPublic,
+  createdAt: createdAt,
 );
 
 const kqDefaultSettings = KqSettings(

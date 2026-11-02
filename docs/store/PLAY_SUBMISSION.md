@@ -45,7 +45,7 @@ Tablet screenshots are optional. Leave them out unless you want the app featured
 Start the questionnaire. Category: **All other app types** (it's a game, but not one of the listed gambling or simulation types).
 - Violence, fear, sexuality, language, controlled substances: **No** to all.
 - Gambling / simulated gambling: **No**. Points have no value and nothing can be bought.
-- *Does the app allow users to interact or exchange content?* **Yes** (players see each other's chosen display names in a private room and can send preset quick-chat emojis and phrases). No free-text chat, no media, no location.
+- *Does the app allow users to interact or exchange content?* **Yes**: players see each other's chosen display names and avatar emojis, and can send preset quick-chat emojis and phrases, in private rooms and in optional public quick-match tables with strangers. No free-text chat, no media, no location.
 - *Does the app share the user's current location?* **No**. *Digital purchases?* **No**.
 
 Expected result: **Everyone / PEGI 3 / IARC 3+**, with a "Users Interact" notice.
@@ -75,7 +75,8 @@ Data types, all **Collected: Yes · Shared: No · Processed ephemerally: No**:
 | Messages → **Other in-app messages** (preset quick-chat emojis, phrases and nudges) | Optional | App functionality |
 | App info and performance → **Crash logs** | Required | Analytics |
 | App info and performance → **Diagnostics** | Required | Analytics |
-| Device or other IDs → **Device or other IDs** | Required | Analytics |
+| Device or other IDs → **Device or other IDs** | Required | Analytics, App functionality (push notifications, optional) |
+| App activity → **Other user-generated content** (avatar, friend groups) | Optional | App functionality |
 
 ### Government apps / Financial features / Health
 **No / My app doesn't provide any financial features / No health features.**
