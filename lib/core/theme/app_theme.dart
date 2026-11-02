@@ -19,6 +19,11 @@ class GameColors extends ThemeExtension<GameColors> {
     required this.leaf,
     required this.teal,
     required this.outline,
+    required this.goldHi,
+    required this.goldLo,
+    required this.goldLip,
+    required this.lip,
+    required this.glow,
   });
 
   final Color bgTop;
@@ -36,13 +41,24 @@ class GameColors extends ThemeExtension<GameColors> {
   final Color teal;
   final Color outline;
 
+  /// Top and bottom of the gold gradient on primary buttons and titles.
+  final Color goldHi;
+  final Color goldLo;
+
+  /// The darker "edge" under 3D buttons that shows how far they press in.
+  final Color goldLip;
+  final Color lip;
+
+  /// Soft coloured light behind the screen content.
+  final Color glow;
+
   static const dark = GameColors(
-    bgTop: Color(0xFF241347),
-    bgBottom: Color(0xFF120A26),
-    surface: Color(0xFF2C1C55),
-    surfaceHigh: Color(0xFF3A2770),
-    onSurface: Color(0xFFF7F0FF),
-    muted: Color(0xFFB9A9D9),
+    bgTop: Color(0xFF2A1563),
+    bgBottom: Color(0xFF0C0620),
+    surface: Color(0xFF261850),
+    surfaceHigh: Color(0xFF392673),
+    onSurface: Color(0xFFF8F2FF),
+    muted: Color(0xFFBEAEE0),
     paper: Color(0xFFFFF6E3),
     paperEdge: Color(0xFFE9D6AE),
     ink: Color(0xFF2B1B3D),
@@ -50,7 +66,12 @@ class GameColors extends ThemeExtension<GameColors> {
     kumkum: Color(0xFFEF4A62),
     leaf: Color(0xFF58D68D),
     teal: Color(0xFF3CC9C0),
-    outline: Color(0x33FFFFFF),
+    outline: Color(0x2EFFFFFF),
+    goldHi: Color(0xFFFFDA6B),
+    goldLo: Color(0xFFFF9F1C),
+    goldLip: Color(0xFFB45F06),
+    lip: Color(0xFF170D35),
+    glow: Color(0xFFE0457B),
   );
 
   static const light = GameColors(
@@ -68,6 +89,11 @@ class GameColors extends ThemeExtension<GameColors> {
     leaf: Color(0xFF1E9E57),
     teal: Color(0xFF14918A),
     outline: Color(0x22241347),
+    goldHi: Color(0xFFFFCF4D),
+    goldLo: Color(0xFFF29100),
+    goldLip: Color(0xFFB25E00),
+    lip: Color(0xFFD9C7EE),
+    glow: Color(0xFFFF9EB5),
   );
 
   @override
@@ -92,6 +118,11 @@ class GameColors extends ThemeExtension<GameColors> {
       leaf: l(leaf, other.leaf),
       teal: l(teal, other.teal),
       outline: l(outline, other.outline),
+      goldHi: l(goldHi, other.goldHi),
+      goldLo: l(goldLo, other.goldLo),
+      goldLip: l(goldLip, other.goldLip),
+      lip: l(lip, other.lip),
+      glow: l(glow, other.glow),
     );
   }
 }
@@ -196,18 +227,47 @@ ThemeData buildTheme(Brightness brightness) {
         color: c.onSurface,
         fontWeight: FontWeight.w600,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: c.marigold.withValues(alpha: 0.4)),
+      ),
+      elevation: 8,
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: c.surface,
       showDragHandle: true,
+      dragHandleColor: c.marigold.withValues(alpha: 0.6),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: c.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+        side: BorderSide(color: c.marigold.withValues(alpha: 0.45), width: 1.5),
+      ),
+      titleTextStyle: text.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: c.marigold,
+        foregroundColor: c.ink,
+        textStyle: const TextStyle(fontWeight: FontWeight.w900),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: c.marigold,
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    sliderTheme: SliderThemeData(
+      activeTrackColor: c.marigold,
+      thumbColor: c.goldHi,
+      inactiveTrackColor: c.surfaceHigh,
+      overlayColor: c.marigold.withValues(alpha: 0.2),
     ),
     chipTheme: base.chipTheme.copyWith(
       backgroundColor: c.surfaceHigh,

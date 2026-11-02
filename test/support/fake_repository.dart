@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:chittilata/data/app_config.dart';
 import 'package:chittilata/data/chat.dart';
 import 'package:chittilata/data/game_repository.dart';
 import 'package:chittilata/data/models.dart';
@@ -100,6 +101,11 @@ class FakeGameRepository implements GameRepository {
       ),
     );
   }
+
+  final appConfig = StreamController<AppConfig>.broadcast();
+  AppConfig config = AppConfig.none;
+  @override
+  Stream<AppConfig> watchAppConfig() => _seeded(appConfig.stream, config);
 
   @override
   Stream<bool> watchConnected(String roomId) => Stream.value(true);

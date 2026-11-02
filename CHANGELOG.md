@@ -2,6 +2,23 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] — 2026-11-02
+
+### Added
+- **New sound design.** Every sound is newly made for the app: a crisp 3D-button click, softer taps and back clicks, whooshes when sheets and dialogs open, a battle-start "boom" when the game begins, chimes when friends join, chat pops, a knock-knock nudge, urgent ticks in the last 3 seconds, coin sounds and a bigger victory fanfare.
+- **Music.** A festive menu theme (tabla, bansuri-style flute, santoor sparkle) and a lighter in-game groove, crossfading between menus and games. On by default; turn it off in Settings. It pauses when the app goes to the background and plays alongside other apps' audio instead of stopping it.
+- **Haptics.** Patterns for game start, your turn, wins (a rising roll), and "not allowed" (double thump), on top of the existing taps and buzzes.
+- **Update checks.** If `config/app` in Firestore sets `minBuild` above the installed build, the app shows a full-screen "Update required" page; `latestBuild` shows a dismissible "New version available" card. Update uses Google Play's in-app update, or opens the store (or `updateUrl`).
+- Layout tests: every screen is rendered on a small phone, a 16:9 phone, a tablet and at 130%, 160% and 200% text size, and must not overflow.
+
+### Changed
+- **New look.** Deeper night-sky background with soft glows and stars; chunky gold 3D buttons that sink when pressed; glassy panels; gold logo title; gold-edged dialogs and sheets.
+- Tapping a button that isn't available yet (e.g. Start before everyone is ready) gives a soft "not yet" buzz instead of nothing. Errors from the server do too.
+- On tablets and foldables, screens stay a comfortable width in the middle instead of stretching edge to edge.
+
+### Fixed
+- Text and buttons that ran off the screen with large system fonts or on small phones: the round-results rows, tie-breaker rows, the round intro, the late-player banner, the lobby header, the how-to-play pages and the name strip on the slip table.
+
 ## [2.1.1] — 2026-11-02
 
 ### Fixed

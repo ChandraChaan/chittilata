@@ -50,7 +50,7 @@ class _RoomScreenState extends State<RoomScreen> {
     _msgs = _ctrl!.messages.listen((m) {
       if (mounted) showGameSnack(context, m);
     });
-    _feedback = s.feedback..setMusicWanted(true);
+    _feedback = s.feedback..setMusic(Music.game);
     WakelockPlus.enable().catchError((_) {});
   }
 
@@ -58,7 +58,7 @@ class _RoomScreenState extends State<RoomScreen> {
   void dispose() {
     _msgs?.cancel();
     _ctrl?.dispose();
-    _feedback?.setMusicWanted(false);
+    _feedback?.setMusic(Music.menu);
     WakelockPlus.disable().catchError((_) {});
     super.dispose();
   }

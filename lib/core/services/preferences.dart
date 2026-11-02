@@ -23,7 +23,7 @@ class Preferences extends ChangeNotifier {
   bool get sound => _p.getBool('sound') ?? true;
   set sound(bool v) => _set('sound', v);
 
-  bool get music => _p.getBool('music') ?? false;
+  bool get music => _p.getBool('music') ?? true;
   set music(bool v) => _set('music', v);
 
   bool get haptics => _p.getBool('haptics') ?? true;
@@ -33,6 +33,13 @@ class Preferences extends ChangeNotifier {
   String get themeMode => _p.getString('themeMode') ?? 'dark';
   set themeMode(String v) {
     _p.setString('themeMode', v);
+    notifyListeners();
+  }
+
+  /// The newest build whose optional-update prompt was dismissed.
+  int get dismissedUpdate => _p.getInt('dismissedUpdate') ?? 0;
+  set dismissedUpdate(int v) {
+    _p.setInt('dismissedUpdate', v);
     notifyListeners();
   }
 

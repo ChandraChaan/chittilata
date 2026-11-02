@@ -2,9 +2,16 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../app.dart';
+import '../../core/services/feedback.dart';
 import '../../core/theme/app_theme.dart';
 
-/// Soft gradient backdrop with faint floating paper-slip shapes.
+/// Widest the content gets: on tablets and foldables screens stay a
+/// comfortable phone-like column in the middle instead of stretching.
+const kMaxContentWidth = 620.0;
+
+/// Night-sky backdrop: a deep gradient, two soft coloured glows, faint
+/// floating paper slips and a vignette. Content is centred and width-capped.
 class GameBackground extends StatelessWidget {
   const GameBackground({super.key, required this.child});
   final Widget child;
@@ -12,6 +19,7 @@ class GameBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -24,10 +32,49 @@ class GameBackground extends StatelessWidget {
         children: [
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(painter: _SlipsPainter(c.onSurface)),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.8, -1.0),
+                    radius: 1.1,
+                    colors: [
+                      c.glow.withValues(alpha: dark ? 0.22 : 0.25),
+                      c.glow.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-          child,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(1.0, 0.9),
+                    radius: 1.0,
+                    colors: [
+                      c.marigold.withValues(alpha: dark ? 0.13 : 0.18),
+                      c.marigold.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _SlipsPainter(c.onSurface, c.goldHi, dark),
+              ),
+            ),
+          ),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
+              child: child,
+            ),
+          ),
         ],
       ),
     );
@@ -35,8 +82,10 @@ class GameBackground extends StatelessWidget {
 }
 
 class _SlipsPainter extends CustomPainter {
-  _SlipsPainter(this.color);
+  _SlipsPainter(this.color, this.spark, this.dark);
   final Color color;
+  final Color spark;
+  final bool dark;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -59,14 +108,57 @@ class _SlipsPainter extends CustomPainter {
       );
       canvas.restore();
     }
+    // Tiny stars, only at night.
+    if (dark) {
+      final star = Paint();
+      for (var i = 0; i < 40; i++) {
+        final o = Offset(
+          rnd.nextDouble() * size.width,
+          rnd.nextDouble() * size.height * 0.7,
+        );
+        star.color = spark.withValues(alpha: 0.10 + rnd.nextDouble() * 0.25);
+        canvas.drawCircle(o, 0.6 + rnd.nextDouble() * 1.1, star);
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(_SlipsPainter old) => old.color != color;
+  bool shouldRepaint(_SlipsPainter old) =>
+      old.color != color || old.spark != spark || old.dark != dark;
 }
 
-/// Big tactile primary action.
-class BigButton extends StatelessWidget {
+/// Adds the game's click and a light haptic to a tap handler. Keeps `null`
+/// (a disabled control) as `null`.
+VoidCallback? withClick(
+  BuildContext context,
+  VoidCallback? onTap, {
+  Sfx sound = Sfx.tap,
+}) {
+  if (onTap == null) return null;
+  return () {
+    onTap();
+    Services.read(context).feedback.ui(sound);
+  };
+}
+
+/// [withClick] for callbacks that take a value (switches, chips, sliders).
+ValueChanged<T>? withClickValue<T>(
+  BuildContext context,
+  ValueChanged<T>? onChanged, {
+  Sfx sound = Sfx.toggle,
+}) {
+  if (onChanged == null) return null;
+  return (v) {
+    // After the change, so turning sound or vibration on confirms itself.
+    onChanged(v);
+    Services.read(context).feedback.ui(sound);
+  };
+}
+
+/// Big, chunky 3D game button: a gold (or dark) face on a darker edge that
+/// sinks in when pressed, with a click and a haptic. Tapping it while it is
+/// disabled gives a soft "not yet" buzz instead of silence.
+class BigButton extends StatefulWidget {
   const BigButton({
     super.key,
     required this.label,
@@ -74,6 +166,7 @@ class BigButton extends StatelessWidget {
     this.icon,
     this.secondary = false,
     this.busy = false,
+    this.sound = Sfx.button,
   });
 
   final String label;
@@ -81,67 +174,184 @@ class BigButton extends StatelessWidget {
   final IconData? icon;
   final bool secondary;
   final bool busy;
+  final Sfx sound;
+
+  @override
+  State<BigButton> createState() => _BigButtonState();
+}
+
+class _BigButtonState extends State<BigButton> {
+  bool _down = false;
+  static const _depth = 5.0;
+
+  void _set(bool down) {
+    if (_down != down) setState(() => _down = down);
+  }
+
+  void _tap() {
+    final fx = Services.read(context).feedback;
+    if (widget.busy) return;
+    if (widget.onPressed == null) {
+      fx.play(Sfx.error);
+      fx.light();
+      return;
+    }
+    fx.play(widget.sound);
+    fx.ui(widget.sound, haptic: false); // marks the click for de-duplication
+    fx.light();
+    widget.onPressed!();
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final enabled = onPressed != null && !busy;
-    final bg = secondary ? c.surfaceHigh : c.marigold;
+    final enabled = widget.onPressed != null && !widget.busy;
+    final secondary = widget.secondary;
     final fg = secondary ? c.onSurface : c.ink;
+    final face = secondary
+        ? [Color.lerp(c.surfaceHigh, Colors.white, 0.06)!, c.surfaceHigh]
+        : [c.goldHi, c.goldLo];
+    final lip = secondary ? c.lip : c.goldLip;
+    final pressed = _down && enabled;
+    final dur = Motion.of(context, const Duration(milliseconds: 70));
+    const radius = BorderRadius.all(Radius.circular(18));
     return Semantics(
       button: true,
       enabled: enabled,
-      label: label,
+      label: widget.label,
       excludeSemantics: true,
-      child: AnimatedOpacity(
-        duration: Motion.fast,
-        opacity: enabled ? 1 : 0.5,
-        child: Material(
-          color: bg,
-          borderRadius: BorderRadius.circular(20),
-          elevation: secondary ? 0 : 4,
-          shadowColor: c.marigold.withValues(alpha: 0.5),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: enabled ? onPressed : null,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 58),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _set(true),
+        onTapUp: (_) => _set(false),
+        onTapCancel: () => _set(false),
+        onTap: _tap,
+        child: AnimatedOpacity(
+          duration: Motion.fast,
+          opacity: enabled ? 1 : 0.55,
+          child: AnimatedScale(
+            duration: dur,
+            scale: pressed ? 0.98 : 1,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 58 + _depth),
+              decoration: BoxDecoration(
+                color: lip,
+                borderRadius: radius,
+                boxShadow: [
+                  if (!secondary && enabled)
+                    BoxShadow(
+                      color: c.marigold.withValues(alpha: pressed ? 0.2 : 0.4),
+                      blurRadius: pressed ? 8 : 18,
+                      offset: const Offset(0, 6),
+                    ),
+                ],
+              ),
+              child: AnimatedPadding(
+                duration: dur,
+                padding: EdgeInsets.only(
+                  top: pressed ? _depth - 1 : 0,
+                  bottom: pressed ? 1 : _depth,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (busy)
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: fg,
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 58),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: face,
+                    ),
+                    border: Border(
+                      top: BorderSide(
+                        color: Colors.white.withValues(
+                          alpha: secondary ? 0.12 : 0.55,
                         ),
-                      )
-                    else if (icon != null)
-                      Icon(icon, color: fg),
-                    if (busy || icon != null) const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        style: context.text.titleMedium?.copyWith(
-                          color: fg,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        width: 1.5,
                       ),
                     ),
-                  ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.busy)
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: fg,
+                          ),
+                        )
+                      else if (widget.icon != null)
+                        Icon(widget.icon, color: fg),
+                      if (widget.busy || widget.icon != null)
+                        const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          widget.label,
+                          textAlign: TextAlign.center,
+                          style: context.text.titleMedium?.copyWith(
+                            color: fg,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.3,
+                            shadows: secondary
+                                ? null
+                                : [
+                                    Shadow(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Big title text painted with the gold gradient, like a game logo.
+class GoldText extends StatelessWidget {
+  const GoldText(this.text, {super.key, this.style, this.textAlign});
+  final String text;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (r) => LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [c.goldHi, c.goldLo],
+      ).createShader(r),
+      child: Text(
+        text,
+        textAlign: textAlign,
+        style: (style ?? context.text.displaySmall)?.copyWith(
+          shadows: [
+            Shadow(
+              color: c.goldLip.withValues(alpha: 0.6),
+              offset: const Offset(0, 3),
+              blurRadius: 0,
+            ),
+          ],
         ),
       ),
     );
@@ -233,7 +443,8 @@ class PlayerAvatar extends StatelessWidget {
   }
 }
 
-/// Rounded translucent panel used throughout.
+/// Rounded glassy panel used throughout: a soft vertical gradient with a
+/// light top edge, so cards read as raised above the night background.
 class Panel extends StatelessWidget {
   const Panel({super.key, required this.child, this.padding, this.color});
   final Widget child;
@@ -243,17 +454,45 @@ class Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    // A Material (not a DecoratedBox) so ListTiles inside show ink splashes.
-    return Material(
-      color: color ?? c.surface.withValues(alpha: 0.85),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: c.outline),
+    final base = color ?? c.surface;
+    const radius = BorderRadius.all(Radius.circular(24));
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: color != null
+              ? [base, base]
+              : [
+                  Color.lerp(
+                    base,
+                    c.surfaceHigh,
+                    0.55,
+                  )!.withValues(alpha: 0.92),
+                  base.withValues(alpha: 0.86),
+                ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: padding ?? const EdgeInsets.all(Space.lg),
-        child: child,
+      // A Material (not just a box) so ListTiles inside show ink splashes.
+      child: Material(
+        type: MaterialType.transparency,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: c.outline),
+        ),
+        child: Padding(
+          padding: padding ?? const EdgeInsets.all(Space.lg),
+          child: child,
+        ),
       ),
     );
   }
