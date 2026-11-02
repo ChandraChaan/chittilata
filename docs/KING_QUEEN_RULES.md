@@ -46,7 +46,7 @@ picking ──(all chits picked)──▶ guessing ──(every role locked)─�
 1. The server seals one role into each of N folded chits, shuffled with a cryptographically secure RNG. The public round shows only opaque chit ids.
 2. Every phone shows the ceremony: role names are written on paper, folded, collapsed into one pile, shuffled and scattered on the mat.
 3. Each player picks **exactly one** chit. A chit can be taken once; a player can take one. **The role inside is the player's role.** Only that player sees it.
-4. After 20 seconds the late players are buzzed and can be nudged. 45 seconds after the deadline (or sooner if every late player is offline), any member may ask the server to hand out the remaining chits at random.
+4. Players have 1 minute. When it runs out, any member's phone asks the server to hand out the remaining chits at random (the app does this by itself), so picking never holds up the game.
 5. When every chit is picked, guessing begins. The **King is announced publicly**, because the King must call the first guess.
 
 ### 2.2 Guessing

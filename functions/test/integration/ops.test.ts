@@ -586,17 +586,18 @@ describe("picking folded chits", () => {
     expect(owners.reduce((a, b) => a + b, 0)).toBe(1);
   });
 
-  it("picks for slow players only after 45s of overtime, never automatically", async () => {
+  it("gives a minute to pick, then picks the remaining chits at random", async () => {
     const { roomId, roundKey, r, uids } = await picking();
+    expect(r.pickDeadline.toMillis() - r.pickOpensAt.toMillis()).toBe(60_000);
     clock = r.pickOpensAt.toMillis() + 1;
     await ops.pickChit(deps(), "u2", { roomId, roundKey, chitId: r.chits[0] });
     await expectCode(ops.autoPickChits(deps(), "u0", { roomId, roundKey }), "failed-precondition");
+    clock = r.pickDeadline.toMillis() - 1000;
+    await expectCode(ops.autoPickChits(deps(), "u0", { roomId, roundKey }), "failed-precondition");
+    // Picking right up to (and just past) the deadline still works.
+    await ops.pickChit(deps(), "u2", { roomId, roundKey, chitId: r.chits[1] });
     clock = r.pickDeadline.toMillis() + 1500;
     await online(roomId, uids, clock);
-    await expectCode(ops.autoPickChits(deps(), "u0", { roomId, roundKey }), "failed-precondition");
-    // Still picking in overtime works.
-    await ops.pickChit(deps(), "u2", { roomId, roundKey, chitId: r.chits[1] });
-    clock = r.pickDeadline.toMillis() + 46_000;
     expect((await ops.autoPickChits(deps(), "u0", { roomId, roundKey })).assigned).toBe(14);
     const done = await round(roomId, roundKey);
     expect(done.status).toBe("exchange");
@@ -640,8 +641,6 @@ describe("picking folded chits", () => {
     await expectCode(ops.autoPickCharacters(deps(), "u0", { roomId, roundKey }), "failed-precondition");
     clock = won.charPickDeadline!.toMillis() + 1500;
     await online(roomId, uids, clock);
-    await expectCode(ops.autoPickCharacters(deps(), "u0", { roomId, roundKey }), "failed-precondition");
-    clock = won.charPickDeadline!.toMillis() + 46_000;
     expect((await ops.autoPickCharacters(deps(), "u0", { roomId, roundKey })).assigned).toBe(2);
     const after = await round(roomId, roundKey);
     expect(after.revealAt).not.toBeNull();

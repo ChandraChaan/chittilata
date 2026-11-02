@@ -16,7 +16,7 @@ Each round uses **one name per player**, with **four slips of each name**. A fou
 
 **Making the chits.** At the start of the round every phone shows the same thing: the names are written on paper slips, folded, gathered into one pile and shuffled, then scattered across a woven mat.
 
-**Picking.** Every player taps **4 folded chits**, in any order, at the same time as everyone else. Each chit you pick unfolds privately on your phone. A chit can only be picked once; if two players reach for the same chit, the first one wins and the other picks again. You have 25 seconds. After that your phone buzzes and the others can nudge you, but you can still pick. Only after 45 more seconds (or if your phone is offline) can another player choose to have your remaining chits picked at random.
+**Picking.** Every player taps **4 folded chits**, in any order, at the same time as everyone else. Each chit you pick unfolds privately on your phone. A chit can only be picked once; if two players reach for the same chit, the first one wins and the other picks again. You have **1 minute**; the last 5 seconds tick. When it runs out, any chits you haven't picked are picked for you at random, so the game never waits. (It makes no difference to your chances: your slips were dealt fairly before anyone picked.)
 
 **Fair by design.** Before anyone picks, the server deals every player a fair, random hand:
 
@@ -56,7 +56,7 @@ The first player to hold **4 slips with the same name** wins the round and earns
 
 ## Secret characters
 
-The other players then pick their **character chits**. One character is written on each folded chit (for example Queen 800, Police 500, Thief 100), sealed and shuffled by the server. Each non-winner taps **one** chit and it unfolds privately. **The character inside is exactly what you get.** Nobody sees anyone else's character until the reveal. You have 20 seconds. After that the late players are buzzed and nudged, and after 45 more seconds (or if they're offline) another player can have their chits handed out at random. The winner just watches.
+The other players then pick their **character chits**. One character is written on each folded chit (for example Queen 800, Police 500, Thief 100), sealed and shuffled by the server. Each non-winner taps **one** chit and it unfolds privately. **The character inside is exactly what you get.** Nobody sees anyone else's character until the reveal. You have 1 minute; after that, anyone who hasn't picked gets a chit at random. The winner just watches.
 
 | Players in game | Characters used (default points) |
 |---|---|

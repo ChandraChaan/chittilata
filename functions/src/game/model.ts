@@ -176,12 +176,15 @@ export const roundKeyFor = (gameNo: number, roundNo: number) =>
 
 /** Seconds of the create/fold/shuffle/scatter animation before picking opens. */
 export const CHIT_CEREMONY_SECONDS = 4;
-/** Seconds players have to pick their movie chits. */
-export const PICK_SECONDS = 25;
+/**
+ * Seconds players have to pick their movie chits. After that, any phone in
+ * the room may ask the server to pick the rest at random (see [picksDue]).
+ */
+export const PICK_SECONDS = 60;
 /** Seconds of winner celebration before character chits can be picked. */
 export const CHAR_CEREMONY_SECONDS = 4;
-/** Seconds eligible players have to pick a character chit. */
-export const CHAR_PICK_SECONDS = 20;
+/** Seconds eligible players have to pick a character chit (then: random). */
+export const CHAR_PICK_SECONDS = 60;
 /** Seconds the circular order is shown before the first pass. */
 export const INTRO_SECONDS = 5;
 /** Seconds everyone looks at their own character before the public reveal. */

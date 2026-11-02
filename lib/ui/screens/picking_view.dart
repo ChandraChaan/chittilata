@@ -53,7 +53,10 @@ class PickingView extends StatelessWidget {
       subtitle = '$stillPicking still picking';
     } else if (mine < 4) {
       title = 'Pick ${4 - mine} more chit${4 - mine == 1 ? '' : 's'}';
-      subtitle = 'Tap any folded chit on the mat';
+      final left = ctrl.pickRemainingSeconds;
+      subtitle = left <= 15
+          ? 'Hurry! The rest are picked for you in ${left}s'
+          : 'Tap any folded chit on the mat';
     } else {
       title = 'Your 4 chits are ready';
       subtitle =
@@ -95,7 +98,7 @@ class PickingView extends StatelessWidget {
                     child: open
                         ? CountdownBadge(
                             seconds: ctrl.pickRemainingSeconds,
-                            progress: (ctrl.pickRemainingSeconds / 25).clamp(
+                            progress: (ctrl.pickRemainingSeconds / 60).clamp(
                               0.0,
                               1.0,
                             ),
@@ -129,7 +132,9 @@ class PickingView extends StatelessWidget {
                   players: {for (final u in round.order) u: room.nameOf(u)},
                   counts: counts,
                   pending: ctrl.pendingChits,
-                  canPick: ctrl.canPickChit && reveal == null,
+                  // Picking never waits for the reveal: the unfolding
+                  // slip floats above the tray and lets taps through.
+                  canPick: ctrl.canPickChit,
                   onPick: ctrl.pickChit,
                   ceremonyLabels: round.movieNames,
                   opensAt: round.pickOpensAt,
@@ -145,10 +150,11 @@ class PickingView extends StatelessWidget {
           ChitRevealOverlay(
             key: ValueKey('reveal-${reveal.id}'),
             caption: 'You picked…',
+            blocking: false,
             onTapSkip: ctrl.consumeReveal,
             child: (w) => PaperSlip(label: reveal.name, width: w),
             onOpenStart: () => ctrl.feedback.play(Sfx.unfold),
-            onOpened: ctrl.feedback.heavy,
+            onOpened: ctrl.feedback.light,
             onDone: ctrl.consumeReveal,
           ),
       ],
@@ -166,6 +172,7 @@ class ChitRevealOverlay extends StatelessWidget {
     required this.onTapSkip,
     this.onOpenStart,
     this.onOpened,
+    this.blocking = true,
   });
 
   final Widget Function(double width) child;
@@ -175,9 +182,34 @@ class ChitRevealOverlay extends StatelessWidget {
   final VoidCallback? onOpenStart;
   final VoidCallback? onOpened;
 
+  /// Movie chits come four at a time: their reveal is a small card above the
+  /// tray that taps go straight through, so the next pick never waits.
+  final bool blocking;
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    if (!blocking) {
+      final w = min(MediaQuery.sizeOf(context).width * 0.3, 120.0);
+      return Positioned(
+        left: 0,
+        right: 0,
+        bottom: 150,
+        child: IgnorePointer(
+          child: Center(
+            child: UnfoldReveal(
+              width: w,
+              height: w * 1.42,
+              caption: caption,
+              onOpenStart: onOpenStart,
+              onOpened: onOpened,
+              onDone: onDone,
+              child: child(w),
+            ),
+          ),
+        ),
+      );
+    }
     final w = min(MediaQuery.sizeOf(context).width * 0.48, 200.0);
     return Positioned.fill(
       child: GestureDetector(
@@ -355,7 +387,7 @@ class CharacterPickView extends StatelessWidget {
                   if (open && !allPicked)
                     CountdownBadge(
                       seconds: ctrl.pickRemainingSeconds,
-                      progress: (ctrl.pickRemainingSeconds / 20).clamp(
+                      progress: (ctrl.pickRemainingSeconds / 60).clamp(
                         0.0,
                         1.0,
                       ),

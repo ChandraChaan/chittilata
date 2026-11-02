@@ -433,62 +433,65 @@ class _MeLateState extends State<_MeLate> with SingleTickerProviderStateMixin {
         final dx = t < 0.35 ? sin(t / 0.35 * pi * 6) * 5 : 0.0;
         return Transform.translate(offset: Offset(dx, 0), child: child);
       },
-      child: Semantics(
-        liveRegion: true,
-        child: Container(
-          width: double.infinity,
-          margin: const EdgeInsets.fromLTRB(
-            Space.md,
-            Space.xs,
-            Space.md,
-            Space.sm,
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.lg,
-            vertical: Space.md,
-          ),
-          decoration: BoxDecoration(
-            color: c.kumkum,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: c.kumkum.withValues(alpha: 0.45),
-                blurRadius: 18,
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              const Text('⏰', style: TextStyle(fontSize: 28)),
-              const SizedBox(width: Space.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      "Time's up! Everyone is waiting for you",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
+      // Just a reminder: taps go through to the game underneath.
+      child: IgnorePointer(
+        child: Semantics(
+          liveRegion: true,
+          child: Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(
+              Space.md,
+              Space.xs,
+              Space.md,
+              Space.sm,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.md,
+            ),
+            decoration: BoxDecoration(
+              color: c.kumkum,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: c.kumkum.withValues(alpha: 0.45),
+                  blurRadius: 18,
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Text('⏰', style: TextStyle(fontSize: 28)),
+                const SizedBox(width: Space.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Time's up! Everyone is waiting for you",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                    ),
-                    Text(
-                      _lateTask(ctrl.phase),
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ],
+                      Text(
+                        _lateTask(ctrl.phase),
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Text(
-                '+${ctrl.overtimeSeconds}s',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontFeatures: [FontFeature.tabularFigures()],
+                Text(
+                  '+${ctrl.overtimeSeconds}s',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

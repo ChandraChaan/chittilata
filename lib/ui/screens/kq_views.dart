@@ -87,7 +87,9 @@ class KqPickingView extends StatelessWidget {
     final subtitle = !open
         ? 'Folding and shuffling ${kr.chain.join(', ')}…'
         : !picked
-        ? 'Your role is inside. Keep it secret!'
+        ? (ctrl.kqPickRemainingSeconds <= 15
+              ? 'Hurry! One is picked for you in ${ctrl.kqPickRemainingSeconds}s'
+              : 'Your role is inside. Keep it secret!')
         : 'Keep a straight face.';
 
     return Stack(
@@ -100,7 +102,7 @@ class KqPickingView extends StatelessWidget {
               trailing: open
                   ? CountdownBadge(
                       seconds: ctrl.kqPickRemainingSeconds,
-                      progress: (ctrl.kqPickRemainingSeconds / 20).clamp(
+                      progress: (ctrl.kqPickRemainingSeconds / 60).clamp(
                         0.0,
                         1.0,
                       ),

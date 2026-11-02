@@ -21,7 +21,8 @@ const ruleSections = [
     'Pick 4 folded chits',
     'Each round, the movie names are written on paper, folded, shuffled '
         'and scattered on the mat: 4 chits per name. Tap any 4 chits and '
-        'each one unfolds just for you. The server deals everyone a fair hand '
+        'each one unfolds just for you. You have a minute; after that the '
+        'rest are picked for you. The server deals everyone a fair hand '
         'of different names, so which chit you pick never changes your '
         'chances and nobody starts close to winning. Only you can see your '
         'slips.',

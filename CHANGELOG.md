@@ -2,6 +2,14 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] — 2026-11-03
+
+### Fixed
+- **The last chits not responding.** After every pick, a full-screen "You picked…" reveal covered the mat for about two seconds, and a tap during it only skipped the reveal. The slip now unfolds in a small card above your tray that taps go straight through, so quick picks always land. The "Time's up!" banner also lets taps through.
+
+### Changed
+- **Picking chits has a 1-minute timer, then picks for you.** Movie chits, character chits and King & Queen role chits: when the minute is up, anything not yet picked is picked at random, so a round never waits on someone who walked away. The last 5 seconds tick and the screen says "picked for you in Ns". (Passing and guessing still never play for you automatically; others can still nudge or "Play for" a late player.)
+
 ## [2.3.0] — 2026-11-02
 
 ### Added
