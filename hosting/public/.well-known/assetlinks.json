@@ -1,11 +1,14 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.chandra.chittilata",
       "sha256_cert_fingerprints": [
-        "AD:5B:D1:6C:1D:78:BC:90:9B:7A:55:33:10:BD:A8:4B:FF:1D:E8:42:C7:28:52:6A:EF:B6:4A:16:95:EC:94:5A"
+        "AD:5B:D1:6C:1D:78:BC:90:9B:7A:55:33:10:BD:A8:4B:FF:1D:E8:42:C7:28:52:6A:EF:B6:4A:16:95:EC:94:5A",
+        "9F:70:38:27:D2:7B:AE:DC:89:3C:D7:D9:47:21:C1:C4:B3:C4:DF:B6:DD:4D:19:41:D3:C1:9F:58:B3:90:38:55"
       ]
     }
   }
