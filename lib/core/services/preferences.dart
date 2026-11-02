@@ -58,6 +58,13 @@ class Preferences extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Festival look: 'auto' (around each festival), 'off', or a festival.
+  String get festival => _p.getString('festival') ?? 'auto';
+  set festival(String v) {
+    _p.setString('festival', v);
+    notifyListeners();
+  }
+
   /// The room this device was last in, used to resume after a restart.
   String? get activeRoomId => _p.getString('activeRoomId');
   set activeRoomId(String? v) =>

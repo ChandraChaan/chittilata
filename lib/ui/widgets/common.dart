@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../app.dart';
 import '../../core/services/feedback.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/festivals.dart';
 
 /// Widest the content gets: on tablets and foldables screens stay a
 /// comfortable phone-like column in the middle instead of stretching.
@@ -69,6 +70,13 @@ class GameBackground extends StatelessWidget {
               ),
             ),
           ),
+          if (Theme.of(context).extension<FestivalTheme>()?.festival
+              case final f?)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: FestivalPainter(f, dark: dark)),
+              ),
+            ),
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: kMaxContentWidth),

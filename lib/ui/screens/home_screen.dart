@@ -5,6 +5,7 @@ import '../../app.dart';
 import '../../core/services/feedback.dart';
 import '../../core/services/invite_links.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/festivals.dart';
 import '../../data/game_repository.dart';
 import '../../data/models.dart';
 import '../widgets/common.dart';
@@ -210,6 +211,20 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                         ),
                       ],
                     ),
+                    if (Theme.of(context).extension<FestivalTheme>()?.festival
+                        case final f?)
+                      Padding(
+                        padding: const EdgeInsets.only(top: Space.sm),
+                        child: Text(
+                          f.greeting,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: c.marigold,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: Space.lg),
                     const _Hero(),
                     const SizedBox(height: Space.xl),

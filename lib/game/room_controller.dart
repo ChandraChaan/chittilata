@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../core/services/feedback.dart';
 import '../core/services/preferences.dart';
+import '../core/theme/festivals.dart';
 import '../data/chat.dart';
 import '../data/game_repository.dart';
 import '../data/models.dart';
@@ -1211,6 +1212,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       if (king && r.memberUids.any(isBotUid)) 'botWins': 1,
       if (r.memberUids.length >= 8) 'bigTables': 1,
       if (hour < 5) 'nightGames': 1,
+      if (Festival.on(DateTime.now()) != null) 'festivalGames': 1,
       if (!r.isKq && mine.movieWins >= 3) 'hatTricks': 1,
     });
   }

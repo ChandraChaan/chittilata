@@ -5,6 +5,7 @@ import 'core/services/invite_links.dart';
 import 'core/services/push.dart';
 import 'core/services/preferences.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/festivals.dart';
 import 'data/game_repository.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/widgets/update_gate.dart';
@@ -64,28 +65,28 @@ class ChittilataApp extends StatelessWidget {
       services: services,
       child: ListenableBuilder(
         listenable: services.prefs,
-        builder: (context, _) => MaterialApp(
-          title: 'Chittilata',
-          debugShowCheckedModeBanner: false,
-          theme: buildTheme(Brightness.light),
-          darkTheme: buildTheme(Brightness.dark),
-          themeMode: switch (services.prefs.themeMode) {
-            'light' => ThemeMode.light,
-            'system' => ThemeMode.system,
-            _ => ThemeMode.dark,
-          },
-          scaffoldMessengerKey: scaffoldMessengerKey,
-          navigatorKey: navigatorKey,
-          navigatorObservers: [
-            services.feedback.navigatorObserver,
-            routeObserver,
-          ],
-          home: home ?? const SplashScreen(),
-          builder: (context, child) => UpdateGate(child: child!),
-        ),
+        builder: (context, _) =>
+            _app(Festival.chosen(services.prefs.festival, DateTime.now())),
       ),
     );
   }
+
+  Widget _app(Festival? festival) => MaterialApp(
+    title: 'Chittilata',
+    debugShowCheckedModeBanner: false,
+    theme: buildTheme(Brightness.light, festival: festival),
+    darkTheme: buildTheme(Brightness.dark, festival: festival),
+    themeMode: switch (services.prefs.themeMode) {
+      'light' => ThemeMode.light,
+      'system' => ThemeMode.system,
+      _ => ThemeMode.dark,
+    },
+    scaffoldMessengerKey: scaffoldMessengerKey,
+    navigatorKey: navigatorKey,
+    navigatorObservers: [services.feedback.navigatorObserver, routeObserver],
+    home: home ?? const SplashScreen(),
+    builder: (context, child) => UpdateGate(child: child!),
+  );
 }
 
 /// Fade+slide page route used for every screen change.
