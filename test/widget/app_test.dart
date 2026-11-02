@@ -6,6 +6,7 @@ import 'package:chittilata/data/models.dart';
 import 'package:chittilata/ui/screens/home_screen.dart';
 import 'package:chittilata/ui/screens/room_screen.dart';
 import 'package:chittilata/ui/screens/settings_screen.dart';
+import 'package:chittilata/ui/widgets/chits.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -470,6 +471,52 @@ void main() {
       }
       await tester.pump();
       expect(repo.calls.where((c) => c.startsWith('pick')), isEmpty);
+      await unmount(tester);
+    },
+  );
+
+  testWidgets(
+    'picking: the mat does not move when time runs out (banner floats)',
+    (tester) async {
+      repo.emitRoom(
+        makeRoom(
+          status: RoomStatus.playing,
+          currentRound: 1,
+          roundKey: 'g1r01',
+        ),
+      );
+      repo.emitRound(
+        makeRound(
+          status: RoundStatus.picking,
+          chits: chitIds,
+          pickOpensAt: ago(30),
+          pickDeadline: later(1),
+        ),
+      );
+      repo.emitHand(
+        const Hand(
+          roundKey: 'g1r01',
+          cards: [],
+          incomingCardId: null,
+          character: null,
+        ),
+      );
+      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+      await tester.pump(const Duration(milliseconds: 300));
+      final before = tester.getRect(find.byType(ChitTable));
+      expect(find.text("Time's up! Everyone is waiting for you"), findsNothing);
+      // Widget-test frames don't move the wall clock; let the deadline pass.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 2300)),
+      );
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(
+        find.text("Time's up! Everyone is waiting for you"),
+        findsOneWidget,
+      );
+      expect(tester.getRect(find.byType(ChitTable)), before);
       await unmount(tester);
     },
   );

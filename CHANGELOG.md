@@ -2,7 +2,17 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.1.1] — 2026-11-02
+
+### Fixed
+- **Top crash in 2.0.0** (549 crash reports from 9 players): "The error handler of Future.catchError must return a value of the future's type". Fire-and-forget server calls such as reveal, timeouts and tie-breaker votes returned the callable's `Future<Map>` from `Future<void>` methods, so whenever one failed (for example, two phones racing to reveal) the error handler itself threw, again and again. They now return a real `Future<void>`, and a test guards it.
+- A crash when tapping **Next** in the how-to-play pages on phones with animations turned off.
+- **The last chits jumped away from your finger.** When the pick timer ran out, the "Time's up!" banner took space at the bottom, the mat shrank and every chit moved up, so taps on the last 2–3 chits landed on empty mat. The banner (and the offline banner) now float over the top of the screen, so the mat and your hand never move.
+
+### Added
+- Settings → About shows the installed app version, so you can check which build a phone has.
+
+## [2.1.0] — 2026-11-01
 
 ### Added
 - **💬 Quick chat**: one-tap emojis and preset phrases in Telugu and English (త్వరగా! ⏰, అయ్యో! 😩, Good game! 🤝…) float up on everyone's screen, in the lobby and during play. Presets only: no free text to moderate.

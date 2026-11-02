@@ -187,7 +187,6 @@ class _RoomScreenState extends State<RoomScreen> {
               return SafeArea(
                 child: Column(
                   children: [
-                    ConnectionBanner(connected: ctrl.connected),
                     Expanded(
                       child: Stack(
                         children: [
@@ -202,10 +201,25 @@ class _RoomScreenState extends State<RoomScreen> {
                           ),
                           if (inRoom)
                             Positioned.fill(child: ChatLayer(ctrl: ctrl)),
+                          // Banners float over the top of the game instead of
+                          // taking space from it: resizing the screen when
+                          // time ran out moved every chit away from the
+                          // finger reaching for it.
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            top: 0,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ConnectionBanner(connected: ctrl.connected),
+                                if (inRoom) LateBanner(ctrl: ctrl),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    if (inRoom) LateBanner(ctrl: ctrl),
                     if (inRoom) QuickChatBar(ctrl: ctrl),
                   ],
                 ),

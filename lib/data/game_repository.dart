@@ -165,6 +165,16 @@ class FirebaseGameRepository implements GameRepository {
     }
   }
 
+  /// For calls whose result the app doesn't need. Awaiting here makes the
+  /// returned future a real `Future<void>`: returning `_call(...)` directly
+  /// from a `Future<void>` method hands out a `Future<Map>`, and a
+  /// `.catchError((_) {})` on that throws "The error handler of
+  /// Future.catchError must return a value of the future's type" whenever
+  /// the call fails (the top crash in 2.0.0).
+  Future<void> _run(String name, Map<String, Object?> data) async {
+    await _call(name, data);
+  }
+
   @override
   Stream<Room?> watchRoom(String roomId) => _room(
     roomId,
@@ -262,7 +272,7 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> updateKqSettings(String roomId, Map<String, Object?> patch) =>
-      _call('updateSettings', {'roomId': roomId, 'kqSettings': patch});
+      _run('updateSettings', {'roomId': roomId, 'kqSettings': patch});
 
   @override
   Stream<KqRound?> watchKqRound(String roomId, String roundKey) => _room(roomId)
@@ -309,7 +319,7 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> kqAutoPick(String roomId, String roundKey) =>
-      _call('kqAutoPick', {'roomId': roomId, 'roundKey': roundKey});
+      _run('kqAutoPick', {'roomId': roomId, 'roundKey': roundKey});
 
   @override
   Future<void> kqGuess(
@@ -318,7 +328,7 @@ class FirebaseGameRepository implements GameRepository {
     int turnId,
     String targetUid,
     String requestId,
-  ) => _call('kqGuess', {
+  ) => _run('kqGuess', {
     'roomId': roomId,
     'roundKey': roundKey,
     'turnId': turnId,
@@ -328,7 +338,7 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> kqClaimTimeout(String roomId, String roundKey, int turnId) =>
-      _call('kqClaimTimeout', {
+      _run('kqClaimTimeout', {
         'roomId': roomId,
         'roundKey': roundKey,
         'turnId': turnId,
@@ -345,27 +355,27 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> setReady(String roomId, bool ready) =>
-      _call('setReady', {'roomId': roomId, 'ready': ready});
+      _run('setReady', {'roomId': roomId, 'ready': ready});
 
   @override
   Future<void> updateSettings(String roomId, Map<String, Object?> patch) =>
-      _call('updateSettings', {'roomId': roomId, 'settings': patch});
+      _run('updateSettings', {'roomId': roomId, 'settings': patch});
 
   @override
   Future<void> kickPlayer(String roomId, String uid) =>
-      _call('kickPlayer', {'roomId': roomId, 'uid': uid});
+      _run('kickPlayer', {'roomId': roomId, 'uid': uid});
 
   @override
   Future<void> leaveRoom(String roomId) =>
-      _call('leaveRoom', {'roomId': roomId});
+      _run('leaveRoom', {'roomId': roomId});
 
   @override
   Future<void> startGame(String roomId) =>
-      _call('startGame', {'roomId': roomId});
+      _run('startGame', {'roomId': roomId});
 
   @override
   Future<void> nextRound(String roomId) =>
-      _call('nextRound', {'roomId': roomId});
+      _run('nextRound', {'roomId': roomId});
 
   @override
   Future<void> passCard(
@@ -374,7 +384,7 @@ class FirebaseGameRepository implements GameRepository {
     int turnId,
     String cardId,
     String requestId,
-  ) => _call('passCard', {
+  ) => _run('passCard', {
     'roomId': roomId,
     'roundKey': roundKey,
     'turnId': turnId,
@@ -383,12 +393,10 @@ class FirebaseGameRepository implements GameRepository {
   });
 
   @override
-  Future<void> claimTimeout(String roomId, String roundKey, int turnId) =>
-      _call('claimTimeout', {
-        'roomId': roomId,
-        'roundKey': roundKey,
-        'turnId': turnId,
-      });
+  Future<void> claimTimeout(String roomId, String roundKey, int turnId) => _run(
+    'claimTimeout',
+    {'roomId': roomId, 'roundKey': roundKey, 'turnId': turnId},
+  );
 
   @override
   Future<GameCard> pickChit(
@@ -406,7 +414,7 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> autoPickChits(String roomId, String roundKey) =>
-      _call('autoPickChits', {'roomId': roomId, 'roundKey': roundKey});
+      _run('autoPickChits', {'roomId': roomId, 'roundKey': roundKey});
 
   @override
   Future<CharacterDef> pickCharacter(
@@ -424,21 +432,21 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> autoPickCharacters(String roomId, String roundKey) =>
-      _call('autoPickCharacters', {'roomId': roomId, 'roundKey': roundKey});
+      _run('autoPickCharacters', {'roomId': roomId, 'roundKey': roundKey});
 
   @override
   Future<void> revealRound(String roomId, String roundKey) =>
-      _call('revealRound', {'roomId': roomId, 'roundKey': roundKey});
+      _run('revealRound', {'roomId': roomId, 'roundKey': roundKey});
 
   @override
   Future<void> playAgain(String roomId) =>
-      _call('playAgain', {'roomId': roomId});
+      _run('playAgain', {'roomId': roomId});
 
   @override
   Future<void> tiebreakVote(String roomId, bool accept) =>
-      _call('tiebreakVote', {'roomId': roomId, 'accept': accept});
+      _run('tiebreakVote', {'roomId': roomId, 'accept': accept});
 
   @override
   Future<void> resolveTiebreakVote(String roomId) =>
-      _call('resolveTiebreakVote', {'roomId': roomId});
+      _run('resolveTiebreakVote', {'roomId': roomId});
 }
