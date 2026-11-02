@@ -84,7 +84,8 @@ interface KqSecret {
 }
 
 export const KQ_CEREMONY_SECONDS = 4;
-export const KQ_PICK_SECONDS = 20;
+/** Seconds to pick a role chit; then the rest are picked at random. */
+export const KQ_PICK_SECONDS = 60;
 /** Seconds the King is announced before the first guess. */
 export const KQ_ANNOUNCE_SECONDS = 4;
 
@@ -268,7 +269,7 @@ export async function kqPickChit(deps: Deps, uid: string, data: unknown) {
   });
 }
 
-/** Hands out the remaining chits at random, once [ops.requirePlayFor] allows it. */
+/** Hands out the remaining chits at random once the pick timer is over ([ops.picksDue]). */
 export async function kqAutoPick(deps: Deps, uid: string, data: unknown) {
   return deps.db.runTransaction(async (tx) => {
     const { roomId, round, secret } = await loadKq(tx, deps, uid, data);
@@ -276,7 +277,7 @@ export async function kqAutoPick(deps: Deps, uid: string, data: unknown) {
     const t = deps.now();
     const picked = new Set(Object.values(round.picks));
     const late = round.players.filter((p) => !picked.has(p));
-    const who = await ops.playForWhom(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), round.pickOpensAt.toMillis(), t);
+    const who = ops.picksDue(late, round.pickDeadline.toMillis(), round.pickOpensAt.toMillis(), t);
     const free = shuffle(round.chits.filter((c) => !round.picks[c]), deps.rng);
     const assignments = who.map((p) => [free.pop()!, p] as [string, string]);
     bindRoleChits(tx, deps, roomId, round, secret, assignments, t, true);

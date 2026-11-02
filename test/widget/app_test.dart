@@ -487,54 +487,46 @@ void main() {
     },
   );
 
-  testWidgets(
-    'picking: the mat does not move when time runs out (banner floats)',
-    (tester) async {
-      repo.emitRoom(
-        makeRoom(
-          status: RoomStatus.playing,
-          currentRound: 1,
-          roundKey: 'g1r01',
-        ),
-      );
-      repo.emitRound(
-        makeRound(
-          status: RoundStatus.picking,
-          chits: chitIds,
-          pickOpensAt: ago(30),
-          pickDeadline: later(1),
-        ),
-      );
-      repo.emitHand(
-        const Hand(
-          roundKey: 'g1r01',
-          cards: [],
-          incomingCardId: null,
-          character: null,
-        ),
-      );
-      await pumpApp(tester, const RoomScreen(roomId: 'room1'));
-      await tester.pump(const Duration(milliseconds: 300));
-      final before = tester.getRect(find.byType(ChitTable));
-      expect(find.text("Time's up! Everyone is waiting for you"), findsNothing);
-      // Widget-test frames don't move the wall clock; let the deadline pass.
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 2300)),
-      );
-      for (var i = 0; i < 4; i++) {
-        await tester.pump(const Duration(milliseconds: 250));
-      }
-      expect(
-        find.text("Time's up! Everyone is waiting for you"),
-        findsOneWidget,
-      );
-      expect(tester.getRect(find.byType(ChitTable)), before);
-      await unmount(tester);
-    },
-  );
+  testWidgets('picking: the mat does not move when the pick timer runs out', (
+    tester,
+  ) async {
+    repo.emitRoom(
+      makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'),
+    );
+    repo.emitRound(
+      makeRound(
+        status: RoundStatus.picking,
+        chits: chitIds,
+        pickOpensAt: ago(30),
+        pickDeadline: later(1),
+      ),
+    );
+    repo.emitHand(
+      const Hand(
+        roundKey: 'g1r01',
+        cards: [],
+        incomingCardId: null,
+        character: null,
+      ),
+    );
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(milliseconds: 300));
+    final before = tester.getRect(find.byType(ChitTable));
+    // Widget-test frames don't move the wall clock; let the deadline pass.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 2300)),
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    // No "late" banner for picking: the rest are picked for you instead.
+    expect(find.text("Time's up! Everyone is waiting for you"), findsNothing);
+    expect(tester.getRect(find.byType(ChitTable)), before);
+    await unmount(tester);
+  });
 
   testWidgets(
-    'picking: nothing is auto-picked after the deadline; I can still pick',
+    'picking: when the minute is up, the rest are picked automatically',
     (tester) async {
       repo.emitRoom(
         makeRoom(
@@ -547,7 +539,7 @@ void main() {
         makeRound(
           status: RoundStatus.picking,
           chits: chitIds,
-          pickOpensAt: ago(30),
+          pickOpensAt: ago(64),
           pickDeadline: ago(4),
         ),
       );
@@ -563,21 +555,52 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 250));
       }
-      expect(repo.calls, isEmpty);
-      expect(
-        find.text("Time's up! Everyone is waiting for you"),
-        findsOneWidget,
-      );
-      await tester.tap(find.bySemanticsLabel('Folded chit').first);
-      await tester.pump();
-      expect(repo.calls, hasLength(1));
-      expect(repo.calls.single, startsWith('pick:'));
-      for (var i = 0; i < 12; i++) {
-        await tester.pump(const Duration(milliseconds: 250));
-      }
+      // My phone (first in the room) asks the server to finish the picks,
+      // once, without anyone having to tap "Play for".
+      expect(repo.calls, ['autoPick']);
+      expect(find.textContaining('Play for'), findsNothing);
       await unmount(tester);
     },
   );
+
+  testWidgets('picking: quick taps keep picking while the last slip unfolds', (
+    tester,
+  ) async {
+    repo.emitRoom(
+      makeRoom(status: RoomStatus.playing, currentRound: 1, roundKey: 'g1r01'),
+    );
+    repo.emitRound(
+      makeRound(
+        status: RoundStatus.picking,
+        chits: chitIds,
+        pickOpensAt: ago(10),
+        pickDeadline: later(50),
+      ),
+    );
+    repo.emitHand(
+      const Hand(
+        roundKey: 'g1r01',
+        cards: [],
+        incomingCardId: null,
+        character: null,
+      ),
+    );
+    await pumpApp(tester, const RoomScreen(roomId: 'room1'));
+    await tester.pump(const Duration(milliseconds: 300));
+    final chits = find.bySemanticsLabel('Folded chit');
+    await tester.tap(chits.at(0));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    // The first slip is still unfolding; the next tap must still pick.
+    expect(find.text('You picked…'), findsOneWidget);
+    await tester.tap(chits.at(5));
+    await tester.pump();
+    expect(repo.calls.where((c) => c.startsWith('pick:')), hasLength(2));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    await unmount(tester);
+  });
 
   testWidgets('characters: a non-winner picks a chit and privately sees it', (
     tester,

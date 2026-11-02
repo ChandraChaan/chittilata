@@ -171,19 +171,16 @@ describe("King & Queen picking", () => {
     expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(1);
   });
 
-  it("picks for slow players only after 45s of overtime, or when they are all offline", async () => {
+  it("gives a minute to pick, then picks the rest at random (even for players online)", async () => {
     const { roomId, roundKey, uids } = await started(4);
     const r = await kround(roomId, roundKey);
+    expect(r.pickDeadline.toMillis() - r.pickOpensAt.toMillis()).toBe(60_000);
     clock = r.pickOpensAt.toMillis() + 1;
     await kq.kqPickChit(deps(), "u3", { roomId, roundKey, chitId: r.chits[0] });
     await expectCode(kq.kqAutoPick(deps(), "u0", { roomId, roundKey }), "failed-precondition");
     clock = r.pickDeadline.toMillis() + 1500;
     await online(roomId, uids, clock);
-    await expectCode(kq.kqAutoPick(deps(), "u0", { roomId, roundKey }), "failed-precondition");
-    await online(roomId, ["u1", "u2"], clock - 60_000);
-    await expectCode(kq.kqAutoPick(deps(), "u3", { roomId, roundKey }), "failed-precondition"); // u0 still online
-    await online(roomId, ["u0"], clock - 60_000);
-    expect((await kq.kqAutoPick(deps(), "u0", { roomId, roundKey })).assigned).toBe(3);
+    expect((await kq.kqAutoPick(deps(), "u3", { roomId, roundKey })).assigned).toBe(3);
     expect((await kround(roomId, roundKey)).status).toBe("guessing");
   });
 });

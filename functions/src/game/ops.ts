@@ -147,6 +147,19 @@ export async function playForWhom(
   }
 }
 
+/**
+ * Picking chits never waits on anyone for long: once the pick timer runs
+ * out, any phone in the room may ask for the remaining picks to be made at
+ * random (bots pick as soon as they've "thought"). Returns who is due, or
+ * fails while everyone still has time.
+ */
+export function picksDue(late: string[], deadline: number, opensAt: number, t: number): string[] {
+  if (t > deadline + DEADLINE_GRACE_MS) return late;
+  const bots = t >= opensAt + BOT_THINK_MS ? late.filter(isBot) : [];
+  if (bots.length === 0) fail("failed-precondition", "There is still time left.");
+  return bots;
+}
+
 /** A bot keeps what it has most of and passes from what it has least of. */
 export function botCard(hand: Card[], rng: (n: number) => number): Card {
   const count = new Map<string, number>();
@@ -1042,7 +1055,7 @@ export async function pickChit(deps: Deps, uid: string, data: unknown) {
   });
 }
 
-/** Picks at random for players still picking, once [requirePlayFor] allows it. */
+/** Picks at random for players still picking once the timer is over ([picksDue]). */
 export async function autoPickChits(deps: Deps, uid: string, data: unknown) {
   return deps.db.runTransaction(async (tx) => {
     const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
@@ -1052,7 +1065,7 @@ export async function autoPickChits(deps: Deps, uid: string, data: unknown) {
     const hands: Record<string, HandDoc> = {};
     round.order.forEach((u, i) => (hands[u] = snaps[i].data() as HandDoc));
     const late = round.order.filter((u) => hands[u].cards.length < HAND_SIZE);
-    const who = await playForWhom(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), round.pickOpensAt.toMillis(), t);
+    const who = picksDue(late, round.pickDeadline.toMillis(), round.pickOpensAt.toMillis(), t);
     const free = shuffle(round.chits.filter((c) => !round.picks[c]), deps.rng);
     const assignments: [string, string][] = [];
     for (const u of who) {
@@ -1116,7 +1129,7 @@ export async function pickCharacter(deps: Deps, uid: string, data: unknown) {
   });
 }
 
-/** Picks characters at random for late players, once [requirePlayFor] allows it. */
+/** Picks characters at random for late players once the timer is over ([picksDue]). */
 export async function autoPickCharacters(deps: Deps, uid: string, data: unknown) {
   return deps.db.runTransaction(async (tx) => {
     const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
@@ -1124,15 +1137,7 @@ export async function autoPickCharacters(deps: Deps, uid: string, data: unknown)
     const t = deps.now();
     const picked = new Set(Object.values(round.charPicks));
     const waiting = round.order.filter((u) => u !== round.winner!.uid && !picked.has(u));
-    const who = await playForWhom(
-      tx,
-      deps.db,
-      roomId,
-      waiting,
-      round.charPickDeadline!.toMillis(),
-      round.charPickOpensAt!.toMillis(),
-      t,
-    );
+    const who = picksDue(waiting, round.charPickDeadline!.toMillis(), round.charPickOpensAt!.toMillis(), t);
     const free = shuffle(round.charChits.filter((c) => !round.charPicks[c]), deps.rng);
     const assignments = who.map((u) => [free.pop()!, u] as [string, string]);
     bindCharacterChits(tx, deps, roomId, round, secret, assignments, t, true);

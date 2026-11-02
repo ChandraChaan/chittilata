@@ -177,8 +177,8 @@ class FestivalPainter extends CustomPainter {
       (0.50, 0.93),
       (0.70, 0.95),
       (0.90, 0.92),
-      (0.86, 0.14),
-      (0.14, 0.18),
+      (0.92, 0.25),
+      (0.08, 0.25),
     ];
     for (final (x, y) in spots) {
       final c = Offset(size.width * x, size.height * y);

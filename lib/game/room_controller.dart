@@ -660,6 +660,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _wasMyTurn = mine;
     _buzzIfLate();
     _driveBots();
+    _autoPickIfDue();
+    _warnPickEnding();
     _autoStartPublic();
     _revealCharadesIfDue();
     final pruned = _pruneChat();
@@ -755,6 +757,80 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _botCallInFlight = true;
     // Losing a race with another phone or the server's timing is normal.
     move.$2().catchError((_) {}).whenComplete(() => _botCallInFlight = false);
+  }
+
+  // ---------- automatic picks ----------
+
+  DateTime _lastAutoPick = DateTime(0);
+  int _lastPickWarn = -1;
+
+  /// The pick deadline of the current picking phase, and the call that
+  /// picks at random for everyone still picking.
+  (DateTime, Future<void> Function())? _openPicks() {
+    final rd = round;
+    final kr = kqRound;
+    switch (phase) {
+      case Phase.picking when rd != null && rd.pickDeadline != null:
+        final counts = <String, int>{};
+        for (final u in rd.picks.values) {
+          counts[u] = (counts[u] ?? 0) + 1;
+        }
+        if (!rd.order.any((u) => (counts[u] ?? 0) < 4)) return null;
+        return (rd.pickDeadline!, () => repo.autoPickChits(roomId, rd.key));
+      case Phase.characters
+          when rd != null && rd.revealAt == null && rd.charPickDeadline != null:
+        final picked = rd.charPicks.values.toSet();
+        if (!rd.order.any((u) => u != rd.winner?.uid && !picked.contains(u))) {
+          return null;
+        }
+        return (
+          rd.charPickDeadline!,
+          () => repo.autoPickCharacters(roomId, rd.key),
+        );
+      case Phase.kqPicking when kr != null && kr.pickDeadline != null:
+        final picked = kr.picks.values.toSet();
+        if (!kr.players.any((u) => !picked.contains(u))) return null;
+        return (kr.pickDeadline!, () => repo.kqAutoPick(roomId, kr.key));
+      default:
+        return null;
+    }
+  }
+
+  /// When the pick timer runs out, the rest are picked at random. Every
+  /// phone in the room can ask (the server checks the time); the first
+  /// person in room order goes first, the others step in if it's slow.
+  void _autoPickIfDue() {
+    final open = _openPicks();
+    if (open == null) return;
+    final people = room!.memberUids.where((u) => !isBotUid(u)).toList();
+    final me = people.indexOf(uid ?? '');
+    if (me < 0) return;
+    final over = now.difference(open.$1);
+    if (over < Duration(milliseconds: 1500 + me * 2000)) return;
+    if (DateTime.now().difference(_lastAutoPick) < const Duration(seconds: 3)) {
+      return;
+    }
+    _lastAutoPick = DateTime.now();
+    open.$2().catchError((_) {});
+  }
+
+  /// Ticks (and a buzz at the end) in the last 5 seconds while I still
+  /// have chits to pick.
+  void _warnPickEnding() {
+    final mine = switch (phase) {
+      Phase.picking => canPickChit,
+      Phase.characters => canPickCharacter,
+      Phase.kqPicking => canKqPick,
+      _ => false,
+    };
+    if (!mine) return;
+    final s = phase == Phase.kqPicking
+        ? kqPickRemainingSeconds
+        : pickRemainingSeconds;
+    if (s <= 0 || s > 5 || s == _lastPickWarn) return;
+    _lastPickWarn = s;
+    feedback.play(s <= 3 ? Sfx.tickUrgent : Sfx.tick);
+    s == 1 ? feedback.warning() : feedback.selection();
   }
 
   // ---------- dumb charades ----------
@@ -908,29 +984,10 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     final rd = round;
     final kr = kqRound;
     switch (phase) {
-      case Phase.picking when rd != null:
-        final counts = <String, int>{};
-        for (final u in rd.picks.values) {
-          counts[u] = (counts[u] ?? 0) + 1;
-        }
-        return after(
-          rd.pickDeadline,
-          rd.order.where((u) => (counts[u] ?? 0) < 4),
-        );
-      case Phase.characters when rd != null && rd.revealAt == null:
-        final picked = rd.charPicks.values.toSet();
-        return after(
-          rd.charPickDeadline,
-          rd.order.where((u) => u != rd.winner?.uid && !picked.contains(u)),
-        );
+      // Picking chits is never "late": when its timer runs out the rest
+      // are picked at random (see _autoPickIfDue).
       case Phase.exchange when rd != null:
         return after(rd.turnDeadline, [rd.currentUid]);
-      case Phase.kqPicking when kr != null:
-        final picked = kr.picks.values.toSet();
-        return after(
-          kr.pickDeadline,
-          kr.players.where((u) => !picked.contains(u)),
-        );
       case Phase.kqGuessing when kr != null && kr.guesser != null:
         return after(kr.turnDeadline, [kr.guesser!]);
       default:
