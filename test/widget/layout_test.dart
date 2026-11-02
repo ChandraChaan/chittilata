@@ -220,6 +220,40 @@ final scenes = <String, Widget Function(FakeGameRepository)>{
     );
     return const RoomScreen(roomId: 'room1');
   },
+  'watching a game': (r) {
+    r.me = 'newphone';
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        spectators: const {
+          'newphone': Spectator(uid: 'newphone', name: 'Sai', claims: 'k'),
+        },
+      ),
+    );
+    r.emitRound(makeRound(current: 'v', next: 's'));
+    return const RoomScreen(roomId: 'room1');
+  },
+  'host asked for a seat': (r) {
+    r.emitRoom(
+      makeRoom(
+        status: RoomStatus.playing,
+        currentRound: 1,
+        roundKey: 'g1r01',
+        spectators: const {
+          'newphone': Spectator(
+            uid: 'newphone',
+            name: 'Lakshmi Prasanna',
+            claims: 'k',
+          ),
+        },
+      ),
+    );
+    r.emitRound(makeRound());
+    r.emitHand(hand);
+    return const RoomScreen(roomId: 'room1');
+  },
   'update required': (r) {
     r.config = const AppConfig(minBuild: 99, message: 'Please update.');
     return const HomeScreen();

@@ -88,6 +88,12 @@ abstract class GameRepository {
 
   /// Host only, in the lobby: adds a computer player.
   Future<void> addBot(String roomId);
+
+  /// A spectator asks for [seat] (theirs, from another phone); null cancels.
+  Future<void> claimSeat(String roomId, String? seat);
+
+  /// Host only: answers a spectator's seat claim.
+  Future<void> answerSeatClaim(String roomId, String spectator, bool approve);
   Future<void> leaveRoom(String roomId);
   Future<void> startGame(String roomId);
   Future<void> nextRound(String roomId);
@@ -402,6 +408,18 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> addBot(String roomId) => _run('addBot', {'roomId': roomId});
+
+  @override
+  Future<void> claimSeat(String roomId, String? seat) =>
+      _run('claimSeat', {'roomId': roomId, 'seat': seat});
+
+  @override
+  Future<void> answerSeatClaim(String roomId, String spectator, bool approve) =>
+      _run('answerSeatClaim', {
+        'roomId': roomId,
+        'spectator': spectator,
+        'approve': approve,
+      });
 
   @override
   Future<void> leaveRoom(String roomId) =>

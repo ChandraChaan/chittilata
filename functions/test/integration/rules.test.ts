@@ -82,6 +82,23 @@ describe("app config", () => {
   });
 });
 
+describe("spectators", () => {
+  it("watchers read the room, rounds and chat, can chat, but never see hands", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `rooms/${ROOM}`), { spectatorUids: ["watcher"] });
+    });
+    const w = as("watcher");
+    await assertSucceeds(getDoc(doc(w, `rooms/${ROOM}`)));
+    await assertSucceeds(getDoc(doc(w, `rooms/${ROOM}/rounds/g1r01`)));
+    await assertFails(getDoc(doc(w, `rooms/${ROOM}/hands/alice`)));
+    await assertFails(getDoc(doc(w, `rooms/${ROOM}/hands/watcher`)));
+    await assertSucceeds(
+      setDoc(doc(w, `rooms/${ROOM}/chat/watcher`), { id: "abc", kind: "emoji", code: "laugh", to: null, at: serverTimestamp() }),
+    );
+    await assertFails(getDoc(doc(as("mallory"), `rooms/${ROOM}`)));
+  });
+});
+
 describe("push tokens", () => {
   it("a player can save and remove only their own token", async () => {
     await assertSucceeds(setDoc(doc(as("alice"), "pushTokens/alice"), { token: "t1", updatedAt: serverTimestamp() }));

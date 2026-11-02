@@ -15,6 +15,7 @@ import 'lobby_view.dart';
 import 'kq_views.dart';
 import 'picking_view.dart';
 import 'results_view.dart';
+import 'spectator_view.dart';
 import 'tiebreak_view.dart';
 
 /// Hosts one room for its whole life: lobby → rounds → final ceremony.
@@ -73,7 +74,8 @@ class _RoomScreenState extends State<RoomScreen> {
         p != Phase.lobby &&
         p != Phase.finished &&
         p != Phase.closed &&
-        p != Phase.removed;
+        p != Phase.removed &&
+        p != Phase.spectating;
     final ok = p == Phase.closed || p == Phase.removed
         ? true
         : await showDialog<bool>(
@@ -142,6 +144,10 @@ class _RoomScreenState extends State<RoomScreen> {
                   title: "You're no longer in this room",
                   body: 'You left, or the host removed you.',
                   action: BigButton(label: 'Back to home', onPressed: _home),
+                ),
+                Phase.spectating => SpectatorView(
+                  ctrl: ctrl,
+                  onLeave: _confirmLeave,
                 ),
                 Phase.lobby => LobbyView(ctrl: ctrl, onLeave: _confirmLeave),
                 Phase.picking => PickingView(
@@ -216,7 +222,9 @@ class _RoomScreenState extends State<RoomScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 ConnectionBanner(connected: ctrl.connected),
-                                if (inRoom) LateBanner(ctrl: ctrl),
+                                if (inRoom && phase != Phase.spectating)
+                                  LateBanner(ctrl: ctrl),
+                                if (inRoom) SeatClaimBanner(ctrl: ctrl),
                               ],
                             ),
                           ),

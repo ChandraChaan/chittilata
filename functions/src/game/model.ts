@@ -36,6 +36,22 @@ export interface PlayerInfo {
   left: boolean;
   /** A computer player added by the host (uid starts with "bot_"). */
   bot?: boolean;
+  /** This seat was handed to another phone (see `spectators[].approved`). */
+  movedTo?: string;
+}
+
+/**
+ * Someone who joined after the start. They watch, and get a seat when the
+ * game is played again — or take back their own seat (after reinstalling
+ * the app, say) once the host approves.
+ */
+export interface Spectator {
+  name: string;
+  joinedAt: number;
+  /** The seat they say is theirs, waiting for the host. */
+  claims: string | null;
+  /** Host approved: the seat moves to them when the next round starts. */
+  approved: string | null;
 }
 
 export interface RoomDoc {
@@ -46,6 +62,9 @@ export interface RoomDoc {
   memberUids: string[];
   /** Everyone who has played this game, including players who left. */
   players: Record<string, PlayerInfo>;
+  /** Watchers (read access in security rules). Absent on older rooms. */
+  spectatorUids?: string[];
+  spectators?: Record<string, Spectator>;
   banned: string[];
   /** Absent on rooms created before modes existed: treated as "movie". */
   mode?: GameMode;
@@ -173,3 +192,5 @@ export const OFFLINE_AFTER_MS = 45_000;
 export const TIEBREAK_VOTE_SECONDS = 30;
 /** Rooms untouched this long are closed by the cleanup job. */
 export const ROOM_TTL_HOURS = 24;
+/** Most people who can watch a room at once. */
+export const MAX_SPECTATORS = 10;

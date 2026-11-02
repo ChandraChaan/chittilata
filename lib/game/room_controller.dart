@@ -24,6 +24,9 @@ enum Phase {
   finished,
   closed,
   removed,
+
+  /// Joined after the start: watching, maybe waiting for their seat back.
+  spectating,
 }
 
 /// Server-matching grace after a deadline (see DEADLINE_GRACE_MS on server).
@@ -64,7 +67,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   }) {
     WidgetsBinding.instance.addObserver(this);
     _roomSub = repo.watchRoom(roomId).listen(_onRoom, onError: _onStreamError);
-    _handSub = repo.watchHand(roomId).listen(_onHand, onError: (_) {});
+    _watchHand();
     _presenceSub = repo.watchPresence(roomId).listen((p) {
       presence = p;
       notifyListeners();
@@ -79,6 +82,11 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _beat();
     _heartbeat = Timer.periodic(const Duration(seconds: 20), (_) => _beat());
     _ticker = Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
+  }
+
+  void _watchHand() {
+    _handSub?.cancel();
+    _handSub = repo.watchHand(roomId).listen(_onHand, onError: (_) {});
   }
 
   final GameRepository repo;
@@ -170,7 +178,9 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (roomMissing) return Phase.closed;
     if (r == null) return Phase.loading;
     if (r.status == RoomStatus.closed) return Phase.closed;
-    if (uid != null && !r.memberUids.contains(uid)) return Phase.removed;
+    if (uid != null && !r.memberUids.contains(uid)) {
+      return r.spectators.containsKey(uid) ? Phase.spectating : Phase.removed;
+    }
     if (r.status == RoomStatus.lobby) return Phase.lobby;
     if (r.status == RoomStatus.finished) return Phase.finished;
     if (r.status == RoomStatus.tiebreakVote) return Phase.tiebreakVote;
@@ -428,6 +438,14 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       roomMissing = true;
       notifyListeners();
       return;
+    }
+    // Watching -> seated (seat handed over, or a new game): our private
+    // hand and role streams were refused before, so start them again.
+    final wasMember = room?.memberUids.contains(uid) ?? true;
+    if (!wasMember && r.memberUids.contains(uid)) {
+      _watchHand();
+      _kqRoleSub?.cancel();
+      _kqRoleSub = null;
     }
     final previous = room;
     room = r;
@@ -1131,6 +1149,19 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> kick(String player) =>
       run(() => repo.kickPlayer(roomId, player));
   Future<bool> addBot() => run(() => repo.addBot(roomId));
+
+  bool get isSpectator => room?.spectators.containsKey(uid) ?? false;
+  Spectator? get mySpectator => room?.spectators[uid];
+
+  /// Seat requests waiting for the host's answer.
+  List<Spectator> get seatClaims => isHost
+      ? room!.spectators.values.where((s) => s.claims != null).toList()
+      : const [];
+
+  Future<bool> claimSeat(String? seat) =>
+      run(() => repo.claimSeat(roomId, seat));
+  Future<bool> answerSeatClaim(String spectator, bool approve) =>
+      run(() => repo.answerSeatClaim(roomId, spectator, approve));
   Future<bool> startGame() => run(() => repo.startGame(roomId));
   Future<bool> nextRound() => run(() => repo.nextRound(roomId));
   Future<bool> revealNow() => run(() => repo.revealRound(roomId, round!.key));

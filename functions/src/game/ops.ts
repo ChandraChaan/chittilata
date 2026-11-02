@@ -42,6 +42,7 @@ import {
   HandDoc,
   INTRO_SECONDS,
   LastAction,
+  MAX_SPECTATORS,
   OFFLINE_AFTER_MS,
   PICK_SECONDS,
   PLAY_FOR_AFTER_MS,
@@ -186,7 +187,9 @@ function migrateHost(room: RoomDoc): string {
 
 export function standingsFor(room: RoomDoc) {
   return rankPlayers(
-    Object.entries(room.players).map(([uid, p]) => ({
+    Object.entries(room.players)
+      .filter(([, p]) => !p.movedTo)
+      .map(([uid, p]) => ({
       uid,
       name: p.name,
       total: room.totals[uid] ?? 0,
@@ -271,6 +274,7 @@ export async function joinRoom(deps: Deps, uid: string, data: unknown) {
   if (!codeSnap.exists) fail("not-found", "No room with that code.");
   const roomId = codeSnap.get("roomId") as string;
 
+  let spectating = false;
   await db.runTransaction(async (tx) => {
     const { ref, room } = await loadRoom(tx, db, roomId);
     if (room.banned.includes(uid)) fail("permission-denied", "The host removed you from this room.");
@@ -281,7 +285,19 @@ export async function joinRoom(deps: Deps, uid: string, data: unknown) {
       }
       return;
     }
-    if (room.status !== "lobby") fail("failed-precondition", "This game has already started.");
+    if (room.status !== "lobby") {
+      // Joining a game in progress: watch it (and maybe take back a seat).
+      const spectators = room.spectatorUids ?? [];
+      if (spectators.includes(uid)) return;
+      if (spectators.length >= MAX_SPECTATORS) fail("resource-exhausted", "Too many people are watching this game.");
+      tx.update(ref, {
+        spectatorUids: [...spectators, uid],
+        [`spectators.${uid}`]: { name, joinedAt: now(), claims: null, approved: null },
+        updatedAt: Timestamp.fromMillis(now()),
+      });
+      spectating = true;
+      return;
+    }
     if (room.memberUids.length >= MAX_PLAYERS) fail("resource-exhausted", "This room is full.");
     const taken = room.memberUids.some((m) => room.players[m].name.toLowerCase() === name.toLowerCase());
     if (taken) fail("already-exists", "Someone in this room already uses that name.");
@@ -291,7 +307,110 @@ export async function joinRoom(deps: Deps, uid: string, data: unknown) {
       updatedAt: Timestamp.fromMillis(now()),
     });
   });
-  return { roomId, code };
+  return { roomId, code, spectating };
+}
+
+// ---------- watching and taking back a seat ----------
+
+/** A spectator says an offline player's seat is theirs (e.g. a new phone). */
+export async function claimSeat(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  const seat = (data as Record<string, unknown>).seat;
+  await deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    if (!room.spectatorUids?.includes(uid)) fail("permission-denied", "Only people watching can claim a seat.");
+    if (seat === null) {
+      tx.update(ref, { [`spectators.${uid}.claims`]: null });
+      return;
+    }
+    if (typeof seat !== "string" || !room.memberUids.includes(seat) || isBot(seat)) {
+      fail("invalid-argument", "That seat isn't in this game.");
+    }
+    const taken = Object.entries(room.spectators ?? {}).some(([s, v]) => s !== uid && (v.claims === seat || v.approved === seat));
+    if (taken) fail("already-exists", "Someone else already asked for that seat.");
+    tx.update(ref, { [`spectators.${uid}.claims`]: seat, updatedAt: Timestamp.fromMillis(deps.now()) });
+  });
+  return { ok: true };
+}
+
+/**
+ * The host answers a seat claim. Approving needs the seat's player to be
+ * offline (so nobody's seat is taken from under them); the seat moves when
+ * the next round starts, keeping its score.
+ */
+export async function answerSeatClaim(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  const spectator = str(data, "spectator", 128);
+  const approve = (data as Record<string, unknown>).approve === true;
+  const t = deps.now();
+  await deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    requireHost(room, uid);
+    const claim = room.spectators?.[spectator]?.claims;
+    if (!claim) fail("failed-precondition", "That request was withdrawn.");
+    if (!approve) {
+      tx.update(ref, { [`spectators.${spectator}.claims`]: null });
+      return;
+    }
+    if (claim === uid) fail("failed-precondition", "That's your own seat.");
+    const seen = (await tx.get(presenceRef(deps.db, roomId, claim!))).data()?.lastSeen as Timestamp | undefined;
+    if (seen && seen.toMillis() > t - OFFLINE_AFTER_MS) {
+      fail("failed-precondition", `${room.players[claim!]?.name ?? "That player"} is still online.`);
+    }
+    tx.update(ref, {
+      [`spectators.${spectator}.claims`]: null,
+      [`spectators.${spectator}.approved`]: claim,
+      updatedAt: Timestamp.fromMillis(t),
+    });
+  });
+  return { ok: true };
+}
+
+/**
+ * Hands approved seats to their new phones: the new uid takes the old
+ * one's place, score and titles. Old rounds keep the old uid, whose player
+ * entry stays (marked movedTo) so names still show in history.
+ */
+export function withSeatMoves(room: RoomDoc): { room: RoomDoc; update: Record<string, unknown> } {
+  const moves = Object.entries(room.spectators ?? {})
+    .filter(([, s]) => s.approved && room.memberUids.includes(s.approved))
+    .map(([to, s]) => [s.approved!, to, s] as const);
+  if (moves.length === 0) return { room, update: {} };
+  const next: RoomDoc = {
+    ...room,
+    memberUids: [...room.memberUids],
+    players: { ...room.players },
+    totals: { ...room.totals },
+    movieWins: { ...room.movieWins },
+    kingWins: { ...(room.kingWins ?? {}) },
+    spectators: { ...room.spectators },
+    spectatorUids: [...(room.spectatorUids ?? [])],
+  };
+  for (const [from, to, s] of moves) {
+    next.memberUids[next.memberUids.indexOf(from)] = to;
+    next.players[to] = { ...room.players[from], name: s.name, joinedAt: s.joinedAt, left: false };
+    next.players[from] = { ...room.players[from], left: true, movedTo: to };
+    for (const map of [next.totals, next.movieWins, next.kingWins!]) {
+      if (map[from] !== undefined) {
+        map[to] = map[from];
+        delete map[from];
+      }
+    }
+    if (next.hostUid === from) next.hostUid = to;
+    delete next.spectators![to];
+    next.spectatorUids = next.spectatorUids!.filter((u) => u !== to);
+  }
+  const update = {
+    memberUids: next.memberUids,
+    players: next.players,
+    totals: next.totals,
+    movieWins: next.movieWins,
+    kingWins: next.kingWins,
+    hostUid: next.hostUid,
+    spectators: next.spectators,
+    spectatorUids: next.spectatorUids,
+  };
+  return { room: next, update };
 }
 
 export async function setReady(deps: Deps, uid: string, data: unknown) {
@@ -374,6 +493,12 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
     const snap = await tx.get(ref);
     if (!snap.exists) return;
     const room = snap.data() as RoomDoc;
+    if (room.spectatorUids?.includes(uid)) {
+      const spectators = { ...room.spectators };
+      delete spectators[uid];
+      tx.update(ref, { spectatorUids: room.spectatorUids.filter((s) => s !== uid), spectators });
+      return;
+    }
     if (!room.memberUids.includes(uid)) return;
     const isKq = room.mode === "kingQueen";
     const round =
@@ -569,8 +694,14 @@ export async function startGame(deps: Deps, uid: string, data: unknown) {
 export async function nextRound(deps: Deps, uid: string, data: unknown) {
   const roomId = str(data, "roomId");
   const roundKey = await deps.db.runTransaction(async (tx) => {
-    const { room } = await loadRoom(tx, deps.db, roomId);
-    requireHost(room, uid);
+    const loaded = await loadRoom(tx, deps.db, roomId);
+    requireHost(loaded.room, uid);
+    // Approved seat claims take effect between rounds.
+    const { room, update: seatMoves } = withSeatMoves(loaded.room);
+    // Written after every read (transactions read first, then write).
+    const moveSeats = () => {
+      if (Object.keys(seatMoves).length > 0) tx.update(loaded.ref, seatMoves);
+    };
     if (room.status !== "playing") fail("failed-precondition", "The game is not in progress.");
     if (room.mode === "kingQueen") {
       const cur = await kq.kqCurrentRound(tx, deps.db, roomId, room.currentRoundKey);
@@ -579,6 +710,7 @@ export async function nextRound(deps: Deps, uid: string, data: unknown) {
       }
       if (room.currentRound >= (room.kqSettings?.rounds ?? 7)) fail("failed-precondition", "All rounds are complete.");
       kqChainCheck(room);
+      moveSeats();
       return kq.startKqRoundTx(tx, deps, roomId, room);
     }
     const current = room.currentRoundKey
@@ -589,6 +721,7 @@ export async function nextRound(deps: Deps, uid: string, data: unknown) {
     }
     if (room.currentRound >= room.settings.rounds) fail("failed-precondition", "All rounds are complete.");
     validateForStart(room.settings, room.memberUids.length);
+    moveSeats();
     return startRoundTx(tx, deps, roomId, room);
   });
   return { roundKey };
@@ -1012,10 +1145,25 @@ export async function playAgain(deps: Deps, uid: string, data: unknown) {
     const { ref, room } = await loadRoom(tx, deps.db, roomId);
     requireHost(room, uid);
     if (room.status !== "finished") fail("failed-precondition", "The game has not finished.");
+    const moved = withSeatMoves(room).room;
     const players: RoomDoc["players"] = {};
-    for (const m of room.memberUids) players[m] = { ...room.players[m], ready: m === room.hostUid, left: false };
+    for (const m of moved.memberUids) players[m] = { ...moved.players[m], ready: m === moved.hostUid, left: false, movedTo: undefined };
+    for (const m of Object.keys(players)) if (players[m].movedTo === undefined) delete players[m].movedTo;
+    // Everyone who watched gets a seat in the new game, while there's room.
+    const memberUids = [...moved.memberUids];
+    for (const s of moved.spectatorUids ?? []) {
+      if (memberUids.length >= MAX_PLAYERS) break;
+      const sp = moved.spectators![s];
+      memberUids.push(s);
+      players[s] = { name: sp.name, joinedAt: sp.joinedAt, ready: false, left: false };
+    }
+    const stillWatching = (moved.spectatorUids ?? []).filter((s) => !memberUids.includes(s));
     tx.update(ref, {
       status: "lobby",
+      hostUid: moved.hostUid,
+      memberUids,
+      spectatorUids: stillWatching,
+      spectators: Object.fromEntries(stillWatching.map((s) => [s, moved.spectators![s]])),
       players,
       gameNo: room.gameNo + 1,
       currentRound: 0,

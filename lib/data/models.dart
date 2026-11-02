@@ -211,6 +211,7 @@ class Room {
     this.mode = GameMode.movie,
     this.kqSettings,
     this.kingWins = const {},
+    this.spectators = const {},
   });
 
   final String id;
@@ -231,6 +232,9 @@ class Room {
   final GameMode mode;
   final KqSettings? kqSettings;
   final Map<String, int> kingWins;
+
+  /// People watching (joined after the start), by uid.
+  final Map<String, Spectator> spectators;
 
   bool get isKq => mode == GameMode.kingQueen;
 
@@ -285,8 +289,37 @@ class Room {
           ? null
           : KqSettings.fromMap(m['kqSettings'] as Map),
       kingWins: _map(m['kingWins'], _int),
+      spectators: {
+        for (final u in List<String>.from(m['spectatorUids'] as List? ?? []))
+          u: Spectator.fromMap(u, (m['spectators'] as Map?)?[u] as Map? ?? {}),
+      },
     );
   }
+}
+
+/// Someone watching a game they joined after it started.
+class Spectator {
+  const Spectator({
+    required this.uid,
+    required this.name,
+    this.claims,
+    this.approved,
+  });
+  final String uid;
+  final String name;
+
+  /// The seat they asked the host for (their own, from another phone).
+  final String? claims;
+
+  /// The host said yes: they take it over from the next round.
+  final String? approved;
+
+  factory Spectator.fromMap(String uid, Map m) => Spectator(
+    uid: uid,
+    name: m['name'] as String? ?? 'Player',
+    claims: m['claims'] as String?,
+    approved: m['approved'] as String?,
+  );
 }
 
 enum RoundStatus { picking, exchange, characters, revealed, aborted }

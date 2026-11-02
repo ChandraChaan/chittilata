@@ -151,14 +151,17 @@ describe("lobby", () => {
     await expect(ops.startGame(deps(), "u0", { roomId: four.roomId })).rejects.toThrow(/Waiting for Swetha/);
   });
 
-  it("kicked players cannot rejoin; nobody joins after the start", async () => {
+  it("kicked players cannot rejoin; late joiners only watch", async () => {
     const { roomId, code } = await lobby(4);
     await ops.kickPlayer(deps(), "u0", { roomId, uid: "u3" });
     await expectCode(ops.joinRoom(deps(), "u3", { code, name: "Sai" }), "permission-denied");
     await ops.joinRoom(deps(), "u9", { code, name: "Gopi" });
     await ops.setReady(deps(), "u9", { roomId, ready: true });
     await ops.startGame(deps(), "u0", { roomId });
-    await expectCode(ops.joinRoom(deps(), "late", { code, name: "Late" }), "failed-precondition");
+    expect((await ops.joinRoom(deps(), "late", { code, name: "Late" })).spectating).toBe(true);
+    expect((await room(roomId)).memberUids).not.toContain("late");
+    // Kicked players can't watch either.
+    await expectCode(ops.joinRoom(deps(), "u3", { code, name: "Sai" }), "permission-denied");
   });
 
   it("host leaving in the lobby hands the room to the next player", async () => {
@@ -743,5 +746,77 @@ describe("bots", () => {
     const r = await room(roomId);
     expect(r.status).toBe("closed");
     expect(r.memberUids).toEqual([]);
+  });
+});
+
+describe("watching and taking back a seat", () => {
+  async function started() {
+    const { roomId, code, uids } = await lobby(4);
+    const { roundKey } = (await ops.startGame(deps(), uids[0], { roomId })) as { roundKey: string };
+    return { roomId, code, uids, roundKey };
+  }
+
+  it("joining after the start makes you a spectator, not a player", async () => {
+    const { roomId, code } = await started();
+    const r1 = await ops.joinRoom(deps(), "newphone", { code, name: "Sai" });
+    expect(r1.spectating).toBe(true);
+    const r = await room(roomId);
+    expect(r.memberUids).not.toContain("newphone");
+    expect(r.spectatorUids).toEqual(["newphone"]);
+    // Joining twice changes nothing.
+    await ops.joinRoom(deps(), "newphone", { code, name: "Sai" });
+    expect((await room(roomId)).spectatorUids).toEqual(["newphone"]);
+  });
+
+  it("a claimed seat moves to the new phone at the next round, keeping its score", async () => {
+    const { roomId, code, uids, roundKey } = await started();
+    await ops.joinRoom(deps(), "newphone", { code, name: "Sai" });
+    await ops.claimSeat(deps(), "newphone", { roomId, seat: uids[3] });
+    // Only the host answers, and not while that player is still online.
+    await expectCode(ops.answerSeatClaim(deps(), uids[1], { roomId, spectator: "newphone", approve: true }), "permission-denied");
+    await online(roomId, [uids[3]], clock);
+    await expectCode(ops.answerSeatClaim(deps(), uids[0], { roomId, spectator: "newphone", approve: true }), "failed-precondition");
+    clock += 60_000;
+    await ops.answerSeatClaim(deps(), uids[0], { roomId, spectator: "newphone", approve: true });
+
+    await db.doc(`rooms/${roomId}`).update({ [`totals.${uids[3]}`]: 700 });
+    await db.doc(`rooms/${roomId}/rounds/${roundKey}`).update({ status: "aborted" });
+    await ops.nextRound(deps(), uids[0], { roomId });
+    const r = await room(roomId);
+    expect(r.memberUids).toEqual([uids[0], uids[1], uids[2], "newphone"]);
+    expect(r.totals.newphone).toBe(700);
+    expect(r.totals[uids[3]]).toBeUndefined();
+    expect(r.players[uids[3]].movedTo).toBe("newphone");
+    expect(r.spectatorUids).toEqual([]);
+    const next = await round(roomId, r.currentRoundKey!);
+    expect(next.order).toContain("newphone");
+    expect(next.order).not.toContain(uids[3]);
+    expect(ops.standingsFor(r).map((s) => s.uid)).not.toContain(uids[3]);
+  });
+
+  it("seats can't be claimed twice or for bots, and the host can say no", async () => {
+    const { roomId, code, uids } = await started();
+    await ops.joinRoom(deps(), "p1", { code, name: "Sai" });
+    await ops.joinRoom(deps(), "p2", { code, name: "Sai2" });
+    await ops.claimSeat(deps(), "p1", { roomId, seat: uids[3] });
+    await expectCode(ops.claimSeat(deps(), "p2", { roomId, seat: uids[3] }), "already-exists");
+    await expectCode(ops.claimSeat(deps(), uids[1], { roomId, seat: uids[3] }), "permission-denied");
+    await ops.answerSeatClaim(deps(), uids[0], { roomId, spectator: "p1", approve: false });
+    expect((await room(roomId)).spectators!.p1.claims).toBeNull();
+  });
+
+  it("watchers get seats when the game is played again; a watcher can leave", async () => {
+    const { roomId, code, uids } = await started();
+    await ops.joinRoom(deps(), "w1", { code, name: "Watcher" });
+    await ops.joinRoom(deps(), "w2", { code, name: "Gone" });
+    await ops.leaveRoom(deps(), "w2", { roomId });
+    expect((await room(roomId)).spectatorUids).toEqual(["w1"]);
+    await db.doc(`rooms/${roomId}`).update({ status: "finished" });
+    await ops.playAgain(deps(), uids[0], { roomId });
+    const r = await room(roomId);
+    expect(r.status).toBe("lobby");
+    expect(r.memberUids).toContain("w1");
+    expect(r.players.w1.ready).toBe(false);
+    expect(r.spectatorUids).toEqual([]);
   });
 });

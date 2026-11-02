@@ -10,7 +10,7 @@ import 'package:chittilata/data/models.dart';
 class FakeGameRepository implements GameRepository {
   FakeGameRepository({this.me = 'me'});
 
-  final String me;
+  String me;
   final calls = <String>[];
   final _room = StreamController<Room?>.broadcast();
   final _round = StreamController<Round?>.broadcast();
@@ -212,6 +212,12 @@ class FakeGameRepository implements GameRepository {
   @override
   Future<void> addBot(String roomId) => _record('addBot');
   @override
+  Future<void> claimSeat(String roomId, String? seat) =>
+      _record('claimSeat:$seat');
+  @override
+  Future<void> answerSeatClaim(String roomId, String spectator, bool approve) =>
+      _record('answerSeat:$spectator:$approve');
+  @override
   Future<void> leaveRoom(String roomId) => _record('leave');
   @override
   Future<void> startGame(String roomId) => _record('startGame');
@@ -301,6 +307,7 @@ Room makeRoom({
   GameMode mode = GameMode.movie,
   Map<String, int> kingWins = const {},
   Map<String, String> members = names,
+  Map<String, Spectator> spectators = const {},
 }) => Room(
   id: 'room1',
   code: 'ABC234',
@@ -328,6 +335,7 @@ Room makeRoom({
   mode: mode,
   kqSettings: kqDefaultSettings,
   kingWins: kingWins,
+  spectators: spectators,
 );
 
 const kqDefaultSettings = KqSettings(
