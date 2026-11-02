@@ -1,6 +1,6 @@
 # Google Play Data Safety — prepared answers
 
-These answers are based on the code in this repository (Firebase Auth anonymous, Cloud Firestore, Cloud Functions, Crashlytics + NDK, Google Play In-App Updates; no ads or analytics SDKs). Re-check them if you add SDKs.
+These answers are based on the code in this repository (Firebase Auth anonymous, Cloud Firestore, Cloud Functions, Cloud Messaging, Crashlytics + NDK, Google Play In-App Updates; no ads or analytics SDKs). Re-check them if you add SDKs.
 
 **Does your app collect or share any of the required user data types?** Yes.
 **Is all of the user data collected by your app encrypted in transit?** Yes (HTTPS/TLS via Firebase SDKs).
@@ -12,6 +12,8 @@ These answers are based on the code in this repository (Firebase Auth anonymous,
 | Personal info → **User IDs** (Firebase anonymous UID) | Yes | No | Required | App functionality |
 | App activity → **Other actions** (game moves, scores) | Yes | No | Required | App functionality |
 | Messages → **Other in-app messages** (preset emojis, phrases and nudges; no free text) | Yes | No | Optional | App functionality |
+| App activity → **Other user-generated content** (avatar emoji, friend group names and monthly results) | Yes | No | Optional | App functionality |
+| Device or other IDs → **Push notification token** (Firebase Cloud Messaging) | Yes | No | Optional (only if notifications are allowed) | App functionality |
 | App info & performance → **Crash logs** | Yes | No | Required | Analytics (crash diagnostics) |
 | App info & performance → **Diagnostics** (device model, OS, app version) | Yes | No | Required | Analytics (crash diagnostics) |
 | Device or other IDs → **Firebase installation ID** | Yes | No | Required | Analytics (crash diagnostics) |

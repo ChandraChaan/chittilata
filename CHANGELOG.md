@@ -2,6 +2,23 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] — 2026-11-02
+
+### Added
+- **🎭 Movie Dumb Charades**, a third game mode for people playing together: one player secretly gets a movie and acts it out, everyone else picks it from six titles. Fastest right guess scores most; the actor scores too.
+- **🤖 Practice with bots** in Movie Chits and King & Queen, and an *Add a bot* button for hosts. Bots think for a moment, then pick, pass and guess on their own.
+- **🌐 Play online (quick match).** Get matched into a public table with other players; it starts when everyone is ready or after 40 seconds, and bots fill empty seats. Names with abusive words are hidden from strangers.
+- **📨 Invite links.** *Invite friends* shares a link (WhatsApp, any app) that opens the app straight into the room, or the Play Store page if it isn't installed. Group invites work the same way.
+- **🔔 Notifications.** "Your turn", new rounds, nudges and tie-breaker votes reach you when the app is closed. Never when you're looking at the game. Switch them off in Settings.
+- **👀 Watch and rejoin.** Joining a game that already started lets you watch (and send emojis). After reinstalling or changing phones, tap *I am …* on your old seat; once the host approves, you continue with your score from the next round. Watchers get seats when the game is played again.
+- **😀 Profiles.** Pick an avatar emoji everyone sees, earn XP and levels, track your stats, and unlock 14 badges.
+- **👥 Friend groups.** Save your regular circle, play games that count for the group, and climb a monthly leaderboard with a champion each month.
+- **🪔 Festival themes** for Sankranti, Ugadi and Diwali (kites, mango-leaf toranam, glowing diyas), automatic around each festival or picked in Settings.
+
+### Changed
+- Home has a profile chip, groups, Play online and a third game.
+- Lobbies show the group a game counts for, quick-match countdowns, and bots.
+
 ## [2.2.0] — 2026-11-02
 
 ### Added
