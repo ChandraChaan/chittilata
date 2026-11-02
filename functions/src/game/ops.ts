@@ -35,6 +35,7 @@ import {
   kqChain,
 } from "../engine";
 import * as kq from "./kq";
+import { groupForRoom } from "./groups";
 import {
   CHAR_CEREMONY_SECONDS,
   CHAR_PICK_SECONDS,
@@ -235,6 +236,7 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
     const ref = db.collection("rooms").doc() as DocumentReference<RoomDoc>;
     const created = await db.runTransaction(async (tx) => {
       if ((await tx.get(codeRef)).exists) return false;
+      const group = await groupForRoom(tx, db, uid, (data as Record<string, unknown> | null)?.groupId);
       const ts = Timestamp.fromMillis(now());
       const room: RoomDoc = {
         code,
@@ -244,6 +246,8 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
         players: { [uid]: { name, joinedAt: now(), ready: true, left: false, ...(avatar ? { avatar } : {}) } },
         banned: [],
         mode,
+        groupId: group?.groupId ?? null,
+        groupName: group?.groupName ?? null,
         settings: defaultSettings(),
         kqSettings: kq.defaultKqSettings(),
         kingWins: {},

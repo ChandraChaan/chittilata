@@ -47,6 +47,23 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 
+    // Friend groups: members read the group and its monthly seasons.
+    // Everything is written by the server.
+    match /groups/{groupId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+      allow write: if false;
+
+      match /seasons/{season} {
+        allow read: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids;
+        allow write: if false;
+      }
+    }
+
+    match /groupCodes/{code} {
+      allow read, write: if false;
+    }
+
     // Code -> room lookup is server-only so rooms cannot be enumerated.
     match /roomCodes/{code} {
       allow read, write: if false;

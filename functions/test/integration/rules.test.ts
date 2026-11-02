@@ -99,6 +99,21 @@ describe("spectators", () => {
   });
 });
 
+describe("groups", () => {
+  it("only members read a group and its seasons; nobody writes them", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "groups/g1"), { name: "Family", memberUids: ["alice"] });
+      await setDoc(doc(ctx.firestore(), "groups/g1/seasons/2026-11"), { points: { alice: 10 } });
+    });
+    await assertSucceeds(getDoc(doc(as("alice"), "groups/g1")));
+    await assertSucceeds(getDoc(doc(as("alice"), "groups/g1/seasons/2026-11")));
+    await assertFails(getDoc(doc(as("mallory"), "groups/g1")));
+    await assertFails(getDoc(doc(as("mallory"), "groups/g1/seasons/2026-11")));
+    await assertFails(setDoc(doc(as("alice"), "groups/g1/seasons/2026-11"), { points: { alice: 99999 } }));
+    await assertFails(getDoc(doc(as("alice"), "groupCodes/ABC234")));
+  });
+});
+
 describe("push tokens", () => {
   it("a player can save and remove only their own token", async () => {
     await assertSucceeds(setDoc(doc(as("alice"), "pushTokens/alice"), { token: "t1", updatedAt: serverTimestamp() }));

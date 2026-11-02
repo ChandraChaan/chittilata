@@ -7,6 +7,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import * as push from "./game/push";
+import * as groups from "./game/groups";
 import type { RoomDoc, RoundDoc } from "./game/model";
 import type { KqRoundDoc } from "./game/kq";
 import { GameError, secureRng } from "./engine";
@@ -52,6 +53,9 @@ export const kickPlayer = callable("kickPlayer", ops.kickPlayer);
 export const addBot = callable("addBot", ops.addBot);
 export const claimSeat = callable("claimSeat", ops.claimSeat);
 export const answerSeatClaim = callable("answerSeatClaim", ops.answerSeatClaim);
+export const createGroup = callable("createGroup", groups.createGroup);
+export const joinGroup = callable("joinGroup", groups.joinGroup);
+export const leaveGroup = callable("leaveGroup", groups.leaveGroup);
 export const leaveRoom = callable("leaveRoom", ops.leaveRoom);
 export const startGame = callable("startGame", ops.startGame);
 export const nextRound = callable("nextRound", ops.nextRound);
@@ -105,10 +109,18 @@ export const pushOnKqRound = onDocumentWritten("rooms/{roomId}/kqRounds/{key}", 
   await notify(event.params.roomId, () => push.kqPushes(before, after));
 });
 
-export const pushOnRoom = onDocumentWritten("rooms/{roomId}", async (event) => {
+/** Room status changes: tie-breaker pushes, and finished games count for groups. */
+export const onRoomStatus = onDocumentWritten("rooms/{roomId}", async (event) => {
   const after = event.data?.after.data() as RoomDoc | undefined;
   const before = event.data?.before.data() as RoomDoc | undefined;
   if (!after || after.status === before?.status) return;
+  if (after.status === "finished" && after.groupId) {
+    try {
+      await groups.recordGroupGame(getFirestore(), event.params.roomId, after, Date.now());
+    } catch (e) {
+      logger.error("group season failed", { roomId: event.params.roomId, error: (e as Error).message });
+    }
+  }
   await notify(event.params.roomId, () => push.roomPushes(before, after));
 });
 

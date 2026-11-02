@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'app_config.dart';
 import 'chat.dart';
+import 'groups.dart';
 import 'models.dart';
 
 /// A user-facing error from the game server.
@@ -65,7 +66,16 @@ abstract class GameRepository {
     String name, {
     GameMode mode = GameMode.movie,
     String? avatar,
+    String? groupId,
   });
+
+  // Friend groups
+  Stream<List<Group>> watchMyGroups();
+  Stream<Group?> watchGroup(String groupId);
+  Stream<Season> watchSeason(String groupId, String season);
+  Future<String> createGroup(String name, String playerName, String? avatar);
+  Future<String> joinGroup(String code, String playerName, String? avatar);
+  Future<void> leaveGroup(String groupId);
   Future<({String roomId, String code})> joinRoom(
     String code,
     String name, {
@@ -312,11 +322,13 @@ class FirebaseGameRepository implements GameRepository {
     String name, {
     GameMode mode = GameMode.movie,
     String? avatar,
+    String? groupId,
   }) async {
     final r = await _call('createRoom', {
       'name': name,
       'mode': mode.name,
       'avatar': avatar,
+      'groupId': ?groupId,
     });
     return (roomId: r['roomId'] as String, code: r['code'] as String);
   }
@@ -423,6 +435,57 @@ class FirebaseGameRepository implements GameRepository {
 
   @override
   Future<void> addBot(String roomId) => _run('addBot', {'roomId': roomId});
+
+  @override
+  Stream<List<Group>> watchMyGroups() => _db
+      .collection('groups')
+      .where('memberUids', arrayContains: uid)
+      .snapshots()
+      .map((q) => q.docs.map(Group.fromSnapshot).toList());
+
+  @override
+  Stream<Group?> watchGroup(String groupId) => _db
+      .doc('groups/$groupId')
+      .snapshots()
+      .map((s) => s.exists ? Group.fromSnapshot(s) : null);
+
+  @override
+  Stream<Season> watchSeason(String groupId, String season) => _db
+      .doc('groups/$groupId/seasons/$season')
+      .snapshots()
+      .map((s) => Season.fromMap(season, s.data()));
+
+  @override
+  Future<String> createGroup(
+    String name,
+    String playerName,
+    String? avatar,
+  ) async {
+    final r = await _call('createGroup', {
+      'name': name,
+      'playerName': playerName,
+      'avatar': avatar,
+    });
+    return r['groupId'] as String;
+  }
+
+  @override
+  Future<String> joinGroup(
+    String code,
+    String playerName,
+    String? avatar,
+  ) async {
+    final r = await _call('joinGroup', {
+      'code': code,
+      'playerName': playerName,
+      'avatar': avatar,
+    });
+    return r['groupId'] as String;
+  }
+
+  @override
+  Future<void> leaveGroup(String groupId) =>
+      _run('leaveGroup', {'groupId': groupId});
 
   @override
   Future<void> claimSeat(String roomId, String? seat) =>

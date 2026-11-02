@@ -64,6 +64,9 @@ export interface RoomDoc {
   memberUids: string[];
   /** Everyone who has played this game, including players who left. */
   players: Record<string, PlayerInfo>;
+  /** A friend group whose monthly season this room's games count for. */
+  groupId?: string | null;
+  groupName?: string | null;
   /** Watchers (read access in security rules). Absent on older rooms. */
   spectatorUids?: string[];
   spectators?: Record<string, Spectator>;

@@ -55,6 +55,19 @@ class LobbyView extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: Space.lg),
             children: [
               _CodeCard(code: room.code),
+              if (room.groupName != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: Space.sm),
+                  child: Text(
+                    '👥 ${room.groupName} · counts for this month\'s '
+                    'leaderboard',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: c.teal,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
               const SizedBox(height: Space.lg),
               Wrap(
                 alignment: WrapAlignment.spaceBetween,

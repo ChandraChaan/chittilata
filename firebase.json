@@ -70,6 +70,10 @@
       {
         "source": "/join/**",
         "destination": "/join.html"
+      },
+      {
+        "source": "/group/**",
+        "destination": "/join.html"
       }
     ],
     "headers": [

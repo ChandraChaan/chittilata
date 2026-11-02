@@ -41,17 +41,22 @@
   <a class="btn" id="open" href="#">Open in Chittilata</a>
   <a class="btn secondary" id="get" href="https://play.google.com/store/apps/details?id=com.chandra.chittilata">Get it on Google Play</a>
   <div class="steps">
-    <p>Don't have the app yet? Install it, open it, tap <b>Join with a code</b> and enter the code above.</p>
+    <p>Don't have the app yet? Install it, then open this link again — or enter the code above in the app.</p>
   </div>
 </main>
 <script>
   // Only room codes made of 6 letters/numbers are used; nothing else from the URL.
-  var m = location.pathname.match(/^\/join\/([A-Za-z0-9]{6})\/?$/);
-  var code = m ? m[1].toUpperCase() : null;
+  var m = location.pathname.match(/^\/(join|group)\/([A-Za-z0-9]{6})\/?$/);
+  var kind = m ? m[1] : 'join';
+  var code = m ? m[2].toUpperCase() : null;
+  if (kind === 'group') {
+    document.querySelector('.code small').textContent = 'GROUP CODE';
+    document.querySelector('main > p').textContent = "You're invited to a Chittilata group! 👥";
+  }
   var play = document.getElementById('get').href;
   if (code) {
     document.getElementById('code').textContent = code;
-    document.getElementById('open').href = 'intent://chittilata-game.web.app/join/' + code +
+    document.getElementById('open').href = 'intent://chittilata-game.web.app/' + kind + '/' + code +
       '#Intent;scheme=https;package=com.chandra.chittilata;S.browser_fallback_url=' + encodeURIComponent(play) + ';end';
   } else {
     document.getElementById('open').style.display = 'none';

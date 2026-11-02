@@ -214,6 +214,7 @@ class Room {
     this.kqSettings,
     this.kingWins = const {},
     this.spectators = const {},
+    this.groupName,
   });
 
   final String id;
@@ -237,6 +238,9 @@ class Room {
 
   /// People watching (joined after the start), by uid.
   final Map<String, Spectator> spectators;
+
+  /// The friend group whose monthly season this room counts for.
+  final String? groupName;
 
   bool get isKq => mode == GameMode.kingQueen;
 
@@ -292,6 +296,7 @@ class Room {
           ? null
           : KqSettings.fromMap(m['kqSettings'] as Map),
       kingWins: _map(m['kingWins'], _int),
+      groupName: m['groupName'] as String?,
       spectators: {
         for (final u in List<String>.from(m['spectatorUids'] as List? ?? []))
           u: Spectator.fromMap(u, (m['spectators'] as Map?)?[u] as Map? ?? {}),

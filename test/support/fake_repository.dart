@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:chittilata/data/app_config.dart';
 import 'package:chittilata/data/chat.dart';
 import 'package:chittilata/data/game_repository.dart';
+import 'package:chittilata/data/groups.dart';
 import 'package:chittilata/data/models.dart';
 
 /// In-memory backend for widget tests. Tests push server state with the
@@ -102,6 +103,31 @@ class FakeGameRepository implements GameRepository {
     );
   }
 
+  final groups = <Group>[];
+  final seasons = <String, Season>{};
+  @override
+  Stream<List<Group>> watchMyGroups() => Stream.value(groups);
+  @override
+  Stream<Group?> watchGroup(String groupId) =>
+      Stream.value(groups.where((g) => g.id == groupId).firstOrNull);
+  @override
+  Stream<Season> watchSeason(String groupId, String season) =>
+      Stream.value(seasons['$groupId/$season'] ?? Season(id: season));
+  @override
+  Future<String> createGroup(String name, String playerName, String? a) async {
+    await _record('createGroup:$name');
+    return 'g1';
+  }
+
+  @override
+  Future<String> joinGroup(String code, String playerName, String? a) async {
+    await _record('joinGroup:$code');
+    return 'g1';
+  }
+
+  @override
+  Future<void> leaveGroup(String groupId) => _record('leaveGroup:$groupId');
+
   String? pushToken;
   @override
   Future<void> savePushToken(String token) async => pushToken = token;
@@ -184,6 +210,7 @@ class FakeGameRepository implements GameRepository {
     String name, {
     GameMode mode = GameMode.movie,
     String? avatar,
+    String? groupId,
   }) async {
     await _record(
       mode == GameMode.movie

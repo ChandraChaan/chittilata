@@ -4,6 +4,8 @@ import 'package:chittilata/core/services/feedback.dart';
 import 'package:chittilata/core/services/preferences.dart';
 import 'package:chittilata/data/app_config.dart';
 import 'package:chittilata/data/models.dart';
+import 'package:chittilata/data/groups.dart';
+import 'package:chittilata/ui/screens/groups_screen.dart';
 import 'package:chittilata/ui/screens/history_screen.dart';
 import 'package:chittilata/ui/screens/home_screen.dart';
 import 'package:chittilata/ui/screens/onboarding_screen.dart';
@@ -71,6 +73,29 @@ final scenes = <String, Widget Function(FakeGameRepository)>{
   'home': (_) => const HomeScreen(),
   'settings': (_) => const SettingsScreen(),
   'profile': (_) => const ProfileScreen(),
+  'friend groups': (_) => const GroupsScreen(),
+  'a group': (r) {
+    r.groups.add(
+      const Group(
+        id: 'g1',
+        name: 'Cousins of Rajahmundry',
+        code: 'FAM123',
+        ownerUid: 'me',
+        memberUids: ['me', 'v'],
+        members: {
+          'me': GroupMember(name: 'Chandrasekhar'),
+          'v': GroupMember(name: 'Vasavi'),
+        },
+      ),
+    );
+    r.seasons['g1/${Season.idFor(DateTime.now())}'] = const Season(
+      id: '',
+      points: {'me': 123456, 'v': 2500},
+      games: {'me': 22, 'v': 2},
+      kings: {'me': 11},
+    );
+    return const GroupScreen(groupId: 'g1');
+  },
   'history': (_) => const HistoryScreen(),
   'how to play (movie)': (_) => const OnboardingScreen(),
   'how to play (King & Queen)': (_) =>

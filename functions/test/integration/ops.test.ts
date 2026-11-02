@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Card, GameError, seededRng } from "../../src/engine";
 import { HandDoc, RoomDoc, RoundDoc } from "../../src/game/model";
 import * as ops from "../../src/game/ops";
+import * as groups from "../../src/game/groups";
 
 const PROJECT = "demo-chittilata-ops";
 let db: Firestore;
@@ -831,5 +832,49 @@ describe("avatars", () => {
     await ops.joinRoom(deps(), "b", { code, name: "Bala", avatar: "🌶️" });
     r = await room(roomId);
     expect(r.players.b.avatar).toBe("🌶️");
+  });
+});
+
+describe("friend groups", () => {
+  it("create, join by code, start a room for the group; outsiders can't", async () => {
+    const { groupId, code } = await groups.createGroup(deps(), "a", { name: " Family ", playerName: "Asha", avatar: "🦁" });
+    await groups.joinGroup(deps(), "b", { code: code.toLowerCase(), playerName: "Bala" });
+    const g = (await db.doc(`groups/${groupId}`).get()).data() as groups.GroupDoc;
+    expect(g.name).toBe("Family");
+    expect(g.memberUids).toEqual(["a", "b"]);
+    expect(g.members.a.avatar).toBe("🦁");
+
+    const { roomId } = await ops.createRoom(deps(), "b", { name: "Bala", groupId });
+    expect((await room(roomId)).groupName).toBe("Family");
+    await expectCode(ops.createRoom(deps(), "c", { name: "Chitti", groupId }), "permission-denied");
+    await expectCode(groups.joinGroup(deps(), "c", { code: "ZZZZZZ", playerName: "C" }), "not-found");
+  });
+
+  it("a finished game adds group members' points to this month's season, once", async () => {
+    const { groupId } = await groups.createGroup(deps(), "a", { name: "Office", playerName: "Asha" });
+    const r = {
+      groupId,
+      gameNo: 1,
+      final: [
+        { uid: "a", name: "Asha", total: 3000, title: "King" },
+        { uid: "x", name: "Guest", total: 2000, title: "Queen" },
+      ],
+    } as unknown as RoomDoc;
+    const t = Date.UTC(2026, 10, 30, 20, 0); // 1 Dec, 01:30 in India
+    expect(groups.seasonOf(t)).toBe("2026-12");
+    await groups.recordGroupGame(db, "room1", r, t);
+    await groups.recordGroupGame(db, "room1", r, t);
+    const s = (await db.doc(`groups/${groupId}/seasons/2026-12`).get()).data() as groups.SeasonDoc;
+    expect(s.points).toEqual({ a: 3000 });
+    expect(s.games).toEqual({ a: 1 });
+    expect(s.kings).toEqual({ a: 1 });
+    expect(s.queens).toEqual({});
+  });
+
+  it("the last member leaving deletes the group and frees its code", async () => {
+    const { groupId, code } = await groups.createGroup(deps(), "a", { name: "Solo", playerName: "Asha" });
+    await groups.leaveGroup(deps(), "a", { groupId });
+    expect((await db.doc(`groups/${groupId}`).get()).exists).toBe(false);
+    expect((await db.doc(`groupCodes/${code}`).get()).exists).toBe(false);
   });
 });

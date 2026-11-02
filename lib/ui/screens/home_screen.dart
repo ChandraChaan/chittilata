@@ -9,6 +9,7 @@ import '../../data/game_repository.dart';
 import '../../data/models.dart';
 import '../widgets/common.dart';
 import '../widgets/paper_card.dart';
+import 'groups_screen.dart';
 import 'history_screen.dart';
 import 'onboarding_screen.dart';
 import 'profile_screen.dart';
@@ -63,7 +64,14 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   /// player's name and nothing else is on screen.
   void _onInvite() {
     final invites = _invites;
-    if (!mounted || invites == null || invites.pending == null) return;
+    if (!mounted || invites == null) return;
+    if (invites.pendingGroup != null &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      final code = invites.takeGroup()!;
+      Navigator.push(context, gameRoute(GroupsScreen(joinCode: code)));
+      return;
+    }
+    if (invites.pending == null) return;
     if (ModalRoute.of(context)?.isCurrent != true) {
       scaffoldMessengerKey.currentState?.showSnackBar(
         SnackBar(
@@ -165,13 +173,25 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   children: [
                     Row(
                       children: [
-                        _ProfileChip(
-                          onTap: () => Navigator.push(
-                            context,
-                            gameRoute(const ProfileScreen()),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _ProfileChip(
+                              onTap: () => Navigator.push(
+                                context,
+                                gameRoute(const ProfileScreen()),
+                              ),
+                            ),
                           ),
                         ),
-                        const Spacer(),
+                        IconButton(
+                          tooltip: 'Friend groups',
+                          icon: const Icon(Icons.groups_rounded),
+                          onPressed: () => Navigator.push(
+                            context,
+                            gameRoute(const GroupsScreen()),
+                          ),
+                        ),
                         IconButton(
                           tooltip: 'Match history',
                           icon: const Icon(Icons.history_rounded),
@@ -536,11 +556,16 @@ class _ProfileChip extends StatelessWidget {
                   emoji: prefs.avatar,
                 ),
                 const SizedBox(width: Space.sm),
-                Text(
-                  'Lv ${prefs.stats.level}',
-                  style: TextStyle(
-                    color: c.marigold,
-                    fontWeight: FontWeight.w900,
+                Flexible(
+                  child: Text(
+                    'Lv ${prefs.stats.level}',
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: TextStyle(
+                      color: c.marigold,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ],
