@@ -49,6 +49,7 @@ export const joinRoom = callable("joinRoom", ops.joinRoom);
 export const setReady = callable("setReady", ops.setReady);
 export const updateSettings = callable("updateSettings", ops.updateSettings);
 export const kickPlayer = callable("kickPlayer", ops.kickPlayer);
+export const addBot = callable("addBot", ops.addBot);
 export const leaveRoom = callable("leaveRoom", ops.leaveRoom);
 export const startGame = callable("startGame", ops.startGame);
 export const nextRound = callable("nextRound", ops.nextRound);

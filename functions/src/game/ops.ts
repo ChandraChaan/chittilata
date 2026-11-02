@@ -103,6 +103,52 @@ export async function requirePlayFor(
   if (!offline) fail("failed-precondition", "Give them a little longer, or send a nudge.");
 }
 
+/** Bot players have server-made ids that a real (Firebase Auth) uid can't have. */
+export const BOT_PREFIX = "bot_";
+export const isBot = (uid: string) => uid.startsWith(BOT_PREFIX);
+/** How long a bot "thinks" after its turn (or picking) opens. */
+export const BOT_THINK_MS = 1500;
+const BOT_NAMES = ["Chitti 🤖", "Robo Raju 🤖", "Bujji Bot 🤖", "Robo Rani 🤖", "Tinku Bot 🤖", "Golu Bot 🤖", "Robo Ramu 🤖", "Pinky Bot 🤖", "Robo Seenu 🤖"];
+
+/**
+ * Who another member may move for right now: bots once they've "thought"
+ * for BOT_THINK_MS after [opensAt], and late humans as [requirePlayFor]
+ * allows. Fails with the humans' reason when nobody is due yet.
+ */
+export async function playForWhom(
+  tx: Transaction,
+  db: Firestore,
+  roomId: string,
+  late: string[],
+  deadline: number,
+  opensAt: number,
+  t: number,
+): Promise<string[]> {
+  const bots = late.filter(isBot);
+  const humans = late.filter((u) => !isBot(u));
+  const due = t >= opensAt + BOT_THINK_MS ? bots : [];
+  if (humans.length === 0) {
+    if (due.length === 0) fail("failed-precondition", "The bots are still thinking.");
+    return due;
+  }
+  try {
+    await requirePlayFor(tx, db, roomId, humans, deadline, t);
+    return [...humans, ...due];
+  } catch (e) {
+    if (due.length > 0) return due;
+    throw e;
+  }
+}
+
+/** A bot keeps what it has most of and passes from what it has least of. */
+export function botCard(hand: Card[], rng: (n: number) => number): Card {
+  const count = new Map<string, number>();
+  for (const c of hand) count.set(c.name, (count.get(c.name) ?? 0) + 1);
+  const fewest = Math.min(...count.values());
+  const options = hand.filter((c) => count.get(c.name) === fewest);
+  return options[rng(options.length)];
+}
+
 export function str(data: unknown, field: string, max = 64): string {
   const v = (data as Record<string, unknown> | null)?.[field];
   if (typeof v !== "string" || !v || v.length > max) fail("invalid-argument", `Missing ${field}.`);
@@ -278,6 +324,26 @@ export async function updateSettings(deps: Deps, uid: string, data: unknown) {
   });
 }
 
+/** The host adds a bot player in the lobby (practice, or to fill a table). */
+export async function addBot(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  return deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    requireHost(room, uid);
+    if (room.status !== "lobby") fail("failed-precondition", "Bots can only join in the lobby.");
+    if (room.memberUids.length >= MAX_PLAYERS) fail("resource-exhausted", "This room is full.");
+    const taken = new Set(room.memberUids.map((m) => room.players[m].name.toLowerCase()));
+    const name = BOT_NAMES.find((n) => !taken.has(n.toLowerCase())) ?? `Bot ${room.memberUids.length + 1} 🤖`;
+    const botUid = `${BOT_PREFIX}${randomId(deps.rng, 12)}`;
+    tx.update(ref, {
+      memberUids: [...room.memberUids, botUid],
+      [`players.${botUid}`]: { name, joinedAt: deps.now(), ready: true, left: false, bot: true },
+      updatedAt: Timestamp.fromMillis(deps.now()),
+    });
+    return { uid: botUid, name };
+  });
+}
+
 export async function kickPlayer(deps: Deps, uid: string, data: unknown) {
   const roomId = str(data, "roomId");
   const target = str(data, "uid", 128);
@@ -292,7 +358,8 @@ export async function kickPlayer(deps: Deps, uid: string, data: unknown) {
     tx.update(ref, {
       memberUids: room.memberUids.filter((m) => m !== target),
       players,
-      banned: [...room.banned, target],
+      // Removed bots just go; removed people can't come back.
+      banned: isBot(target) ? room.banned : [...room.banned, target],
       updatedAt: Timestamp.fromMillis(deps.now()),
     });
   });
@@ -315,7 +382,9 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
         : undefined;
 
     const ts = Timestamp.fromMillis(now());
+    // Bots don't keep a room alive on their own.
     const members = room.memberUids.filter((m) => m !== uid);
+    if (!members.some((m) => !isBot(m))) members.length = 0;
     const kqEffects = isKq ? await kq.kqLeaveEffects(tx, deps, roomId, room, uid, members) : null;
     const next: Partial<RoomDoc> & Record<string, unknown> = { memberUids: members, updatedAt: ts };
 
@@ -562,8 +631,10 @@ async function passTx(
       // A late player can still make their own move: nothing is auto-played.
       if (round.currentUid !== actor.uid) fail("permission-denied", "It is not your turn.");
     } else {
-      await requirePlayFor(tx, db, roomId, [round.currentUid], deadline, t);
+      const turnOpened = Math.max(round.introEndsAt.toMillis(), round.lastAction?.at.toMillis() ?? 0);
+      await playForWhom(tx, db, roomId, [round.currentUid], deadline, turnOpened, t);
     }
+    const botTurn = actor.kind === "timeout" && isBot(round.currentUid);
 
     const fromUid = round.currentUid;
     const toUid = round.nextUid;
@@ -580,7 +651,9 @@ async function passTx(
     const cardId =
       actor.kind === "player"
         ? actor.cardId
-        : timeoutCard(fromHand.cards, fromHand.incomingCardId, room.settings.timeoutPolicy, rng).id;
+        : botTurn
+          ? botCard(fromHand.cards, rng).id
+          : timeoutCard(fromHand.cards, fromHand.incomingCardId, room.settings.timeoutPolicy, rng).id;
 
     const state: ExchangeState = {
       order: round.order,
@@ -594,7 +667,8 @@ async function passTx(
     const s = result.state;
     const nextIndex = s.turnIndex;
     const lastAction: LastAction = {
-      type: actor.kind === "player" ? "pass" : "timeout",
+      // A bot's move is an ordinary pass, not a "took too long".
+      type: actor.kind === "player" || botTurn ? "pass" : "timeout",
       fromUid,
       toUid,
       turnId,
@@ -615,7 +689,7 @@ async function passTx(
       [`handSizes.${toUid}`]: s.hands[toUid].length,
       lastAction,
     };
-    if (actor.kind === "timeout") roundUpdate[`timeouts.${fromUid}`] = (round.timeouts[fromUid] ?? 0) + 1;
+    if (actor.kind === "timeout" && !botTurn) roundUpdate[`timeouts.${fromUid}`] = (round.timeouts[fromUid] ?? 0) + 1;
 
     if (result.winner) {
       const w = result.winner;
@@ -772,10 +846,10 @@ export async function autoPickChits(deps: Deps, uid: string, data: unknown) {
     const hands: Record<string, HandDoc> = {};
     round.order.forEach((u, i) => (hands[u] = snaps[i].data() as HandDoc));
     const late = round.order.filter((u) => hands[u].cards.length < HAND_SIZE);
-    await requirePlayFor(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), t);
+    const who = await playForWhom(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), round.pickOpensAt.toMillis(), t);
     const free = shuffle(round.chits.filter((c) => !round.picks[c]), deps.rng);
     const assignments: [string, string][] = [];
-    for (const u of round.order) {
+    for (const u of who) {
       for (let n = hands[u].cards.length; n < HAND_SIZE; n++) assignments.push([free.pop()!, u]);
     }
     bindMovieChits(tx, deps, roomId, round, secret, hands, assignments, t, true);
@@ -844,9 +918,17 @@ export async function autoPickCharacters(deps: Deps, uid: string, data: unknown)
     const t = deps.now();
     const picked = new Set(Object.values(round.charPicks));
     const waiting = round.order.filter((u) => u !== round.winner!.uid && !picked.has(u));
-    await requirePlayFor(tx, deps.db, roomId, waiting, round.charPickDeadline!.toMillis(), t);
+    const who = await playForWhom(
+      tx,
+      deps.db,
+      roomId,
+      waiting,
+      round.charPickDeadline!.toMillis(),
+      round.charPickOpensAt!.toMillis(),
+      t,
+    );
     const free = shuffle(round.charChits.filter((c) => !round.charPicks[c]), deps.rng);
-    const assignments = waiting.map((u) => [free.pop()!, u] as [string, string]);
+    const assignments = who.map((u) => [free.pop()!, u] as [string, string]);
     bindCharacterChits(tx, deps, roomId, round, secret, assignments, t, true);
     return { assigned: assignments.length };
   });
@@ -976,7 +1058,9 @@ export async function tiebreakVote(deps: Deps, uid: string, data: unknown) {
     }
     if (!tb!.uids.includes(uid)) fail("permission-denied", "Only the tied players decide on a tie-breaker.");
     if (deps.now() > tb!.deadline.toMillis()) fail("failed-precondition", "The vote has closed.");
-    const votes = { ...tb!.votes, [uid]: accept };
+    // Tied bots always want to play it out.
+    const botVotes = Object.fromEntries(tb!.uids.filter(isBot).map((u) => [u, true]));
+    const votes = { ...botVotes, ...tb!.votes, [uid]: accept };
     if (!accept) {
       declineTiebreak(tx, deps, roomId, tb!, votes);
       return { outcome: "declined" };

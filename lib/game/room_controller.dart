@@ -493,6 +493,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     round = rd;
     if (prev != null && prev.key == rd.key) _feedbackForOthersPicks(prev, rd);
     if (prev?.turnId != rd.turnId) {
+      _turnChangedAt = now;
       selectedCardId = null;
       _lastWarnSecond = -1;
     }
@@ -604,6 +605,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (mine && !_wasMyTurn) feedback.yourTurn();
     _wasMyTurn = mine;
     _buzzIfLate();
+    _driveBots();
     final pruned = _pruneChat();
     if (pruned ||
         p == Phase.picking ||
@@ -617,6 +619,86 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  // ---------- bots ----------
+
+  bool _botCallInFlight = false;
+  DateTime _lastBotCall = DateTime(0);
+  DateTime _turnChangedAt = DateTime(0);
+
+  bool get hasBots => room?.memberUids.any(isBotUid) ?? false;
+
+  /// The move bots are waiting on right now: when it opened and the call
+  /// that makes it. The server does the moving (and checks the timing).
+  (DateTime, Future<void> Function())? _botMove() {
+    final rd = round;
+    final kr = kqRound;
+    switch (phase) {
+      case Phase.picking when rd != null && rd.pickOpensAt != null:
+        final counts = <String, int>{};
+        for (final u in rd.picks.values) {
+          counts[u] = (counts[u] ?? 0) + 1;
+        }
+        if (!rd.order.any((u) => isBotUid(u) && (counts[u] ?? 0) < 4)) {
+          return null;
+        }
+        return (rd.pickOpensAt!, () => repo.autoPickChits(roomId, rd.key));
+      case Phase.exchange when rd != null && isBotUid(rd.currentUid):
+        final opened = rd.introEndsAt.isAfter(_turnChangedAt)
+            ? rd.introEndsAt
+            : _turnChangedAt;
+        return (opened, () => repo.claimTimeout(roomId, rd.key, rd.turnId));
+      case Phase.characters
+          when rd != null && rd.revealAt == null && rd.charPickOpensAt != null:
+        final picked = rd.charPicks.values.toSet();
+        if (!rd.order.any(
+          (u) => isBotUid(u) && u != rd.winner?.uid && !picked.contains(u),
+        )) {
+          return null;
+        }
+        return (
+          rd.charPickOpensAt!,
+          () => repo.autoPickCharacters(roomId, rd.key),
+        );
+      case Phase.kqPicking when kr != null && kr.pickOpensAt != null:
+        final picked = kr.picks.values.toSet();
+        if (!kr.players.any((u) => isBotUid(u) && !picked.contains(u))) {
+          return null;
+        }
+        return (kr.pickOpensAt!, () => repo.kqAutoPick(roomId, kr.key));
+      case Phase.kqGuessing
+          when kr != null && kr.guesser != null && isBotUid(kr.guesser!):
+        return (
+          kr.guessOpensAt ?? now,
+          () => repo.kqClaimTimeout(roomId, kr.key, kr.turnId),
+        );
+      default:
+        return null;
+    }
+  }
+
+  /// Makes the bots' moves. Every person's phone can do it; the first one
+  /// in the room's order goes first and the others only step in if it's
+  /// slow (e.g. that phone is locked), so moves aren't sent many times.
+  void _driveBots() {
+    if (_botCallInFlight || !hasBots) return;
+    final move = _botMove();
+    if (move == null) return;
+    final humans = room!.memberUids.where((u) => !isBotUid(u)).toList();
+    final me = humans.indexOf(uid ?? '');
+    if (me < 0) return;
+    // Bots "think" 1.5–3 s, a little differently each turn.
+    final think = 1500 + ((round?.turnId ?? kqRound?.turnId ?? 0) * 373) % 1500;
+    final due = move.$1.add(Duration(milliseconds: think + me * 2500));
+    if (now.isBefore(due)) return;
+    if (DateTime.now().difference(_lastBotCall) < const Duration(seconds: 2)) {
+      return;
+    }
+    _lastBotCall = DateTime.now();
+    _botCallInFlight = true;
+    // Losing a race with another phone or the server's timing is normal.
+    move.$2().catchError((_) {}).whenComplete(() => _botCallInFlight = false);
+  }
+
   // ---------- late players ----------
 
   /// Who the table is waiting on past their deadline, if anyone.
@@ -624,7 +706,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     final t = now;
     LateState? after(DateTime? deadline, Iterable<String> who) {
       if (deadline == null) return null;
-      final uids = who.toList();
+      // Bots are moved for automatically (see _driveBots), never "late".
+      final uids = who.where((u) => !isBotUid(u)).toList();
       if (uids.isEmpty) return null;
       if (!t.isAfter(deadline.add(const Duration(milliseconds: _graceMs)))) {
         return null;
@@ -1047,6 +1130,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       run(() => repo.updateSettings(roomId, patch));
   Future<bool> kick(String player) =>
       run(() => repo.kickPlayer(roomId, player));
+  Future<bool> addBot() => run(() => repo.addBot(roomId));
   Future<bool> startGame() => run(() => repo.startGame(roomId));
   Future<bool> nextRound() => run(() => repo.nextRound(roomId));
   Future<bool> revealNow() => run(() => repo.revealRound(roomId, round!.key));

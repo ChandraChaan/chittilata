@@ -276,9 +276,9 @@ export async function kqAutoPick(deps: Deps, uid: string, data: unknown) {
     const t = deps.now();
     const picked = new Set(Object.values(round.picks));
     const late = round.players.filter((p) => !picked.has(p));
-    await ops.requirePlayFor(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), t);
+    const who = await ops.playForWhom(tx, deps.db, roomId, late, round.pickDeadline.toMillis(), round.pickOpensAt.toMillis(), t);
     const free = shuffle(round.chits.filter((c) => !round.picks[c]), deps.rng);
-    const assignments = round.players.filter((p) => !picked.has(p)).map((p) => [free.pop()!, p] as [string, string]);
+    const assignments = who.map((p) => [free.pop()!, p] as [string, string]);
     bindRoleChits(tx, deps, roomId, round, secret, assignments, t, true);
     return { assigned: assignments.length };
   });
@@ -303,8 +303,10 @@ async function guessTx(
     if (t < round.guessOpensAt!.toMillis()) fail("failed-precondition", "The King is still being announced.");
     // A late guesser can still guess: nothing is auto-played for them.
     if (actor.kind === "timeout") {
-      await ops.requirePlayFor(tx, db, roomId, [round.guesser!], round.turnDeadline!.toMillis(), t);
+      await ops.playForWhom(tx, db, roomId, [round.guesser!], round.turnDeadline!.toMillis(), round.guessOpensAt!.toMillis(), t);
     }
+    // A bot's guess is an ordinary guess, not a "took too long".
+    const botGuess = actor.kind === "timeout" && ops.isBot(round.guesser!);
 
     const before: KqState = {
       chain: round.chain,
@@ -319,7 +321,9 @@ async function guessTx(
       done: false,
     };
     const target = actor.kind === "guess" ? actor.target : kqTimeoutTarget(before, rng);
-    const after = applyGuess(before, actor.uid, target, turnId, actor.kind === "guess" ? "guess" : "timeout");
+    const after = botGuess
+      ? applyGuess(before, round.guesser!, target, turnId, "guess")
+      : applyGuess(before, actor.uid, target, turnId, actor.kind === "guess" ? "guess" : "timeout");
     const ts = Timestamp.fromMillis(t);
 
     // Privately tell players whose role changed (only wrong guesses swap).

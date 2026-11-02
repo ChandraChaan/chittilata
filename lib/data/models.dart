@@ -96,6 +96,9 @@ class GameSettings {
   );
 }
 
+/// Bot players have server-made uids starting with "bot_".
+bool isBotUid(String uid) => uid.startsWith('bot_');
+
 class PlayerInfo {
   const PlayerInfo({
     required this.uid,
@@ -109,6 +112,7 @@ class PlayerInfo {
   final bool ready;
   final bool left;
   final int joinedAt;
+  bool get bot => isBotUid(uid);
 }
 
 class Standing {

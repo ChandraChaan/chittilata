@@ -656,3 +656,92 @@ describe("picking folded chits", () => {
   });
 });
 
+
+describe("bots", () => {
+  async function practice(bots = 3) {
+    const { roomId } = await ops.createRoom(deps(), "me", { name: "Chandra" });
+    for (let i = 0; i < bots; i++) await ops.addBot(deps(), "me", { roomId });
+    return roomId;
+  }
+
+  it("only the host adds bots, in the lobby, with distinct names; removed bots aren't banned", async () => {
+    const roomId = await practice(2);
+    const r = await room(roomId);
+    const bots = r.memberUids.filter(ops.isBot);
+    expect(bots).toHaveLength(2);
+    expect(new Set(bots.map((b) => r.players[b].name)).size).toBe(2);
+    expect(bots.every((b) => r.players[b].bot === true && r.players[b].ready)).toBe(true);
+    await ops.kickPlayer(deps(), "me", { roomId, uid: bots[0] });
+    expect((await room(roomId)).banned).toEqual([]);
+
+    const { code } = r;
+    await ops.joinRoom(deps(), "guest", { code, name: "Vasavi" });
+    await expectCode(ops.addBot(deps(), "guest", { roomId }), "permission-denied");
+  });
+
+  it("plays a whole round: bots pick, pass and pick characters, only after thinking", async () => {
+    const roomId = await practice(3);
+    const { roundKey } = (await ops.startGame(deps(), "me", { roomId })) as { roundKey: string };
+    let r = await round(roomId, roundKey);
+    clock = r.pickOpensAt.toMillis() + 100;
+    await expectCode(ops.autoPickChits(deps(), "me", { roomId, roundKey }), "failed-precondition");
+    clock += ops.BOT_THINK_MS;
+    // Bots pick their own chits; the human's 4 are left for them to pick.
+    await ops.autoPickChits(deps(), "me", { roomId, roundKey });
+    r = await round(roomId, roundKey);
+    const picked = Object.values(r.picks);
+    expect(picked.filter((u) => u === "me")).toHaveLength(0);
+    expect(picked).toHaveLength(12);
+    for (let k = 0; k < 4; k++) {
+      r = await round(roomId, roundKey);
+      await ops.pickChit(deps(), "me", { roomId, roundKey, chitId: r.chits.find((c) => !r.picks[c])! });
+    }
+
+    // Pass until someone wins: bots move for themselves, the human passes.
+    r = await round(roomId, roundKey);
+    clock = Math.max(clock, r.introEndsAt.toMillis() + 1);
+    for (let i = 0; i < 400 && r.status === "exchange"; i++) {
+      if (ops.isBot(r.currentUid)) {
+        await expectCode(ops.claimTimeout(deps(), "me", { roomId, roundKey, turnId: r.turnId }), "failed-precondition");
+        clock += ops.BOT_THINK_MS;
+        await ops.claimTimeout(deps(), "me", { roomId, roundKey, turnId: r.turnId });
+      } else {
+        const h = await hand(roomId, "me");
+        await ops.passCard(deps(), "me", { roomId, roundKey, turnId: r.turnId, cardId: h.cards[0].id, requestId: `p${i}` });
+      }
+      clock += 10;
+      r = await round(roomId, roundKey);
+      // A bot's pass is a normal pass, never "took too long".
+      expect(r.lastAction?.type).toBe("pass");
+    }
+    expect(r.status).toBe("characters");
+    expect(r.timeouts).toEqual({});
+
+    clock = r.charPickOpensAt!.toMillis() + ops.BOT_THINK_MS;
+    await ops.autoPickCharacters(deps(), "me", { roomId, roundKey });
+    r = await round(roomId, roundKey);
+    const waitingHuman = r.winner!.uid !== "me" && !Object.values(r.charPicks).includes("me");
+    expect(Object.keys(r.charPicks)).toHaveLength(waitingHuman ? 2 : 3);
+  });
+
+  it("a bot passes away the movie it holds fewest of", () => {
+    const hand: Card[] = [
+      { id: "1", name: "RRR" },
+      { id: "2", name: "RRR" },
+      { id: "3", name: "RRR" },
+      { id: "4", name: "Devara" },
+      { id: "5", name: "Devara" },
+    ] as Card[];
+    const lone: Card[] = [...hand.slice(0, 4), { id: "6", name: "Salaar" } as Card];
+    expect(ops.botCard(lone, () => 0).id).toBe("4");
+    expect(["4", "5"]).toContain(ops.botCard(hand, () => 0).id);
+  });
+
+  it("when the last person leaves, the bots don't keep the room open", async () => {
+    const roomId = await practice(3);
+    await ops.leaveRoom(deps(), "me", { roomId });
+    const r = await room(roomId);
+    expect(r.status).toBe("closed");
+    expect(r.memberUids).toEqual([]);
+  });
+});

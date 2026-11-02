@@ -94,7 +94,7 @@ class LobbyView extends StatelessWidget {
                       ListTile(
                         leading: PlayerAvatar(
                           name: p.name,
-                          online: ctrl.isOnline(p.uid),
+                          online: p.bot || ctrl.isOnline(p.uid),
                         ),
                         title: Text(
                           p.uid == ctrl.uid ? '${p.name} (you)' : p.name,
@@ -103,6 +103,8 @@ class LobbyView extends StatelessWidget {
                         subtitle: Text(
                           p.uid == room.hostUid
                               ? 'Host'
+                              : p.bot
+                              ? 'Bot · always ready'
                               : ctrl.isAway(p.uid)
                               ? 'App in background'
                               : ctrl.isOnline(p.uid)
@@ -126,6 +128,17 @@ class LobbyView extends StatelessWidget {
                   ],
                 ),
               ),
+              if (ctrl.isHost && count < 10)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: ctrl.busy
+                        ? null
+                        : withClick(context, ctrl.addBot),
+                    icon: const Text('🤖'),
+                    label: const Text('Add a bot'),
+                  ),
+                ),
               const SizedBox(height: Space.lg),
               if (room.isKq)
                 _KqSettingsSummary(ctrl: ctrl)

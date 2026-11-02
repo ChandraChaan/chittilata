@@ -102,13 +102,17 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return n;
   }
 
-  Future<void> _create(GameMode mode) async {
+  Future<void> _create(GameMode mode, {int bots = 0}) async {
     final name = _validName();
     if (name == null) return;
     final s = Services.of(context);
     setState(() => _busy = true);
     try {
       final r = await s.repo.createRoom(name, mode: mode);
+      // Practice: fill the table with bots; Start is one tap away.
+      for (var i = 0; i < bots; i++) {
+        await s.repo.addBot(r.roomId);
+      }
       _open(r.roomId);
     } on GameException catch (e) {
       if (mounted) showGameSnack(context, e.message);
@@ -228,6 +232,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       button: 'New Movie Chits room',
                       busy: _busy,
                       onCreate: () => _create(GameMode.movie),
+                      onPractice: () => _create(GameMode.movie, bots: 3),
                       mode: GameMode.movie,
                     ),
                     const SizedBox(height: Space.md),
@@ -241,6 +246,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       button: 'New King & Queen room',
                       busy: _busy,
                       onCreate: () => _create(GameMode.kingQueen),
+                      onPractice: () => _create(GameMode.kingQueen, bots: 3),
                       mode: GameMode.kingQueen,
                     ),
                   ],
@@ -264,6 +270,7 @@ class _ModeCard extends StatelessWidget {
     required this.button,
     required this.busy,
     required this.onCreate,
+    required this.onPractice,
     required this.mode,
   });
 
@@ -275,6 +282,7 @@ class _ModeCard extends StatelessWidget {
   final String button;
   final bool busy;
   final VoidCallback onCreate;
+  final VoidCallback onPractice;
 
   @override
   Widget build(BuildContext context) {
@@ -316,6 +324,14 @@ class _ModeCard extends StatelessWidget {
             icon: Icons.add_circle_rounded,
             busy: busy,
             onPressed: onCreate,
+          ),
+          const SizedBox(height: Space.sm),
+          BigButton(
+            label: 'Practice with bots',
+            icon: Icons.smart_toy_rounded,
+            secondary: true,
+            busy: busy,
+            onPressed: onPractice,
           ),
           TextButton.icon(
             onPressed: () => Navigator.push(

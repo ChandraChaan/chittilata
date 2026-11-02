@@ -85,6 +85,9 @@ abstract class GameRepository {
   );
   Future<void> kqClaimTimeout(String roomId, String roundKey, int turnId);
   Future<void> kickPlayer(String roomId, String uid);
+
+  /// Host only, in the lobby: adds a computer player.
+  Future<void> addBot(String roomId);
   Future<void> leaveRoom(String roomId);
   Future<void> startGame(String roomId);
   Future<void> nextRound(String roomId);
@@ -396,6 +399,9 @@ class FirebaseGameRepository implements GameRepository {
   @override
   Future<void> kickPlayer(String roomId, String uid) =>
       _run('kickPlayer', {'roomId': roomId, 'uid': uid});
+
+  @override
+  Future<void> addBot(String roomId) => _run('addBot', {'roomId': roomId});
 
   @override
   Future<void> leaveRoom(String roomId) =>

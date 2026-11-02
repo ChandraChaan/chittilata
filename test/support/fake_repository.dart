@@ -210,6 +210,8 @@ class FakeGameRepository implements GameRepository {
   @override
   Future<void> kickPlayer(String roomId, String uid) => _record('kick:$uid');
   @override
+  Future<void> addBot(String roomId) => _record('addBot');
+  @override
   Future<void> leaveRoom(String roomId) => _record('leave');
   @override
   Future<void> startGame(String roomId) => _record('startGame');
@@ -298,14 +300,15 @@ Room makeRoom({
   TiebreakInfo? tiebreak,
   GameMode mode = GameMode.movie,
   Map<String, int> kingWins = const {},
+  Map<String, String> members = names,
 }) => Room(
   id: 'room1',
   code: 'ABC234',
   hostUid: host,
   status: status,
-  memberUids: names.keys.toList(),
+  memberUids: members.keys.toList(),
   players: {
-    for (final e in names.entries)
+    for (final e in members.entries)
       e.key: PlayerInfo(
         uid: e.key,
         name: e.value,

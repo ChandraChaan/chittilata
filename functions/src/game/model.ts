@@ -34,6 +34,8 @@ export interface PlayerInfo {
   joinedAt: number;
   ready: boolean;
   left: boolean;
+  /** A computer player added by the host (uid starts with "bot_"). */
+  bot?: boolean;
 }
 
 export interface RoomDoc {
