@@ -78,6 +78,9 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
     }, onError: (_) {});
     _chatSub = repo.watchChat(roomId).listen(_onChat, onError: (_) {});
+    _messagesSub = repo
+        .watchMessages(roomId)
+        .listen(_onMessages, onError: (_) {});
     _connSub = repo.watchConnected(roomId).listen((c) {
       if (c != connected) {
         connected = c;
@@ -122,6 +125,16 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   DateTime _lastSend = DateTime(0);
   final _lastNudge = <String, DateTime>{};
   StreamSubscription<List<ChatEvent>>? _chatSub;
+  StreamSubscription<List<ChatMessage>>? _messagesSub;
+
+  /// The room's chat history, oldest first.
+  List<ChatMessage> chatHistory = const [];
+
+  /// Messages that arrived while the chat panel was closed.
+  int unreadChat = 0;
+  bool chatOpen = false;
+  final _seenMessages = <String>{};
+  bool _messagesLoaded = false;
   String? _lateKey;
   int _lastBuzzSecond = -100;
 
@@ -167,6 +180,43 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       ? _hand
       : null;
 
+  /// My slips in the order I arranged them (drag to reorder); new slips
+  /// join at the end. Local only: the server never cares about the order.
+  List<GameCard> get orderedHand {
+    final h = hand;
+    if (h == null) return const [];
+    final byId = {for (final c in h.cards) c.id: c};
+    final out = <GameCard>[
+      for (final id in _handOrder)
+        if (byId.containsKey(id)) byId.remove(id)!,
+      ...byId.values,
+    ];
+    return out;
+  }
+
+  final _handOrder = <String>[];
+  String? _handOrderRound;
+
+  /// Moves slip [id] to position [index] in my hand.
+  void reorderHand(String id, int index) {
+    final cards = orderedHand.map((c) => c.id).toList();
+    if (!cards.contains(id)) return;
+    cards.remove(id);
+    cards.insert(index.clamp(0, cards.length), id);
+    _handOrder
+      ..clear()
+      ..addAll(cards);
+    feedback.selection();
+    notifyListeners();
+  }
+
+  /// Passes [cardId] straight away (a slip dropped on the circle).
+  Future<void> passCard(String cardId) {
+    if (!myTurn || busy) return Future.value();
+    selectedCardId = cardId;
+    return passSelected();
+  }
+
   /// True while a tie-breaker round is played by others and I only watch.
   bool get spectating =>
       round != null && uid != null && !round!.order.contains(uid);
@@ -191,7 +241,12 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       return r.spectators.containsKey(uid) ? Phase.spectating : Phase.removed;
     }
     if (r.status == RoomStatus.lobby) return Phase.lobby;
-    if (r.status == RoomStatus.finished) return Phase.finished;
+    if (r.status == RoomStatus.finished) {
+      // The last round's results come first; "See final results" moves on.
+      // A game the host ended, or that ended for want of players, has no
+      // finished round to show.
+      return _finalRoundPending(r) ? Phase.results : Phase.finished;
+    }
     if (r.status == RoomStatus.tiebreakVote) return Phase.tiebreakVote;
     if (r.isCharades) {
       final cr = charades;
@@ -217,6 +272,37 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       RoundStatus.revealed => Phase.results,
       RoundStatus.aborted => Phase.aborted,
     };
+  }
+
+  /// The game just finished and this phone hasn't moved past the last
+  /// round's results yet.
+  bool _finalRoundPending(Room r) {
+    if (_finalAckGame == r.gameNo || r.endedReason != null) return false;
+    if (r.isCharades) return false;
+    if (r.isKq) {
+      final kr = kqRound;
+      return kr != null &&
+          kr.key == r.currentRoundKey &&
+          kr.status == KqStatus.revealed;
+    }
+    final rd = round;
+    return rd != null &&
+        rd.key == r.currentRoundKey &&
+        rd.status == RoundStatus.revealed;
+  }
+
+  int? _finalAckGame;
+
+  /// True on the last round's results: the game is over behind them.
+  bool get finalRoundShown =>
+      room?.status == RoomStatus.finished && phase == Phase.results;
+
+  /// Moves from the last round's results to the final standings.
+  void acknowledgeFinal() {
+    _finalAckGame = room?.gameNo;
+    feedback.play(Sfx.fanfare);
+    feedback.celebrate();
+    notifyListeners();
   }
 
   Phase _kqPhase(Room r) {
@@ -293,6 +379,12 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     final prev = kqRound;
     kqRound = kr;
     if (prev?.turnId != kr.turnId) kqSelectedTarget = null;
+    // A role reveal still playing when picking ended (the last chit went
+    // straight into guessing) would otherwise sit in the queue and block
+    // the next round's chits.
+    if (prev?.key != kr.key || kr.status != KqStatus.picking) {
+      revealQueue.removeWhere((r) => r is KqRoleDef);
+    }
     if (prev != null && prev.key == kr.key) {
       if (kr.picks.length > prev.picks.length) {
         feedback.play(Sfx.pick);
@@ -504,6 +596,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
           .listen(_onRound, onError: (_) {});
     }
     if (previous != null) _feedbackForRoomChange(previous, r);
+    _noticeWarnings(previous, r);
     if (r.status == RoomStatus.tiebreakVote &&
         previous?.status != RoomStatus.tiebreakVote) {
       feedback.play(Sfx.reveal);
@@ -543,6 +636,23 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     final prev = round;
     round = rd;
     if (prev != null && prev.key == rd.key) _feedbackForOthersPicks(prev, rd);
+    // Reveals belong to one picking phase. A slip still unfolding when the
+    // fourth pick ended the picking (or a character reveal cut off by the
+    // round ending) must not linger: a leftover reveal made the character
+    // chits unresponsive for whoever picked last.
+    if (prev?.key != rd.key || rd.status != RoundStatus.picking) {
+      revealQueue.removeWhere((r) => r is GameCard);
+    }
+    if (prev?.key != rd.key || rd.status != RoundStatus.characters) {
+      revealQueue.removeWhere((r) => r is CharacterDef);
+    }
+    if (rd.status == RoundStatus.characters &&
+        prev?.status == RoundStatus.exchange &&
+        rd.stalemate) {
+      feedback.play(Sfx.shuffle);
+      feedback.heavy();
+      _messages.add('No winner this round! Everyone picks a character chit.');
+    }
     if (prev?.turnId != rd.turnId) {
       _turnChangedAt = now;
       selectedCardId = null;
@@ -603,6 +713,10 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   void _onHand(Hand? h) {
     final prev = _hand;
     _hand = h;
+    if (h != null && h.roundKey != _handOrderRound) {
+      _handOrderRound = h.roundKey;
+      _handOrder.clear();
+    }
     if (h != null &&
         h.incomingCardId != null &&
         h.incomingCardId != prev?.incomingCardId &&
@@ -659,6 +773,8 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (mine && !_wasMyTurn) feedback.yourTurn();
     _wasMyTurn = mine;
     _buzzIfLate();
+    _buzzIfWarned();
+    _enforceWarningsIfDue();
     _driveBots();
     _autoPickIfDue();
     _warnPickEnding();
@@ -674,9 +790,185 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
         p == Phase.characters ||
         p == Phase.tiebreakVote ||
         p == Phase.charades ||
+        iAmWarned ||
+        (room?.warnings.values.any((w) => w.deadline != null) ?? false) ||
         (p == Phase.lobby && (room?.isPublic ?? false))) {
       notifyListeners();
     }
+  }
+
+  // ---------- warnings ("are you still there?") ----------
+
+  Warning? warningOf(String player) => room?.warnings[player];
+
+  /// A warning still waiting for [player]'s answer.
+  bool warningOpen(String player) {
+    final d = warningOf(player)?.deadline;
+    return d != null &&
+        !now.isAfter(d.add(const Duration(milliseconds: _graceMs)));
+  }
+
+  /// Seconds [player] has left to answer (0 when none is open).
+  int warningSecondsLeft(String player) {
+    final d = warningOf(player)?.deadline;
+    if (d == null) return 0;
+    return max(0, (d.difference(now).inMilliseconds / 1000).ceil());
+  }
+
+  bool get iAmWarned => uid != null && warningOpen(uid!);
+
+  /// Whether the host may remove [player] right now (the server checks too).
+  bool canRemoveNow(String player) {
+    if (!isHost || player == uid) return false;
+    if (room?.status == RoomStatus.lobby || isBotUid(player)) return true;
+    final w = warningOf(player);
+    if (w == null) return false;
+    final d = w.deadline;
+    return w.count >= warningsBeforeKick ||
+        (d != null &&
+            now.isAfter(d.add(const Duration(milliseconds: _graceMs))));
+  }
+
+  /// Whether the host may warn [player] now.
+  bool canWarn(String player) =>
+      isHost &&
+      player != uid &&
+      !isBotUid(player) &&
+      room?.status != RoomStatus.lobby &&
+      !warningOpen(player);
+
+  Future<bool> warn(String player) => run(() async {
+    await repo.warnPlayer(roomId, player);
+    _messages.add(
+      '${room?.nameOf(player) ?? 'They'} has 60 seconds to respond.',
+    );
+  });
+
+  Future<bool> respondToWarning() => run(() async {
+    await repo.respondToWarning(roomId);
+    feedback.play(Sfx.coin);
+    feedback.light();
+  });
+
+  Future<bool> removePlayer(String player) =>
+      run(() => repo.kickPlayer(roomId, player));
+
+  Future<bool> endGame() => run(() => repo.endGame(roomId));
+
+  String? _warnKey;
+  int _lastWarnBuzz = -100;
+
+  void _noticeWarnings(Room? previous, Room r) {
+    final mine = r.warnings[uid];
+    if (mine?.deadline == null) return;
+    final before = previous?.warnings[uid]?.deadline;
+    if (before == mine!.deadline) return;
+    feedback.play(Sfx.timeout);
+    feedback.buzz();
+    _messages.add('⚠️ The host asks: are you still there? Tap "I\'m here!"');
+  }
+
+  /// A long buzz every 10 seconds while a warning waits for me.
+  void _buzzIfWarned() {
+    if (!iAmWarned) {
+      _warnKey = null;
+      return;
+    }
+    final d = warningOf(uid!)!.deadline!;
+    final key = d.millisecondsSinceEpoch.toString();
+    if (key != _warnKey) {
+      _warnKey = key;
+      _lastWarnBuzz = -100;
+    }
+    final left = warningSecondsLeft(uid!);
+    if (_lastWarnBuzz - left >= 10 || _lastWarnBuzz == -100) {
+      _lastWarnBuzz = left;
+      if (_lastWarnBuzz != -100 && left < 60) feedback.buzz();
+    }
+  }
+
+  DateTime _lastEnforce = DateTime(0);
+
+  /// Removes players whose warning ran out. Every phone can ask (the
+  /// server checks the clock); the first person in room order goes first,
+  /// the others step in if that phone is slow.
+  void _enforceWarningsIfDue() {
+    final r = room;
+    if (r == null || r.status == RoomStatus.closed) return;
+    DateTime? due;
+    for (final m in r.memberUids) {
+      final d = r.warnings[m]?.deadline;
+      if (d != null && (due == null || d.isBefore(due))) due = d;
+    }
+    if (due == null) return;
+    final people = r.memberUids.where((u) => !isBotUid(u)).toList();
+    final me = people.indexOf(uid ?? '');
+    if (me < 0) return;
+    final over = now.difference(due);
+    if (over < Duration(milliseconds: 1500 + me * 2000)) return;
+    if (DateTime.now().difference(_lastEnforce) < const Duration(seconds: 3)) {
+      return;
+    }
+    _lastEnforce = DateTime.now();
+    repo.enforceWarnings(roomId).catchError((_) {});
+  }
+
+  // ---------- stalemate ----------
+
+  /// Movie Chits: after [stalemateLaps] full laps with no winner the host
+  /// may end the exchange and send everyone to the character chits.
+  bool get canEndExchange =>
+      isHost &&
+      phase == Phase.exchange &&
+      (round?.laps ?? 0) >= stalemateLaps &&
+      round?.tiebreak != true;
+
+  /// Laps still to go before the host may end the exchange.
+  int get lapsUntilStalemate => max(0, stalemateLaps - (round?.laps ?? 0));
+
+  Future<bool> endExchange() {
+    final rd = round;
+    if (rd == null || !canEndExchange) return Future.value(false);
+    return run(() => repo.endExchange(roomId, rd.key));
+  }
+
+  // ---------- joining a running game ----------
+
+  /// A watcher may take a free seat and play from the next round.
+  bool get canTakeSeat {
+    final r = room;
+    final me = mySpectator;
+    return r != null &&
+        me != null &&
+        r.status == RoomStatus.playing &&
+        r.hasFreeSeat &&
+        me.claims == null &&
+        me.approved == null;
+  }
+
+  Future<bool> takeSeat() => run(() async {
+    await repo.takeSeat(roomId);
+    feedback.play(Sfx.join);
+    feedback.celebrate();
+  });
+
+  /// A member who joined mid-game: they sit out the round in progress.
+  bool get joinsNextRound {
+    final r = room;
+    if (r == null || uid == null || !r.memberUids.contains(uid)) return false;
+    if (r.status != RoomStatus.playing) return false;
+    if (r.isKq) {
+      final kr = kqRound;
+      return kr != null &&
+          kr.key == r.currentRoundKey &&
+          !kr.players.contains(uid);
+    }
+    if (r.isCharades) return false;
+    final rd = round;
+    return rd != null &&
+        rd.key == r.currentRoundKey &&
+        !rd.tiebreak &&
+        !rd.order.contains(uid);
   }
 
   // ---------- bots ----------
@@ -1092,6 +1384,50 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     if (added) notifyListeners();
   }
 
+  void _onMessages(List<ChatMessage> list) {
+    final fresh = list.where((m) => _seenMessages.add(m.id)).toList();
+    chatHistory = list;
+    if (_messagesLoaded && !chatOpen) {
+      unreadChat += fresh.where((m) => m.uid != uid).length;
+    }
+    _messagesLoaded = true;
+    notifyListeners();
+  }
+
+  /// The chat panel opened or closed: unread counts only while it's closed.
+  void setChatOpen(bool open) {
+    chatOpen = open;
+    if (open) unreadChat = 0;
+    notifyListeners();
+  }
+
+  /// Free text is for rooms of friends; quick-match tables stay preset-only.
+  bool get canSendText => room?.isPublic != true;
+
+  /// Sends a short typed message; false if throttled, empty or not allowed.
+  bool sendText(String raw) {
+    final text = cleanChatText(raw);
+    if (text == null || !canSendText) return false;
+    final t = DateTime.now();
+    if (t.difference(_lastSend) < const Duration(milliseconds: 1100)) {
+      return false;
+    }
+    _lastSend = t;
+    feedback.play(Sfx.pop);
+    feedback.selection();
+    _stat('chat:${t.microsecondsSinceEpoch}', {'chats': 1});
+    repo
+        .sendChat(
+          roomId,
+          id: _chatId(),
+          kind: ChatKind.text,
+          code: textCode,
+          text: text,
+        )
+        .catchError((_) {});
+    return true;
+  }
+
   bool _pruneChat() {
     final before = chatFeed.length;
     chatFeed.removeWhere(
@@ -1400,13 +1736,16 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> voteTiebreak(bool accept) =>
       run(() => repo.tiebreakVote(roomId, accept));
 
+  /// Leaves the room. Resolves within a few seconds even when the server
+  /// is slow (a cold Cloud Function): leaving locally always succeeds, and
+  /// the server expires stale seats on its own.
   Future<void> leave() async {
-    try {
-      await repo.leaveRoom(roomId);
-    } catch (_) {
-      // Leaving locally still succeeds; the server will expire stale rooms.
-    }
     prefs.activeRoomId = null;
+    try {
+      await repo.leaveRoom(roomId).timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Already gone, offline, or slow: all fine for the player.
+    }
   }
 
   /// Adds to my profile stats once per [key]; celebrates new badges.
@@ -1467,6 +1806,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     _cardSub?.cancel();
     _presenceSub?.cancel();
     _chatSub?.cancel();
+    _messagesSub?.cancel();
     _connSub?.cancel();
     _heartbeat?.cancel();
     _ticker?.cancel();

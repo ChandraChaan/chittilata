@@ -110,6 +110,7 @@ class PlayerInfo {
     required this.left,
     required this.joinedAt,
     this.avatar,
+    this.leftReason,
   });
   final String uid;
   final String name;
@@ -117,8 +118,38 @@ class PlayerInfo {
   final bool left;
   final int joinedAt;
   final String? avatar;
+
+  /// Why [left] is true: 'left' | 'kicked' | 'timeout'.
+  final String? leftReason;
   bool get bot => isBotUid(uid);
 }
+
+/// The host's "are you still there?" to a player (see the server's
+/// WARNING_SECONDS and WARNINGS_BEFORE_KICK).
+class Warning {
+  const Warning({
+    required this.count,
+    required this.deadline,
+    required this.by,
+  });
+  final int count;
+
+  /// Set while the warning waits for an answer.
+  final DateTime? deadline;
+  final String by;
+
+  factory Warning.fromMap(Map m) => Warning(
+    count: _int(m['count']),
+    deadline: _time(m['deadline']),
+    by: m['by'] as String? ?? '',
+  );
+}
+
+/// Warnings after which the host may remove a player at once.
+const warningsBeforeKick = 2;
+
+/// Full passing laps after which the host may end a Movie Chits exchange.
+const stalemateLaps = 4;
 
 class Standing {
   const Standing({
@@ -220,6 +251,8 @@ class Room {
     this.groupName,
     this.isPublic = false,
     this.createdAt,
+    this.warnings = const {},
+    this.endedReason,
   });
 
   final String id;
@@ -250,6 +283,15 @@ class Room {
   /// A quick-match table (strangers can be matched in).
   final bool isPublic;
   final DateTime? createdAt;
+
+  /// Host warnings to slow or silent players, by uid.
+  final Map<String, Warning> warnings;
+
+  /// Why the game finished early: 'host' | 'players' | null.
+  final String? endedReason;
+
+  /// A seat is free for someone to join mid-game.
+  bool get hasFreeSeat => memberUids.length < 10;
 
   /// Quick match: when the table starts by itself (bots fill empty seats).
   DateTime? get publicStartsAt =>
@@ -283,6 +325,7 @@ class Room {
         left: p['left'] == true,
         joinedAt: _int(p['joinedAt']),
         avatar: p['avatar'] as String?,
+        leftReason: p['leftReason'] as String?,
       );
     });
     return Room(
@@ -317,6 +360,8 @@ class Room {
       groupName: m['groupName'] as String?,
       isPublic: m['public'] == true,
       createdAt: _time(m['createdAt']),
+      warnings: _map(m['warnings'], (v) => Warning.fromMap(v as Map)),
+      endedReason: m['endedReason'] as String?,
       spectators: {
         for (final u in List<String>.from(m['spectatorUids'] as List? ?? []))
           u: Spectator.fromMap(u, (m['spectators'] as Map?)?[u] as Map? ?? {}),
@@ -395,6 +440,7 @@ class Round {
     required this.handSizes,
     required this.lastAction,
     required this.winner,
+    this.stalemate = false,
     required this.revealAt,
     required this.revealedHands,
     required this.characters,
@@ -433,7 +479,18 @@ class Round {
   final Map<String, int> handSizes;
   final LastAction? lastAction;
   final RoundWinner? winner;
+
+  /// The host ended a long exchange with no winner: everyone picks a
+  /// character chit instead (a King chit stands in for the win points).
+  final bool stalemate;
   final DateTime? revealAt;
+
+  /// Full laps of passing so far (everyone passed once per lap).
+  int get laps => order.isEmpty ? 0 : turnId ~/ order.length;
+
+  /// Players who pick a character chit this round.
+  List<String> get characterPickers =>
+      winner == null ? order : order.where((u) => u != winner!.uid).toList();
   final Map<String, List<GameCard>>? revealedHands;
   final Map<String, CharacterDef>? characters;
   final Map<String, int>? scores;
@@ -484,6 +541,7 @@ class Round {
               w['movie'] as String,
               _int(w['points']),
             ),
+      stalemate: m['stalemate'] == true,
       revealAt: _time(m['revealAt']),
       revealedHands: m['revealedHands'] == null
           ? null

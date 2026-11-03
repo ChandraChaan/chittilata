@@ -57,8 +57,13 @@ import {
   roundKeyFor,
   RoundDoc,
   SecretDoc,
+  STALEMATE_KING,
+  STALEMATE_LAPS,
   TIEBREAK_VOTE_SECONDS,
   TiebreakState,
+  Warning,
+  WARNING_SECONDS,
+  WARNINGS_BEFORE_KICK,
 } from "./model";
 
 export interface Deps {
@@ -506,30 +511,218 @@ export async function addBot(deps: Deps, uid: string, data: unknown) {
   });
 }
 
+/**
+ * The host removes a player. In the lobby that is immediate. During a game
+ * a person must first have been warned WARNINGS_BEFORE_KICK times (or their
+ * current warning must have run out); bots can always be removed. Removed
+ * people can't come back to this room.
+ */
 export async function kickPlayer(deps: Deps, uid: string, data: unknown) {
   const roomId = str(data, "roomId");
   const target = str(data, "uid", 128);
   await deps.db.runTransaction(async (tx) => {
     const { ref, room } = await loadRoom(tx, deps.db, roomId);
     requireHost(room, uid);
-    if (room.status !== "lobby") fail("failed-precondition", "Players can only be removed in the lobby.");
     if (target === uid) fail("invalid-argument", "Use Leave to exit the room.");
     if (!room.memberUids.includes(target)) return;
-    const players = { ...room.players };
-    delete players[target];
+    if (room.status === "lobby") {
+      const players = { ...room.players };
+      delete players[target];
+      const warnings = { ...(room.warnings ?? {}) };
+      delete warnings[target];
+      tx.update(ref, {
+        memberUids: room.memberUids.filter((m) => m !== target),
+        players,
+        warnings,
+        // Removed bots just go; removed people can't come back.
+        banned: isBot(target) ? room.banned : [...room.banned, target],
+        updatedAt: Timestamp.fromMillis(deps.now()),
+      });
+      return;
+    }
+    if (!isBot(target)) {
+      const w = room.warnings?.[target];
+      const due = w?.deadline && deps.now() > w.deadline.toMillis() + DEADLINE_GRACE_MS;
+      if ((w?.count ?? 0) < WARNINGS_BEFORE_KICK && !due) {
+        fail(
+          "failed-precondition",
+          `Warn ${room.players[target].name} first. After ${WARNINGS_BEFORE_KICK} warnings (or an unanswered one) you can remove them.`,
+        );
+      }
+    }
+    await removeMemberTx(tx, deps, roomId, room, target, "kicked");
+  });
+  return { ok: true };
+}
+
+/**
+ * The host asks a player whether they are still there. They get
+ * WARNING_SECONDS to answer (tap "I'm here", or make any move); otherwise
+ * anyone in the room may ask the server to remove them ([enforceWarnings]).
+ */
+export async function warnPlayer(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  const target = str(data, "uid", 128);
+  return deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    requireHost(room, uid);
+    if (target === uid) fail("invalid-argument", "You can't warn yourself.");
+    if (!room.memberUids.includes(target)) fail("not-found", "That player is not in the room.");
+    if (isBot(target)) fail("invalid-argument", "Bots don't need warnings: just remove them.");
+    const t = deps.now();
+    const prev = room.warnings?.[target];
+    if (prev?.deadline && t <= prev.deadline.toMillis() + DEADLINE_GRACE_MS) {
+      const left = Math.ceil((prev.deadline.toMillis() - t) / 1000);
+      fail("failed-precondition", `${room.players[target].name} already has ${Math.max(0, left)}s to respond.`);
+    }
+    const warning: Warning = {
+      count: (prev?.count ?? 0) + 1,
+      deadline: Timestamp.fromMillis(t + WARNING_SECONDS * 1000),
+      by: uid,
+    };
+    tx.update(ref, { [`warnings.${target}`]: warning, updatedAt: Timestamp.fromMillis(t) });
+    tx.create(auditRef(deps.db, roomId), { type: "warn", uid: target, by: uid, count: warning.count, at: Timestamp.fromMillis(t) });
+    return { count: warning.count, deadline: warning.deadline!.toMillis() };
+  });
+}
+
+/** Room fields that answer [uid]'s open warning, or null if there is none. */
+export function warningAnswered(room: RoomDoc, uid: string): Record<string, unknown> | null {
+  const w = room.warnings?.[uid];
+  if (!w?.deadline) return null;
+  return { [`warnings.${uid}.deadline`]: null };
+}
+
+/** A warned player taps "I'm here" (any game move counts as well). */
+export async function respondToWarning(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  await deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    requireMember(room, uid);
+    const patch = warningAnswered(room, uid);
+    if (patch) tx.update(ref, { ...patch, updatedAt: Timestamp.fromMillis(deps.now()) });
+  });
+  return { ok: true };
+}
+
+/**
+ * Removes one player whose warning ran out without an answer (anyone in the
+ * room may ask; the server checks the clock). Called again while others are
+ * due. Players removed this way may come back and watch or rejoin.
+ */
+export async function enforceWarnings(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  return deps.db.runTransaction(async (tx) => {
+    const { room } = await loadRoom(tx, deps.db, roomId);
+    requireMember(room, uid);
+    const t = deps.now();
+    const due = room.memberUids.find((m) => {
+      const w = room.warnings?.[m];
+      return w?.deadline && t > w.deadline.toMillis() + DEADLINE_GRACE_MS;
+    });
+    if (!due) return { removed: null };
+    await removeMemberTx(tx, deps, roomId, room, due, "timeout");
+    return { removed: due };
+  });
+}
+
+/**
+ * The host ends the game for everyone. In the lobby the room closes; during
+ * a game it finishes with the scores so far (the current round is void),
+ * so everyone sees the standings and can play again.
+ */
+export async function endGame(deps: Deps, uid: string, data: unknown) {
+  const { db, now } = deps;
+  const roomId = str(data, "roomId");
+  await db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, db, roomId);
+    requireHost(room, uid);
+    const ts = Timestamp.fromMillis(now());
+    if (room.status === "lobby") {
+      tx.update(ref, { status: "closed", updatedAt: ts });
+      tx.delete(db.collection("roomCodes").doc(room.code));
+      tx.create(auditRef(db, roomId), { type: "close", by: uid, at: ts });
+      return;
+    }
+    if (room.status === "finished") fail("failed-precondition", "The game has already finished.");
+    await abortCurrentRoundTx(tx, deps, roomId, room, "The host ended the game.");
+    const next: Record<string, unknown> = {
+      status: "finished",
+      final: standingsFor(room),
+      endedReason: "host",
+      updatedAt: ts,
+    };
+    const tb = room.tiebreak;
+    if (tb && (tb.stage === "vote" || tb.stage === "playing")) next.tiebreak = { ...tb, stage: "cancelled" };
+    tx.update(ref, next);
+    tx.create(auditRef(db, roomId), { type: "endGame", by: uid, at: ts });
+  });
+  return { ok: true };
+}
+
+/** Voids whatever round is in progress (reads first, then writes). */
+async function abortCurrentRoundTx(tx: Transaction, deps: Deps, roomId: string, room: RoomDoc, reason: string) {
+  const { db, now } = deps;
+  const key = room.currentRoundKey;
+  if (!key || (room.status !== "playing" && room.status !== "tiebreakVote")) return;
+  const ts = Timestamp.fromMillis(now());
+  if (room.mode === "kingQueen") {
+    const kr = await kq.kqCurrentRound(tx, db, roomId, key);
+    if (kr && (kr.status === "picking" || kr.status === "guessing")) {
+      tx.update(kq.kqRoundRef(db, roomId, key), { status: "aborted", abortedReason: reason, guesser: null, endedAt: ts });
+    }
+    return;
+  }
+  if (room.mode === "charades") {
+    const cr = await charades.currentCharades(tx, db, roomId, key);
+    if (cr && cr.status === "acting") {
+      tx.update(charades.charadesRef(db, roomId, key), { status: "revealed", scores: {}, endedReason: reason, endedAt: ts });
+    }
+    return;
+  }
+  const rd = (await tx.get(roundRef(db, roomId, key))).data() as RoundDoc | undefined;
+  if (rd && rd.status !== "revealed" && rd.status !== "aborted") {
+    tx.update(roundRef(db, roomId, key), { status: "aborted", abortedReason: reason, endedAt: ts });
+  }
+}
+
+/**
+ * Someone watching takes a free seat in a game that is already running.
+ * They play from the next round with 0 points; the current round keeps
+ * its players.
+ */
+export async function takeSeat(deps: Deps, uid: string, data: unknown) {
+  const roomId = str(data, "roomId");
+  await deps.db.runTransaction(async (tx) => {
+    const { ref, room } = await loadRoom(tx, deps.db, roomId);
+    if (room.memberUids.includes(uid)) return;
+    const me = room.spectators?.[uid];
+    if (!room.spectatorUids?.includes(uid) || !me) fail("permission-denied", "Join the room first.");
+    if (room.banned.includes(uid)) fail("permission-denied", "The host removed you from this room.");
+    if (room.status !== "playing") fail("failed-precondition", "You can join once the next round starts.");
+    if (room.memberUids.length >= MAX_PLAYERS) fail("resource-exhausted", "Every seat is taken. You get one when they play again.");
+    if (me!.approved || me!.claims) fail("failed-precondition", "You already asked for a seat.");
+    const taken = room.memberUids.some((m) => room.players[m].name.toLowerCase() === me!.name.toLowerCase());
+    if (taken) fail("already-exists", "Someone in this room already uses that name.");
+    const spectators = { ...room.spectators };
+    delete spectators[uid];
     tx.update(ref, {
-      memberUids: room.memberUids.filter((m) => m !== target),
-      players,
-      // Removed bots just go; removed people can't come back.
-      banned: isBot(target) ? room.banned : [...room.banned, target],
+      memberUids: [...room.memberUids, uid],
+      [`players.${uid}`]: { name: me!.name, joinedAt: me!.joinedAt, ready: true, left: false },
+      [`totals.${uid}`]: 0,
+      [`movieWins.${uid}`]: 0,
+      [`kingWins.${uid}`]: 0,
+      spectatorUids: room.spectatorUids!.filter((s) => s !== uid),
+      spectators,
       updatedAt: Timestamp.fromMillis(deps.now()),
     });
+    tx.create(auditRef(deps.db, roomId), { type: "takeSeat", uid, at: Timestamp.fromMillis(deps.now()) });
   });
   return { ok: true };
 }
 
 export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
-  const { db, now } = deps;
+  const { db } = deps;
   const roomId = str(data, "roomId");
   await db.runTransaction(async (tx) => {
     const ref = roomRef(db, roomId);
@@ -543,71 +736,89 @@ export async function leaveRoom(deps: Deps, uid: string, data: unknown) {
       return;
     }
     if (!room.memberUids.includes(uid)) return;
-    const isKq = room.mode === "kingQueen";
-    const isCharades = room.mode === "charades";
-    const charadesRound =
-      isCharades && room.status === "playing"
-        ? await charades.currentCharades(tx, db, roomId, room.currentRoundKey)
-        : null;
-    const round =
-      !isKq && !isCharades && room.status === "playing" && room.currentRoundKey
-        ? ((await tx.get(roundRef(db, roomId, room.currentRoundKey))).data() as RoundDoc | undefined)
-        : undefined;
-
-    const ts = Timestamp.fromMillis(now());
-    // Bots don't keep a room alive on their own.
-    const members = room.memberUids.filter((m) => m !== uid);
-    if (!members.some((m) => !isBot(m))) members.length = 0;
-    const kqEffects = isKq ? await kq.kqLeaveEffects(tx, deps, roomId, room, uid, members) : null;
-    if (members.length > 0) charades.charadesLeaveEffects(tx, deps, roomId, charadesRound, uid);
-    const next: Partial<RoomDoc> & Record<string, unknown> = { memberUids: members, updatedAt: ts };
-
-    if (members.length === 0) {
-      next.status = "closed";
-      tx.delete(db.collection("roomCodes").doc(room.code));
-    } else if (room.status === "lobby") {
-      const players = { ...room.players };
-      delete players[uid];
-      next.players = players;
-    } else {
-      next[`players.${uid}.left`] = true;
-    }
-    next.hostUid = migrateHost({ ...room, memberUids: members });
-
-    if (round && (round.status === "exchange" || round.status === "picking") && members.length > 0) {
-      // The leaver's cards cannot keep circulating, so the round is void.
-      tx.update(roundRef(db, roomId, round.roundKey), {
-        status: "aborted",
-        abortedReason: `${room.players[uid].name} left the game.`,
-        endedAt: ts,
-      });
-    }
-    const tb = room.tiebreak;
-    const tiedLeaver = tb && tb.uids.includes(uid) && (tb.stage === "vote" || tb.stage === "playing");
-    if (members.length > 0 && (room.status === "tiebreakVote" || round?.tiebreak) && tiedLeaver) {
-      // A tied player left: no tie-breaker, the shared titles stand.
-      next.status = "finished";
-      next.tiebreak = { ...tb!, stage: "cancelled" };
-    } else if (kqEffects) {
-      kqEffects.apply();
-      Object.assign(next, kqEffects.out);
-    } else if (
-      room.status === "playing" &&
-      members.length > 0 &&
-      members.length < (isCharades ? charades.CHARADES_MIN_PLAYERS : MIN_PLAYERS)
-    ) {
-      // Too few players to continue: finish with the scores so far.
-      const leftRoom = {
-        ...room,
-        players: { ...room.players, [uid]: { ...room.players[uid], left: true } },
-      };
-      next.status = "finished";
-      next.final = standingsFor(leftRoom);
-    }
-    tx.update(ref, next);
-    tx.create(auditRef(db, roomId), { type: "leave", uid, at: ts, roundKey: round?.roundKey ?? null });
+    await removeMemberTx(tx, deps, roomId, room, uid, "left");
   });
   return { ok: true };
+}
+
+/**
+ * Takes [uid] out of the room, whether they left, the host removed them or
+ * their warning ran out. Any round they were in the middle of is void; the
+ * game finishes early when too few players remain, and the room closes when
+ * nobody (human) is left. Reads first, then writes.
+ */
+async function removeMemberTx(
+  tx: Transaction,
+  deps: Deps,
+  roomId: string,
+  room: RoomDoc,
+  uid: string,
+  how: "left" | "kicked" | "timeout",
+) {
+  const { db, now } = deps;
+  const ref = roomRef(db, roomId);
+  const isKq = room.mode === "kingQueen";
+  const isCharades = room.mode === "charades";
+  const charadesRound =
+    isCharades && room.status === "playing" ? await charades.currentCharades(tx, db, roomId, room.currentRoundKey) : null;
+  const round =
+    !isKq && !isCharades && room.status === "playing" && room.currentRoundKey
+      ? ((await tx.get(roundRef(db, roomId, room.currentRoundKey))).data() as RoundDoc | undefined)
+      : undefined;
+
+  const ts = Timestamp.fromMillis(now());
+  const name = room.players[uid]?.name ?? "A player";
+  const reason = how === "left" ? `${name} left the game.` : how === "kicked" ? `${name} was removed by the host.` : `${name} did not respond and was removed.`;
+  // Bots don't keep a room alive on their own.
+  const members = room.memberUids.filter((m) => m !== uid);
+  if (!members.some((m) => !isBot(m))) members.length = 0;
+  const kqEffects = isKq ? await kq.kqLeaveEffects(tx, deps, roomId, room, uid, members, reason) : null;
+  if (members.length > 0) charades.charadesLeaveEffects(tx, deps, roomId, charadesRound, uid);
+  const warnings = { ...(room.warnings ?? {}) };
+  delete warnings[uid];
+  const next: Partial<RoomDoc> & Record<string, unknown> = { memberUids: members, warnings, updatedAt: ts };
+  // Hosts remove people for good; a missed warning is forgiven.
+  if (how === "kicked" && !isBot(uid)) next.banned = [...room.banned, uid];
+
+  if (members.length === 0) {
+    next.status = "closed";
+    tx.delete(db.collection("roomCodes").doc(room.code));
+  } else if (room.status === "lobby") {
+    const players = { ...room.players };
+    delete players[uid];
+    next.players = players;
+  } else {
+    next[`players.${uid}.left`] = true;
+    next[`players.${uid}.leftReason`] = how;
+  }
+  next.hostUid = migrateHost({ ...room, memberUids: members });
+
+  if (round && round.status !== "revealed" && round.status !== "aborted" && members.length > 0 && round.order.includes(uid)) {
+    // The leaver's cards cannot keep circulating, so the round is void.
+    tx.update(roundRef(db, roomId, round.roundKey), { status: "aborted", abortedReason: reason, endedAt: ts });
+  }
+  const leftRoom = { ...room, players: { ...room.players, [uid]: { ...room.players[uid], left: true } } };
+  const tb = room.tiebreak;
+  const tiedLeaver = tb && tb.uids.includes(uid) && (tb.stage === "vote" || tb.stage === "playing");
+  if (members.length > 0 && (room.status === "tiebreakVote" || round?.tiebreak) && tiedLeaver) {
+    // A tied player left: no tie-breaker, the shared titles stand.
+    next.status = "finished";
+    next.tiebreak = { ...tb!, stage: "cancelled" };
+  } else if (kqEffects) {
+    kqEffects.apply();
+    Object.assign(next, kqEffects.out);
+  } else if (
+    room.status === "playing" &&
+    members.length > 0 &&
+    members.length < (isCharades ? charades.CHARADES_MIN_PLAYERS : MIN_PLAYERS)
+  ) {
+    // Too few players to continue: finish with the scores so far.
+    next.status = "finished";
+    next.final = standingsFor(leftRoom);
+    next.endedReason = "players";
+  }
+  tx.update(ref, next);
+  tx.create(auditRef(db, roomId), { type: how === "left" ? "leave" : how, uid, at: ts, roundKey: round?.roundKey ?? null });
 }
 
 // ---------- rounds ----------
@@ -752,7 +963,16 @@ export async function startGame(deps: Deps, uid: string, data: unknown) {
       }
     }
     const zero = Object.fromEntries(room.memberUids.map((m) => [m, 0]));
-    const reset = { totals: zero, movieWins: zero, kingWins: { ...zero }, final: null, tiebreak: null, tiebreakScores: null };
+    const reset = {
+      totals: zero,
+      movieWins: zero,
+      kingWins: { ...zero },
+      final: null,
+      tiebreak: null,
+      tiebreakScores: null,
+      warnings: {},
+      endedReason: null,
+    };
     const fresh: RoomDoc = { ...room, ...reset, movieWins: { ...zero }, currentRound: 0 };
     if (room.mode === "kingQueen") {
       kqChainCheck(room);
@@ -909,6 +1129,8 @@ async function passTx(
       lastAction,
     };
     if (actor.kind === "timeout" && !botTurn) roundUpdate[`timeouts.${fromUid}`] = (round.timeouts[fromUid] ?? 0) + 1;
+    const answered = actor.kind === "player" ? warningAnswered(room, actor.uid) : null;
+    if (answered) tx.update(rRef, answered);
 
     if (result.winner) {
       const w = result.winner;
@@ -1035,7 +1257,7 @@ async function loadPicking(tx: Transaction, deps: Deps, uid: string, data: unkno
 export async function pickChit(deps: Deps, uid: string, data: unknown) {
   const chitId = str(data, "chitId");
   return deps.db.runTransaction(async (tx) => {
-    const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
+    const { roomId, room, round, secret } = await loadPicking(tx, deps, uid, data);
     if (!round.order.includes(uid)) fail("permission-denied", "You are not playing this round.");
     const handSnap = await tx.get(handRef(deps.db, roomId, uid));
     const hand = handSnap.data() as HandDoc;
@@ -1051,6 +1273,8 @@ export async function pickChit(deps: Deps, uid: string, data: unknown) {
     if (round.picks[chitId]) fail("already-exists", "Someone else picked that chit first.");
     if (hand.cards.length >= HAND_SIZE) fail("failed-precondition", "You already have 4 chits.");
     const { revealed } = bindMovieChits(tx, deps, roomId, round, secret, { [uid]: hand }, [[chitId, uid]], t, false);
+    const answered = warningAnswered(room, uid);
+    if (answered) tx.update(roomRef(deps.db, roomId), answered);
     return { duplicate: false, card: revealed[chitId] };
   });
 }
@@ -1109,7 +1333,7 @@ function bindCharacterChits(
 export async function pickCharacter(deps: Deps, uid: string, data: unknown) {
   const chitId = str(data, "chitId");
   return deps.db.runTransaction(async (tx) => {
-    const { roomId, round, secret } = await loadPicking(tx, deps, uid, data);
+    const { roomId, room, round, secret } = await loadPicking(tx, deps, uid, data);
     if (round.charPicks?.[chitId] === uid) {
       return { duplicate: true, character: secret.characters[chitId] };
     }
@@ -1125,6 +1349,8 @@ export async function pickCharacter(deps: Deps, uid: string, data: unknown) {
     if (round.charPicks[chitId]) fail("already-exists", "Someone else picked that chit first.");
     if (Object.values(round.charPicks).includes(uid)) fail("failed-precondition", "You already picked a character.");
     bindCharacterChits(tx, deps, roomId, round, secret, [[chitId, uid]], t, false);
+    const answered = warningAnswered(room, uid);
+    if (answered) tx.update(roomRef(deps.db, roomId), answered);
     return { duplicate: false, character: secret.characters[chitId] };
   });
 }
@@ -1136,7 +1362,7 @@ export async function autoPickCharacters(deps: Deps, uid: string, data: unknown)
     if (round.status !== "characters" || round.revealAt) return { assigned: 0 };
     const t = deps.now();
     const picked = new Set(Object.values(round.charPicks));
-    const waiting = round.order.filter((u) => u !== round.winner!.uid && !picked.has(u));
+    const waiting = round.order.filter((u) => u !== round.winner?.uid && !picked.has(u));
     const who = picksDue(waiting, round.charPickDeadline!.toMillis(), round.charPickOpensAt!.toMillis(), t);
     const free = shuffle(round.charChits.filter((c) => !round.charPicks[c]), deps.rng);
     const assignments = who.map((u) => [free.pop()!, u] as [string, string]);
@@ -1162,6 +1388,53 @@ export async function claimTimeout(deps: Deps, uid: string, data: unknown) {
   });
 }
 
+/**
+ * The host ends an exchange that has gone STALEMATE_LAPS full laps with no
+ * winner. Nobody wins the movie points: instead everyone, including a
+ * "King" chit worth the win points, picks a folded character chit.
+ */
+export async function endExchange(deps: Deps, uid: string, data: unknown) {
+  const { db, now, rng } = deps;
+  const roomId = str(data, "roomId");
+  const roundKey = str(data, "roundKey");
+  return db.runTransaction(async (tx) => {
+    const { room } = await loadRoom(tx, db, roomId);
+    requireHost(room, uid);
+    if (room.currentRoundKey !== roundKey) fail("failed-precondition", "That round is over.");
+    const round = (await tx.get(roundRef(db, roomId, roundKey))).data() as RoundDoc | undefined;
+    if (!round) fail("not-found", "Round not found.");
+    if (round!.status !== "exchange") fail("failed-precondition", "Passing has already stopped for this round.");
+    const laps = Math.floor(round!.turnId / round!.order.length);
+    if (laps < STALEMATE_LAPS) {
+      fail("failed-precondition", `Give it ${STALEMATE_LAPS - laps} more lap${STALEMATE_LAPS - laps === 1 ? "" : "s"} first.`);
+    }
+    const t = now();
+    const ts = Timestamp.fromMillis(t);
+    const defs = shuffle(
+      [{ name: STALEMATE_KING, points: room.settings.winPoints }, ...charactersFor(room.settings.characters, round!.order.length - 1)],
+      rng,
+    );
+    const sealed: Record<string, { name: string; points: number }> = {};
+    for (const def of defs) sealed[`c${randomId(rng, 12)}`] = { name: def.name, points: def.points };
+    const charChits = shuffle(Object.keys(sealed), rng);
+    const opens = t + CHAR_CEREMONY_SECONDS * 1000;
+    tx.update(secretRef(db, roomId, roundKey), { characters: sealed });
+    tx.update(roundRef(db, roomId, roundKey), {
+      status: "characters",
+      stalemate: true,
+      winner: null,
+      charChits,
+      charPicks: {},
+      charPickOpensAt: Timestamp.fromMillis(opens),
+      charPickDeadline: Timestamp.fromMillis(opens + CHAR_PICK_SECONDS * 1000),
+      revealAt: null,
+    });
+    tx.update(roomRef(db, roomId), { updatedAt: ts });
+    tx.create(auditRef(db, roomId), { type: "stalemate", roundKey, laps, by: uid, sealed, at: ts });
+    return { laps };
+  });
+}
+
 export async function revealRound(deps: Deps, uid: string, data: unknown) {
   const { db, now } = deps;
   const roomId = str(data, "roomId");
@@ -1173,7 +1446,7 @@ export async function revealRound(deps: Deps, uid: string, data: unknown) {
     const round = (await tx.get(rRef)).data() as RoundDoc | undefined;
     if (!round) fail("not-found", "Round not found.");
     if (round!.status === "revealed") return { alreadyRevealed: true };
-    if (round!.status !== "characters" || !round!.winner) fail("failed-precondition", "Nothing to reveal yet.");
+    if (round!.status !== "characters" || (!round!.winner && !round!.stalemate)) fail("failed-precondition", "Nothing to reveal yet.");
     const t = now();
     if (!round!.revealAt) fail("failed-precondition", "Players are still picking their characters.");
     if (t < round!.revealAt!.toMillis() && uid !== room.hostUid) {
@@ -1187,7 +1460,7 @@ export async function revealRound(deps: Deps, uid: string, data: unknown) {
       revealedHands[u] = h.cards;
       if (h.character) characters[u] = h.character;
     });
-    const scores = roundScores(round!.order, round!.winner!.uid, round!.winner!.points, characters);
+    const scores = roundScores(round!.order, round!.winner?.uid ?? "", round!.winner?.points ?? 0, characters);
     const ts = Timestamp.fromMillis(t);
 
     let roomUpdate: Record<string, unknown>;
@@ -1252,6 +1525,8 @@ export async function playAgain(deps: Deps, uid: string, data: unknown) {
       final: null,
       tiebreak: null,
       tiebreakScores: null,
+      warnings: {},
+      endedReason: null,
       updatedAt: Timestamp.fromMillis(deps.now()),
     });
   });

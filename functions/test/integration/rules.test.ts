@@ -6,7 +6,7 @@ import {
 } from "@firebase/rules-unit-testing";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc, deleteDoc, Timestamp, writeBatch } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 let env: RulesTestEnvironment;
@@ -270,6 +270,44 @@ describe("quick chat", () => {
     await assertFails(setDoc(doc(as("mallory"), `rooms/${ROOM}/chat/mallory`), msg()));
     await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg({ kind: "nudge", to: "mallory" })));
     await assertFails(deleteDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`)));
+  });
+
+  it("friends can send short text messages; strangers at public tables cannot", async () => {
+    const text = { kind: "text", code: "text", text: "Who has the fourth RRR? 👀" };
+    await assertSucceeds(setDoc(doc(as("alice"), `rooms/${ROOM}/chat/alice`), msg(text)));
+    await assertFails(setDoc(doc(as("bob"), `rooms/${ROOM}/chat/bob`), msg({ ...text, text: "" })));
+    await assertFails(setDoc(doc(as("bob"), `rooms/${ROOM}/chat/bob`), msg({ ...text, text: "x".repeat(81) })));
+    await assertFails(setDoc(doc(as("bob"), `rooms/${ROOM}/chat/bob`), msg({ kind: "emoji", text: "sneaky" })));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `rooms/${ROOM}`), { public: true });
+    });
+    await assertFails(setDoc(doc(as("bob"), `rooms/${ROOM}/chat/bob`), msg(text)));
+    await assertSucceeds(setDoc(doc(as("bob"), `rooms/${ROOM}/chat/bob`), msg()));
+  });
+
+  it("chat history rides along with the throttled latest message, never alone", async () => {
+    const history = { uid: "alice", kind: "text", code: "text", text: "hello", at: serverTimestamp() };
+    // Alone: refused (no matching latest-message write in the batch).
+    await assertFails(setDoc(doc(as("alice"), `rooms/${ROOM}/messages/k3x9a`), history));
+    const alice = as("alice");
+    const ok = writeBatch(alice);
+    ok.set(doc(alice, `rooms/${ROOM}/chat/alice`), msg({ kind: "text", code: "text", text: "hello" }));
+    ok.set(doc(alice, `rooms/${ROOM}/messages/k3x9a`), history);
+    await assertSucceeds(ok.commit());
+    await assertSucceeds(getDoc(doc(as("bob"), `rooms/${ROOM}/messages/k3x9a`)));
+    await assertFails(getDoc(doc(as("mallory"), `rooms/${ROOM}/messages/k3x9a`)));
+    // Mismatched ids, another player's uid, or edits: refused.
+    const bob = as("bob");
+    const bad = writeBatch(bob);
+    bad.set(doc(bob, `rooms/${ROOM}/chat/bob`), msg({ id: "b1" }));
+    bad.set(doc(bob, `rooms/${ROOM}/messages/b2`), { uid: "bob", kind: "emoji", code: "laugh", at: serverTimestamp() });
+    await assertFails(bad.commit());
+    const forged = writeBatch(bob);
+    forged.set(doc(bob, `rooms/${ROOM}/chat/bob`), msg({ id: "b3" }));
+    forged.set(doc(bob, `rooms/${ROOM}/messages/b3`), { uid: "alice", kind: "emoji", code: "laugh", at: serverTimestamp() });
+    await assertFails(forged.commit());
+    await assertFails(updateDoc(doc(as("alice"), `rooms/${ROOM}/messages/k3x9a`), { text: "edited" }));
+    await assertFails(deleteDoc(doc(as("alice"), `rooms/${ROOM}/messages/k3x9a`)));
   });
 
   it("allows at most one message per second per player", async () => {

@@ -89,11 +89,18 @@ describe("guessing transitions", () => {
   it("follows the worked example in the specification exactly", () => {
     let s = example();
     s = kqGuess(s, "A", "B", 0); // wrong
-    s = kqGuess(s, "B", "D", 1); // wrong, then the Queen is forced
+    s = kqGuess(s, "B", "D", 1); // wrong: only C can be the Queen now
+    expect(kqCandidates(s)).toEqual(["C"]);
+    expect(s.done).toBe(false); // D still makes the (sure) guess themselves
+    s = kqGuess(s, "D", "C", s.turnId);
     expect(s.history.map((h) => h.kind)).toEqual(["guess", "guess", "forced"]);
     expect(s.guesser).toBe("C");
     expect(s.locked).toEqual(["D"]);
-    s = kqGuess(s, "C", "B", s.turnId); // correct, then the Thief is forced
+    s = kqGuess(s, "C", "B", s.turnId); // correct: B must find the Thief among {A}
+    expect(s.done).toBe(false);
+    expect(kqCandidates(s)).toEqual(["A"]);
+    s = kqGuess(s, "B", "A", s.turnId);
+    expect(s.history.at(-1)!.kind).toBe("forced");
     expect(s.done).toBe(true);
     expect({ D: roleOf(s, "D"), C: roleOf(s, "C"), B: roleOf(s, "B"), A: roleOf(s, "A") }).toEqual({
       D: "King",
@@ -104,12 +111,27 @@ describe("guessing transitions", () => {
     expect(kqScores(s, KQ_DEFAULT_ROLES)).toEqual({ A: 100, B: 500, C: 800, D: 1000 });
   });
 
-  it("the last step is always forced", () => {
+  it("the last guess is a sure thing but is still made by its player", () => {
     let s = kqGuess(example(), "A", "C", 0); // Queen found
-    s = kqGuess(s, "C", "D", s.turnId); // Police found, Thief forced
+    s = kqGuess(s, "C", "D", s.turnId); // Police found
+    expect(s.done).toBe(false);
+    expect(s.guesser).toBe("D");
+    expect(kqCandidates(s)).toEqual(["B"]);
+    expect(() => kqGuess(s, "D", "A", s.turnId)).toThrow(/can't pick/);
+    s = kqGuess(s, "D", "B", s.turnId); // Thief found
     expect(s.done).toBe(true);
     expect(s.history.at(-1)!.kind).toBe("forced");
     expect(s.locked.sort()).toEqual(["A", "B", "C", "D"]);
+  });
+
+  it("a round never ends before every role has been found by its player", () => {
+    // Nobody is locked or scored by the engine on its own: with a single
+    // candidate left the state waits for that guess (a premature "winner"
+    // would otherwise be declared while the Police had not even played).
+    let s = kqGuess(example(), "A", "C", 0);
+    s = kqGuess(s, "C", "D", s.turnId);
+    expect(s.locked).toEqual(["A", "C"]);
+    expect(s.players.filter((p) => !s.locked.includes(p))).toEqual(["B", "D"]);
   });
 
   it("rejects guesses out of turn, stale turns, self, locked or excluded players", () => {
@@ -127,6 +149,7 @@ describe("guessing transitions", () => {
   it("a finished round accepts no more guesses", () => {
     let s = kqGuess(example(), "A", "C", 0);
     s = kqGuess(s, "C", "D", s.turnId);
+    s = kqGuess(s, "D", "B", s.turnId);
     expect(() => kqGuess(s, s.guesser, "A", s.turnId)).toThrow(/round is over/);
     expect(kqCandidates(s)).toEqual([]);
   });

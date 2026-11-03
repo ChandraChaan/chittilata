@@ -71,11 +71,25 @@ class SpectatorView extends StatelessWidget {
                     ),
                     const SizedBox(height: Space.sm),
                     Text(
-                      'This game started before you joined. Watch and cheer '
-                      'with emojis — you get a seat when they play again.',
+                      ctrl.canTakeSeat
+                          ? 'This game started before you joined. There is a '
+                                'free seat: join now and play from the next '
+                                'round, or just watch and cheer.'
+                          : 'This game started before you joined. Watch and '
+                                'cheer with emojis. You get a seat when they '
+                                'play again.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: c.muted, height: 1.35),
                     ),
+                    if (ctrl.canTakeSeat) ...[
+                      const SizedBox(height: Space.md),
+                      BigButton(
+                        label: 'Join the game',
+                        icon: Icons.event_seat_rounded,
+                        busy: ctrl.busy,
+                        onPressed: ctrl.takeSeat,
+                      ),
+                    ],
                   ],
                 ),
               ),

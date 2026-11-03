@@ -52,6 +52,12 @@ export const joinRoom = callable("joinRoom", ops.joinRoom);
 export const setReady = callable("setReady", ops.setReady);
 export const updateSettings = callable("updateSettings", ops.updateSettings);
 export const kickPlayer = callable("kickPlayer", ops.kickPlayer);
+export const warnPlayer = callable("warnPlayer", ops.warnPlayer);
+export const respondToWarning = callable("respondToWarning", ops.respondToWarning);
+export const enforceWarnings = callable("enforceWarnings", ops.enforceWarnings);
+export const endGame = callable("endGame", ops.endGame);
+export const takeSeat = callable("takeSeat", ops.takeSeat);
+export const endExchange = callable("endExchange", ops.endExchange);
 export const addBot = callable("addBot", ops.addBot);
 export const claimSeat = callable("claimSeat", ops.claimSeat);
 export const answerSeatClaim = callable("answerSeatClaim", ops.answerSeatClaim);
@@ -118,7 +124,12 @@ export const pushOnKqRound = onDocumentWritten("rooms/{roomId}/kqRounds/{key}", 
 export const onRoomStatus = onDocumentWritten("rooms/{roomId}", async (event) => {
   const after = event.data?.after.data() as RoomDoc | undefined;
   const before = event.data?.before.data() as RoomDoc | undefined;
-  if (!after || after.status === before?.status) return;
+  if (!after) return;
+  // A warned player may well have the app closed: that is the one push
+  // that matters most.
+  const warned = push.warningPushes(before, after);
+  if (warned.length > 0) await notify(event.params.roomId, () => warned);
+  if (after.status === before?.status) return;
   if (after.status === "finished" && after.groupId) {
     try {
       await groups.recordGroupGame(getFirestore(), event.params.roomId, after, Date.now());

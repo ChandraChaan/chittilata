@@ -54,14 +54,19 @@ abstract class GameRepository {
   /// Every member's latest quick-chat message (one per player).
   Stream<List<ChatEvent>> watchChat(String roomId);
 
-  /// Sends a preset emoji, phrase or nudge. [id] is random per message.
+  /// Sends a preset emoji, phrase, nudge or short text. [id] is random per
+  /// message. Emojis, phrases and texts also land in the room's history.
   Future<void> sendChat(
     String roomId, {
     required String id,
     required ChatKind kind,
     required String code,
     String? to,
+    String? text,
   });
+
+  /// The room's chat history, oldest first (the last [limit] messages).
+  Stream<List<ChatMessage>> watchMessages(String roomId, {int limit = 60});
 
   Future<({String roomId, String code})> createRoom(
     String name, {
@@ -110,6 +115,24 @@ abstract class GameRepository {
   );
   Future<void> kqClaimTimeout(String roomId, String roundKey, int turnId);
   Future<void> kickPlayer(String roomId, String uid);
+
+  /// Host only: asks whether [uid] is still there (a minute to answer).
+  Future<void> warnPlayer(String roomId, String uid);
+
+  /// A warned player says they are here.
+  Future<void> respondToWarning(String roomId);
+
+  /// Any member: removes a player whose warning ran out (server-checked).
+  Future<void> enforceWarnings(String roomId);
+
+  /// Host only: finishes the game (or closes a lobby) for everyone.
+  Future<void> endGame(String roomId);
+
+  /// A watcher takes a free seat in a running game (from the next round).
+  Future<void> takeSeat(String roomId);
+
+  /// Host only: ends a stalemate exchange; everyone picks a character chit.
+  Future<void> endExchange(String roomId, String roundKey);
 
   /// Host only, in the lobby: adds a computer player.
   Future<void> addBot(String roomId);
@@ -319,13 +342,49 @@ class FirebaseGameRepository implements GameRepository {
     required ChatKind kind,
     required String code,
     String? to,
-  }) => _room(roomId).collection('chat').doc(uid).set({
-    'id': id,
-    'kind': kind.name,
-    'code': code,
-    'to': to,
-    'at': FieldValue.serverTimestamp(),
-  });
+    String? text,
+  }) {
+    final latest = {
+      'id': id,
+      'kind': kind.name,
+      'code': code,
+      'to': to,
+      'at': FieldValue.serverTimestamp(),
+      if (kind == ChatKind.text) 'text': text,
+    };
+    final mine = _room(roomId).collection('chat').doc(uid);
+    if (kind == ChatKind.nudge) return mine.set(latest);
+    // History rides along in the same batch: the rules accept a message
+    // only together with the throttled "latest" document.
+    final batch = _db.batch()
+      ..set(mine, latest)
+      ..set(_room(roomId).collection('messages').doc(id), {
+        'uid': uid,
+        'kind': kind.name,
+        'code': code,
+        'at': FieldValue.serverTimestamp(),
+        if (kind == ChatKind.text) 'text': text,
+      });
+    return batch.commit();
+  }
+
+  @override
+  Stream<List<ChatMessage>> watchMessages(String roomId, {int limit = 60}) =>
+      _room(roomId)
+          .collection('messages')
+          .orderBy('at', descending: true)
+          .limit(limit)
+          .snapshots()
+          .map(
+            (q) => [
+              for (final d in q.docs.reversed)
+                ?ChatMessage.fromMap(
+                  d.id,
+                  d.data(),
+                  (d.data()['at'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                ),
+            ],
+          );
 
   @override
   Future<({String roomId, String code})> createRoom(
@@ -442,6 +501,28 @@ class FirebaseGameRepository implements GameRepository {
   @override
   Future<void> kickPlayer(String roomId, String uid) =>
       _run('kickPlayer', {'roomId': roomId, 'uid': uid});
+
+  @override
+  Future<void> warnPlayer(String roomId, String uid) =>
+      _run('warnPlayer', {'roomId': roomId, 'uid': uid});
+
+  @override
+  Future<void> respondToWarning(String roomId) =>
+      _run('respondToWarning', {'roomId': roomId});
+
+  @override
+  Future<void> enforceWarnings(String roomId) =>
+      _run('enforceWarnings', {'roomId': roomId});
+
+  @override
+  Future<void> endGame(String roomId) => _run('endGame', {'roomId': roomId});
+
+  @override
+  Future<void> takeSeat(String roomId) => _run('takeSeat', {'roomId': roomId});
+
+  @override
+  Future<void> endExchange(String roomId, String roundKey) =>
+      _run('endExchange', {'roomId': roomId, 'roundKey': roundKey});
 
   @override
   Future<void> addBot(String roomId) => _run('addBot', {'roomId': roomId});

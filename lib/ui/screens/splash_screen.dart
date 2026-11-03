@@ -41,7 +41,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         setState(
           () => _error =
-              'Could not connect. Chittilata needs the internet to play with friends.',
+              'Could not connect. ChitPlay needs the internet to play with friends.',
         );
       }
       return;
@@ -125,14 +125,16 @@ class _SplashScreenState extends State<SplashScreen>
                   style: context.text.displaySmall?.copyWith(color: c.marigold),
                 ),
                 Text(
-                  'చిట్టిలాట',
-                  style: context.text.headlineSmall?.copyWith(
-                    color: c.onSurface,
+                  'ChitPlay',
+                  style: context.text.titleMedium?.copyWith(
+                    color: c.teal,
+                    letterSpacing: 4,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: Space.sm),
                 Text(
-                  'The paper-slip game, now on every phone',
+                  'The paper-chit party games · చిట్టిలాట',
                   style: TextStyle(color: c.muted),
                 ),
                 const SizedBox(height: Space.xxl),

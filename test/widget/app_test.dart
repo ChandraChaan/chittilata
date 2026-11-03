@@ -163,7 +163,7 @@ void main() {
       for (final c in myCards) {
         expect(find.bySemanticsLabel('Slip: ${c.name}'), findsWidgets);
       }
-      expect(find.text('Tap a slip to choose it'), findsOneWidget);
+      expect(find.text('Tap a slip, or drag it to the circle'), findsOneWidget);
 
       await tester.tap(find.bySemanticsLabel('Slip: Devara').last);
       await tester.pump();
@@ -204,7 +204,7 @@ void main() {
       await pumpApp(tester, const RoomScreen(roomId: 'room1'));
       await tester.pump(const Duration(milliseconds: 700));
       expect(find.text('Swetha is choosing'), findsOneWidget);
-      expect(find.text('Wait for your turn'), findsOneWidget);
+      expect(find.textContaining('Wait for your turn'), findsOneWidget);
       expect(
         find.bySemanticsLabel(RegExp(r'^\d seconds left$')),
         findsOneWidget,

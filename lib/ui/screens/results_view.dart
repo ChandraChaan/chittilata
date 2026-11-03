@@ -77,7 +77,9 @@ class ResultsView extends StatelessWidget {
                 ),
                 const SizedBox(height: Space.xs),
                 Text(
-                  '${room.nameOf(round.winner!.uid)} collected four × ${round.winner!.movie}',
+                  round.winner == null
+                      ? 'No winner after ${round.laps} laps: everyone drew a character'
+                      : '${room.nameOf(round.winner!.uid)} collected four × ${round.winner!.movie}',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: c.marigold,
@@ -113,7 +115,13 @@ class ResultsView extends StatelessWidget {
           padding: const EdgeInsets.all(Space.lg),
           child: SizedBox(
             width: double.infinity,
-            child: ctrl.isHost
+            child: ctrl.finalRoundShown
+                ? BigButton(
+                    label: 'See final results',
+                    icon: Icons.emoji_events_rounded,
+                    onPressed: ctrl.acknowledgeFinal,
+                  )
+                : ctrl.isHost
                 ? BigButton(
                     label: moreRounds
                         ? 'Start round ${room.currentRound + 1}'
@@ -223,7 +231,7 @@ class _RevealRow extends StatelessWidget {
                   PaperSlip(
                     label: card.name,
                     width: 56,
-                    state: isWinner && card.name == round.winner!.movie
+                    state: isWinner && card.name == round.winner?.movie
                         ? SlipState.winning
                         : SlipState.normal,
                   ),

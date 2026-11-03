@@ -20,8 +20,9 @@ const ruleSections = [
     Icons.style_rounded,
     'Pick 4 folded chits',
     'Each round, the movie names are written on paper, folded, shuffled '
-        'and scattered on the mat: 4 chits per name. Tap any 4 chits and '
-        'each one unfolds just for you. You have a minute; after that the '
+        'and scattered on the mat: 4 chits per name. Tap any 4 chits, or '
+        'drag them down into your tray, and each one unfolds just for you. '
+        'You have a minute; after that the '
         'rest are picked for you. The server deals everyone a fair hand '
         'of different names, so which chit you pick never changes your '
         'chances and nobody starts close to winning. Only you can see your '
@@ -32,8 +33,10 @@ const ruleSections = [
     'Pass around the circle',
     'A new random seating circle is shown before each round. The first '
         'player passes one slip to the next player. That player now holds 5, '
-        'looks at the new slip, and passes any one of their 5 onward. Then '
-        'the next player does the same, all the way around, again and again.',
+        'looks at the new slip, and passes any one of their 5 onward: drag '
+        'it onto the circle, or tap it and press Pass. Then the next player '
+        'does the same, all the way around, again and again. Drop a slip on '
+        'another to rearrange your hand.',
   ),
   RuleSection(
     Icons.timer_rounded,
@@ -49,7 +52,7 @@ const ruleSections = [
     Icons.chat_bubble_rounded,
     'Quick chat',
     'Tap an emoji at the bottom of the screen, or the chat button for fun '
-        'phrases in Telugu and English. Everyone in the room sees them float '
+        'lines in English and Telugu. Everyone in the room sees them float '
         'up for a few seconds.',
   ),
   RuleSection(
@@ -86,12 +89,23 @@ const ruleSections = [
         'change anyone\'s total.',
   ),
   RuleSection(
+    Icons.flag_rounded,
+    'No winner after 4 laps?',
+    'If the slips have gone round the whole circle 4 times and nobody has '
+        'four of a kind, the host can end the round. Nobody wins the movie '
+        'points: instead everyone picks a folded character chit, and one of '
+        'them is a King worth the win points.',
+  ),
+  RuleSection(
     Icons.logout_rounded,
-    'If someone leaves',
-    'If a player leaves during passing, that round is cancelled with no '
-        'points, and it still counts as one of the rounds. If fewer than 3 '
-        'players remain, the game ends with the scores so far. Losing '
-        'connection does not remove you; reopen the app to rejoin.',
+    'Leaving, joining and the host',
+    'You can leave at any time. If you leave during a round, that round is '
+        'cancelled with no points and still counts. Friends can join a game '
+        'that has already started when a seat is free: they play from the '
+        'next round. The host can end the game for everyone at any time, and '
+        'can warn a silent player, who then has a minute to tap "I\'m here"; '
+        'after two warnings the host can remove them. If fewer than 3 '
+        'players remain, the game ends with the scores so far.',
   ),
 ];
 
@@ -130,7 +144,8 @@ const kqRuleSections = [
     'If you pick the wrong player, you two swap roles and you lose your '
         'turn. They now hold your role and must find the same target. You '
         'are marked "not the target", so nobody guesses you again for it. '
-        'When only one player is left, they must be the one.',
+        'When only one player is left, it has to be them: you still make '
+        'that last guess yourself, so every player finishes their own step.',
   ),
   RuleSection(
     Icons.timer_rounded,

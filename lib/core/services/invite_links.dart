@@ -17,13 +17,13 @@ class InviteLinks extends ChangeNotifier {
 
   /// What friends receive to join a group.
   static String groupMessage(String name, String code) =>
-      'Join our "$name" group on Chittilata! 👥\n'
+      'Join our "$name" group on Chittilata (ChitPlay)! 👥\n'
       'Group code: $code\n'
       '${groupLinkFor(code)}';
 
   /// What friends receive in WhatsApp or any other app.
   static String message(String code) =>
-      'Join my Chittilata game! 🎬👑\n'
+      'Join my Chittilata (ChitPlay) game! 🎬👑\n'
       'Room code: $code\n'
       '${linkFor(code)}';
 

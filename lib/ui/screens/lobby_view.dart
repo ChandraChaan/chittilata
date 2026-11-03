@@ -575,7 +575,7 @@ class _CodeCard extends StatelessWidget {
                 .share(
                   ShareParams(
                     text: InviteLinks.message(code),
-                    subject: 'Join my Chittilata game',
+                    subject: 'Join my Chittilata – ChitPlay game',
                   ),
                 )
                 .catchError((_) => ShareResult.unavailable),

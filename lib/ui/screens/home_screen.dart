@@ -246,7 +246,17 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     const SizedBox(height: Space.xl),
                     const GoldText('Chittilata', textAlign: TextAlign.center),
                     Text(
-                      'చిట్టిలాట · collect four of a kind',
+                      'ChitPlay',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: c.teal,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 3,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      'The paper-chit party games · చిట్టిలాట',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: c.muted,

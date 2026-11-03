@@ -2,6 +2,28 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] — 2026-11-03
+
+### Fixed
+- **Character chits that would not respond after the last pick.** A slip still "unfolding" from your fourth movie pick (or a role chit from the previous King & Queen round) stayed queued when the phase changed, and the next picking screen treated it as a reveal in progress, refusing every tap. Reveals now belong to their own phase and are dropped when it ends.
+- **Black screen after Return to home.** A slow leave (a cold Cloud Function) let a second tap, or a back gesture, pop the screen twice, removing the home screen too. Leaving now pops exactly once, finishes within 5 seconds even when the server is slow, and falls back to the home screen if the room was the only screen.
+- **King and Queen declared before the last round was shown.** The final round's results now appear first, and everyone taps *See final results* to reach the ceremony. In King & Queen, a guess with a single candidate left is no longer made by the server: the player confirms it themselves, so a round never ends before everyone has played their step.
+
+### Added
+- **Host controls, at any time.** From the room menu (⋮) the host can end the game for everyone (the round is void, points so far decide the titles), warn a silent player, remove players during a game, or close a lobby. Players can leave from any screen.
+- **"Are you still there?" warnings.** A warned player gets a loud banner and 60 seconds to tap *I'm here!* (any move counts). If they don't respond, any phone in the room has the server remove them; after two warnings the host can remove them immediately. Warnings are also pushed to a closed app.
+- **Join a running game.** Someone who joins after the start can take a free seat and plays from the next round with 0 points, in every mode. The round in progress is never disturbed.
+- **No more stalemates.** After 4 full laps of passing with no winner, the host can end the round: everyone picks a character chit, and one of them is a King worth the win points. A lap counter shows how long the slips have been going round.
+- **Room chat.** A chat panel with the room's history, 16 emoji reactions, 20 fun preset lines (English first, Telugu classics kept) and, in rooms of friends, short typed messages (80 characters, family-safe). Quick-match tables stay preset-only. Unread messages show on the chat button.
+- **ChitPlay.** Chittilata now carries ChitPlay as its global name (title bar, home, splash, invites). The app is English-first everywhere; Telugu stays as flavour.
+- **Drag and drop.** Drag a folded chit down into your tray to pick it. Drag a slip onto the circle to pass it (the circle lights up with "Drop to pass to …"), or drop a slip on another to rearrange your hand; tapping and the Pass button still work.
+- **One-screen passing.** The passing screen no longer scrolls: the circle sizes itself to the room left after the status panel and your hand, and the timer, the lap counter and the host's End-round control are always in view. The movie strip, status panel and hand are more compact.
+- **Polish.** Scores count up instead of jumping, "your turn" glows, the warning and stalemate banners animate in, and the final screen explains an early end.
+
+### Changed
+- Removed players see why (host removal vs. no response); people removed for not responding may rejoin.
+- The leave dialog explains that leaving is allowed at any time, and says when leaving won't disturb a round.
+
 ## [2.3.1] — 2026-11-03
 
 ### Fixed

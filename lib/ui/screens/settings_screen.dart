@@ -164,8 +164,9 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: Space.sm),
                       Text(
-                        'Chittilata (చిట్టిలాట) brings the traditional Telugu '
-                        'paper-slip game Chittilu Aata to your phone. Movie '
+                        'Chittilata – ChitPlay brings the traditional Telugu '
+                        'paper-chit games (చిట్టిలాట, Chittilu Aata) to every '
+                        'phone, in English for everyone at the table. Movie '
                         'titles are used only as game words. Sounds are '
                         'original and made for this app.\n\n'
                         'Animations follow your system "remove animations" '

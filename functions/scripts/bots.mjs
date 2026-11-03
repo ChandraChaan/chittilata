@@ -10,7 +10,9 @@
  *   Force a Queen tie:       --create --rounds 1 --force-tie   (Queen and Police both worth 500)
  *   Tie-breaker vote:        --tiebreak accept|decline (default accept)
  *   King & Queen mode:       --create --mode kq --count 4 --rounds 2
- *   Chatty bots:             add --chat (random emojis/phrases, nudge late players)
+ *   Chatty bots:             add --chat (random emojis/phrases/texts, nudge late players)
+ *   Join a running game:     --code X (a watcher takes a free seat; plays from the next round)
+ *   Answer host warnings:    add --respond (otherwise a warned bot stays silent and gets removed)
  *
  * The Firebase web config below is a public client identifier, not a secret.
  */
@@ -23,6 +25,7 @@ import {
   onSnapshot,
   serverTimestamp,
   setDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 
@@ -45,7 +48,9 @@ const DELAY = Number(opt("delay", 1800));
 const ROUNDS = Number(opt("rounds", 2));
 /** Extra ms before each chit pick, so a human can pick first in demos. */
 const PICK_DELAY = Number(opt("pick-delay", 600));
-const NAMES = ["Vasavi", "Swetha", "Sai", "Ravi", "Lata", "Kiran", "Anu", "Meena", "Gopi"];
+const NAMES = opt("names", "")
+  ? opt("names").split(",")
+  : ["Vasavi", "Swetha", "Sai", "Ravi", "Lata", "Kiran", "Anu", "Meena", "Gopi"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (who, ...m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${who}:`, ...m);
 
@@ -63,27 +68,40 @@ function makeClient(i) {
   return { auth, db, call };
 }
 
-const EMOJIS = ["laugh", "fire", "shock", "clap", "cry", "think", "cool", "sleep", "pray", "crown", "heart", "devil"];
-const PHRASES = ["twaraga", "ayyo", "super", "nene", "mosam", "baaga", "hurry", "nice", "close", "oops", "unfair", "gg"];
+const EMOJIS = ["laugh", "fire", "shock", "clap", "cry", "think", "cool", "sleep", "pray", "crown", "heart", "devil", "eyes", "party"];
+const PHRASES = ["hurry", "nice", "close", "oops", "unfair", "gg", "fourth", "chai", "thief", "bow", "poker", "lag", "twaraga", "ayyo", "super"];
+const TEXTS = ["Who has my fourth chit? 👀", "Pass faster please!", "I know what you're holding 😏", "gg everyone", "Not the Thief again…"];
 
 /** With --chat: random quick-chat messages, and nudges for late players. */
 function chatter(db, roomId, uid, name) {
   if (!flag("chat")) return { nudge: () => {} };
-  const send = (kind, code, to = null) =>
-    setDoc(doc(db, `rooms/${roomId}/chat/${uid}`), {
-      id: Math.random().toString(36).slice(2, 10),
-      kind,
-      code,
-      to,
-      at: serverTimestamp(),
-    })
-      .then(() => log(name, `chat ${kind} ${code}${to ? ` -> ${to.slice(0, 6)}` : ""}`))
-      .catch(() => {});
+  const send = (kind, code, to = null, text = null) => {
+    const id = Math.random().toString(36).slice(2, 10);
+    const latest = { id, kind, code, to, at: serverTimestamp(), ...(kind === "text" ? { text } : {}) };
+    // Exactly as the app writes it: the latest message, plus the history
+    // entry in the same batch (nudges are not kept).
+    const batch = writeBatch(db);
+    batch.set(doc(db, `rooms/${roomId}/chat/${uid}`), latest);
+    if (kind !== "nudge") {
+      batch.set(doc(db, `rooms/${roomId}/messages/${id}`), {
+        uid,
+        kind,
+        code,
+        at: serverTimestamp(),
+        ...(kind === "text" ? { text } : {}),
+      });
+    }
+    return batch
+      .commit()
+      .then(() => log(name, `chat ${kind} ${text ?? code}${to ? ` -> ${to.slice(0, 6)}` : ""}`))
+      .catch((e) => log(name, `chat refused: ${e.message}`));
+  };
   setInterval(() => {
     if (Math.random() < 0.35) {
-      const phrase = Math.random() < 0.3;
-      const list = phrase ? PHRASES : EMOJIS;
-      send(phrase ? "phrase" : "emoji", list[Math.floor(Math.random() * list.length)]);
+      const r = Math.random();
+      if (r < 0.2) send("text", "text", null, TEXTS[Math.floor(Math.random() * TEXTS.length)]);
+      else if (r < 0.45) send("phrase", PHRASES[Math.floor(Math.random() * PHRASES.length)]);
+      else send("emoji", EMOJIS[Math.floor(Math.random() * EMOJIS.length)]);
     }
   }, 5000).unref();
   const nudged = new Set();
@@ -95,6 +113,19 @@ function chatter(db, roomId, uid, name) {
       send("nudge", "nudge", target);
     },
   };
+}
+
+/** With --respond, a warned bot taps "I'm here"; without it, it stays silent (to test removal). */
+function answerWarning(room, uid, name, call, roomId, advanced) {
+  const w = room.warnings?.[uid];
+  if (!w?.deadline) return;
+  const key = `warn:${w.deadline.toMillis()}`;
+  if (advanced.has(key)) return;
+  advanced.add(key);
+  log(name, `WARNED by the host (warning #${w.count})${flag("respond") ? ": responding" : ": staying silent"}`);
+  if (flag("respond")) {
+    setTimeout(() => call("respondToWarning", { roomId }).then(() => log(name, "said I'm here")).catch((e) => log(name, `respond: ${e.message}`)), 3000);
+  }
 }
 
 /** Pass a slip of the name we hold fewest of (keeps building a set). */
@@ -127,9 +158,22 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
     await call("updateSettings", { roomId, settings });
     log(name, `created room ${code}`);
   } else {
-    roomId = (await call("joinRoom", { code, name })).roomId;
-    await call("setReady", { roomId, ready: true });
-    log(name, `joined ${code} and is ready`);
+    const joined = await call("joinRoom", { code, name });
+    roomId = joined.roomId;
+    if (joined.spectating) {
+      // A running game: take a free seat and play from the next round.
+      log(name, `joined ${code} as a watcher; taking a seat`);
+      await sleep(1500);
+      try {
+        await call("takeSeat", { roomId });
+        log(name, "took a seat (plays from the next round)");
+      } catch (e) {
+        log(name, `could not take a seat: ${e.message}`);
+      }
+    } else {
+      await call("setReady", { roomId, ready: true });
+      log(name, `joined ${code} and is ready`);
+    }
   }
 
   // Presence heartbeat, exactly as the app writes it.
@@ -162,6 +206,7 @@ async function runBot(i, { code, roomId: knownRoomId, host }) {
     onSnapshot(doc(db, `rooms/${roomId}`), (s) => {
       room = s.data();
       if (!room) return;
+      answerWarning(room, uid, name, call, roomId, advanced);
       if (room.status === "tiebreakVote" && room.tiebreak?.uids.includes(uid) && !advanced.has("vote")) {
         advanced.add("vote");
         const accept = opt("tiebreak", "accept") === "accept";
@@ -412,6 +457,7 @@ async function runKqBot(i, { code, host }) {
     onSnapshot(doc(db, `rooms/${roomId}`), (snap) => {
       room = snap.data();
       if (!room) return;
+      answerWarning(room, uid, name, call, roomId, advanced);
       if (room.status === "finished" && !advanced.has("final")) {
         advanced.add("final");
         const t = (x) => room.final.filter((p) => p.title === x).map((p) => `${p.name} ${p.total}`).join(" & ");

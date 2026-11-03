@@ -368,6 +368,8 @@ async function guessTx(
       }
       tx.update(ops.roomRef(db, roomId), roomUpdate);
     }
+    const answered = actor.kind === "guess" ? ops.warningAnswered(room, actor.uid) : null;
+    if (answered) tx.update(ops.roomRef(db, roomId), answered);
     tx.update(kqRoundRef(db, roomId, round.roundKey), update);
     tx.create(auditRef(db, roomId), {
       type: actor.kind === "guess" ? "kqGuess" : "kqTimeout",
@@ -397,16 +399,26 @@ export async function kqClaimTimeout(deps: Deps, uid: string, data: unknown) {
 }
 
 /** Room fields when a member leaves a King & Queen game mid-round. */
-export async function kqLeaveEffects(tx: Transaction, deps: Deps, roomId: string, room: RoomDoc, uid: string, members: string[]) {
+export async function kqLeaveEffects(
+  tx: Transaction,
+  deps: Deps,
+  roomId: string,
+  room: RoomDoc,
+  uid: string,
+  members: string[],
+  reason = `${room.players[uid]?.name ?? "A player"} left the game.`,
+) {
   const out: Record<string, unknown> = {};
   const key = room.currentRoundKey;
   if (room.status !== "playing" || !key) return { out, apply: () => {} };
   const round = (await tx.get(kqRoundRef(deps.db, roomId, key))).data();
   const apply = () => {
-    if (round && (round.status === "picking" || round.status === "guessing") && members.length > 0) {
+    // Only a round the leaver is part of is void: late joiners wait for
+    // the next one and can go without disturbing this one.
+    if (round && (round.status === "picking" || round.status === "guessing") && members.length > 0 && round.players.includes(uid)) {
       tx.update(kqRoundRef(deps.db, roomId, key), {
         status: "aborted",
-        abortedReason: `${room.players[uid].name} left the game.`,
+        abortedReason: reason,
         guesser: null,
         endedAt: Timestamp.fromMillis(deps.now()),
       });
@@ -414,6 +426,7 @@ export async function kqLeaveEffects(tx: Transaction, deps: Deps, roomId: string
   };
   if (members.length > 0 && members.length < KQ_MIN_PLAYERS) {
     out.status = "finished";
+    out.endedReason = "players";
     out.final = ops.standingsFor({ ...room, players: { ...room.players, [uid]: { ...room.players[uid], left: true } } });
   }
   return { out, apply };
