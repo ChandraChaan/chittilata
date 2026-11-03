@@ -107,7 +107,7 @@ Rooms carry `mode: "movie" | "kingQueen"` (missing means movie, for older rooms)
 
 ## Late players and reveal policy
 
-Clients run a 250 ms ticker for the UI. Past a deadline, the late player's phone buzzes (again every 10 s) and shows a shaking banner; everyone else sees who they're waiting for, a **Nudge 👋** button and, once the server would allow it, **Play for …**. Nothing is claimed automatically. The character reveal is still claimed by clients after `revealAt` (it moves nobody's piece), and the host can also reveal early.
+Clients run a 250 ms ticker for the UI. Past a deadline, the late player's phone buzzes (again every 10 s) and shows a shaking banner; everyone else sees who they're waiting for, a **Nudge 👋** button and, once the server would allow it, **Play for …**. No pass or guess is claimed automatically. Picks are: once a pick deadline is 1.5 s past, the members' phones take turns calling the auto-pick callable. The character reveal is still claimed by clients after `revealAt` (it moves nobody's piece), and the host can also reveal early.
 
 ## Quick chat
 

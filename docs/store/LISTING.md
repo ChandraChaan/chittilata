@@ -16,8 +16,8 @@
 
 Paste these as-is. They're plain text because Play Console shows markdown literally.
 
-- Short description (78/80): [`play/short-description.txt`](play/short-description.txt)
-- Full description (1954/4000): [`play/full-description.txt`](play/full-description.txt)
+- Short description (76/80): [`play/short-description.txt`](play/short-description.txt)
+- Full description (2827/4000): [`play/full-description.txt`](play/full-description.txt)
 - First release notes: [`play/release-notes.txt`](play/release-notes.txt)
 
 ## Graphics
