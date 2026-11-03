@@ -64,18 +64,20 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('preset phrases are sent from the chat sheet', (tester) async {
+  testWidgets('preset phrases are sent from the chat panel', (tester) async {
     await pumpRoom(tester);
-    await tester.tap(find.byTooltip('Quick chat'));
+    await tester.tap(find.byTooltip('Room chat'));
     await tester.pumpAndSettle();
-    expect(find.text('త్వరగా! ⏰'), findsOneWidget);
-    await tester.tap(find.text('Good game! 🤝'));
+    expect(find.text('Hurry up! ⏰'), findsOneWidget);
+    await tester.tap(find.text('Nice one! 👏'));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
-    expect(repo.calls, ['chat:phrase:gg']);
-    expect(
-      find.textContaining('Good game!'),
-      findsOneWidget,
-    ); // floating bubble
+    expect(repo.calls, ['chat:phrase:nice']);
+    // The panel keeps the line in its history...
+    expect(find.text('Nice one! 👏'), findsNWidgets(2));
+    Navigator.of(tester.element(find.text('Room chat'))).pop();
+    await tester.pumpAndSettle();
+    // ...and it floats up over the game for everyone.
+    expect(find.textContaining('Nice one!'), findsOneWidget);
     await finish(tester);
   });
 

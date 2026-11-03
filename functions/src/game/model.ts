@@ -40,6 +40,21 @@ export interface PlayerInfo {
   avatar?: string | null;
   /** This seat was handed to another phone (see `spectators[].approved`). */
   movedTo?: string;
+  /** Why `left` is true: walked out, removed by the host, or didn't respond. */
+  leftReason?: "left" | "kicked" | "timeout";
+}
+
+/**
+ * A host's "are you still there?" to a player. The player has
+ * WARNING_SECONDS to respond (a tap, or any move); otherwise any phone in the
+ * room may ask the server to remove them. After WARNINGS_BEFORE_KICK warnings
+ * the host may remove them at once.
+ */
+export interface Warning {
+  count: number;
+  /** Set while a warning is waiting for an answer. */
+  deadline: Timestamp | null;
+  by: string;
 }
 
 /**
@@ -73,6 +88,10 @@ export interface RoomDoc {
   spectatorUids?: string[];
   spectators?: Record<string, Spectator>;
   banned: string[];
+  /** Host warnings to slow or silent players, by uid. */
+  warnings?: Record<string, Warning>;
+  /** Why a game finished before its last round, if it did. */
+  endedReason?: "host" | "players" | null;
   /** Absent on rooms created before modes existed: treated as "movie". */
   mode?: GameMode;
   settings: GameSettings;
@@ -137,6 +156,11 @@ export interface RoundDoc {
   lastAction: LastAction | null;
   timeouts: Record<string, number>;
   winner: { uid: string; movie: string; points: number; at: Timestamp } | null;
+  /**
+   * The host ended a long exchange with no winner: everyone picks a
+   * character chit instead, King (worth the win points) included.
+   */
+  stalemate?: boolean;
   /** Folded character chits (opaque ids); one per non-winner. */
   charChits: string[];
   /** chitId -> uid. */
@@ -210,3 +234,14 @@ export const PUBLIC_START_SECONDS = 40;
 export const PUBLIC_MATCH_MINUTES = 10;
 /** Most people who can watch a room at once. */
 export const MAX_SPECTATORS = 10;
+/** Seconds a warned player has to respond before they can be removed. */
+export const WARNING_SECONDS = 60;
+/** Warnings after which the host may remove a player at once. */
+export const WARNINGS_BEFORE_KICK = 2;
+/**
+ * Full laps of passing (everyone passed once) after which the host may end
+ * the exchange with no winner and send everyone to the character chits.
+ */
+export const STALEMATE_LAPS = 4;
+/** The character the King chit is worth in a stalemate round: the win points. */
+export const STALEMATE_KING = "King";

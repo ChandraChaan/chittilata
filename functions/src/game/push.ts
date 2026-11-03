@@ -48,8 +48,15 @@ export function roundPushes(before: RoundDoc | undefined, after: RoundDoc, name:
       },
     ];
   }
-  if (after.status === "characters" && before.status !== "characters" && after.winner) {
-    const winner = after.winner.uid;
+  if (after.status === "characters" && before.status !== "characters") {
+    const winner = after.winner?.uid;
+    if (!winner) {
+      return after.order.map((uid) => ({
+        uid,
+        title: "🤷 No winner this round!",
+        body: "Everyone picks a character chit, King included. Go!",
+      }));
+    }
     return after.order
       .filter((uid) => uid !== winner)
       .map((uid) => ({
@@ -60,6 +67,25 @@ export function roundPushes(before: RoundDoc | undefined, after: RoundDoc, name:
   }
   return [];
 }
+
+/** The host asked a player whether they are still there. */
+export function warningPushes(before: RoomDoc | undefined, after: RoomDoc): Push[] {
+  const out: Push[] = [];
+  for (const [uid, w] of Object.entries(after.warnings ?? {})) {
+    if (!w.deadline) continue;
+    const prev = before?.warnings?.[uid];
+    if (prev?.deadline && prev.deadline.toMillis() === w.deadline.toMillis()) continue;
+    out.push({
+      uid,
+      title: "⚠️ Are you still there?",
+      body: `The host is waiting for you. Open the game within ${Math.round(WARNING_SECONDS_HINT)} seconds or you'll be removed.`,
+    });
+  }
+  return out;
+}
+
+/** Shown in the warning push; kept in step with WARNING_SECONDS in model.ts. */
+const WARNING_SECONDS_HINT = 60;
 
 /** King & Queen round changes. */
 export function kqPushes(before: KqRoundDoc | undefined, after: KqRoundDoc): Push[] {

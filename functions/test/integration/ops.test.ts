@@ -996,3 +996,272 @@ describe("dumb charades", () => {
     expect((await room(roomId)).status).toBe("playing");
   });
 });
+
+describe("host controls: warnings, removing players, ending the game", () => {
+  it("in the lobby the host removes a player at once; mid-game it takes two warnings", async () => {
+    const { roomId, roundKey } = await started(5);
+    await expectCode(ops.kickPlayer(deps(), "u1", { roomId, uid: "u2" }), "permission-denied");
+    await expect(ops.kickPlayer(deps(), "u0", { roomId, uid: "u2" })).rejects.toThrow(/Warn Swetha first/);
+    await expectCode(ops.warnPlayer(deps(), "u1", { roomId, uid: "u2" }), "permission-denied");
+    const w1 = await ops.warnPlayer(deps(), "u0", { roomId, uid: "u2" });
+    expect(w1.count).toBe(1);
+    expect(w1.deadline - clock).toBe(60_000);
+    // One open warning at a time.
+    await expect(ops.warnPlayer(deps(), "u0", { roomId, uid: "u2" })).rejects.toThrow(/already has/);
+    // u2 answers in time: the warning closes but still counts.
+    clock += 10_000;
+    await ops.respondToWarning(deps(), "u2", { roomId });
+    let r = await room(roomId);
+    expect(r.warnings!.u2).toMatchObject({ count: 1, deadline: null });
+    await expect(ops.kickPlayer(deps(), "u0", { roomId, uid: "u2" })).rejects.toThrow(/Warn Swetha first/);
+    // Second warning, answered by making a move (passing a card counts).
+    await ops.warnPlayer(deps(), "u0", { roomId, uid: "u2" });
+    r = await room(roomId);
+    expect(r.warnings!.u2.count).toBe(2);
+    const rd = await round(roomId, roundKey);
+    if (rd.currentUid === "u2") {
+      const h = await hand(roomId, "u2");
+      await ops.passCard(deps(), "u2", { roomId, roundKey, turnId: rd.turnId, cardId: h.cards[0].id, requestId: "w" });
+      expect((await room(roomId)).warnings!.u2.deadline).toBeNull();
+    } else {
+      await ops.respondToWarning(deps(), "u2", { roomId });
+    }
+    // After two warnings the host may remove them straight away.
+    await ops.kickPlayer(deps(), "u0", { roomId, uid: "u2" });
+    r = await room(roomId);
+    expect(r.memberUids).not.toContain("u2");
+    expect(r.players.u2).toMatchObject({ left: true, leftReason: "kicked" });
+    expect(r.banned).toContain("u2");
+    expect(r.warnings!.u2).toBeUndefined();
+    expect((await round(roomId, roundKey)).status).toBe("aborted");
+    expect((await round(roomId, roundKey)).abortedReason).toMatch(/removed by the host/);
+    // Removed people can't come back, even to watch.
+    await expectCode(ops.joinRoom(deps(), "u2", { code: r.code, name: "Swetha" }), "permission-denied");
+    // The game goes on with 4.
+    const next = await ops.nextRound(deps(), "u0", { roomId });
+    expect((await round(roomId, next.roundKey)).order).toHaveLength(4);
+  });
+
+  it("an unanswered warning lets any phone remove the player after a minute; they are not banned", async () => {
+    const { roomId, roundKey } = await started(5);
+    await ops.warnPlayer(deps(), "u0", { roomId, uid: "u3" });
+    expect((await ops.enforceWarnings(deps(), "u1", { roomId })).removed).toBeNull();
+    clock += 59_000;
+    expect((await ops.enforceWarnings(deps(), "u1", { roomId })).removed).toBeNull();
+    clock += 3_000;
+    await expectCode(ops.enforceWarnings(deps(), "outsider", { roomId }), "permission-denied");
+    expect((await ops.enforceWarnings(deps(), "u1", { roomId })).removed).toBe("u3");
+    const r = await room(roomId);
+    expect(r.memberUids).toEqual(["u0", "u1", "u2", "u4"]);
+    expect(r.players.u3).toMatchObject({ left: true, leftReason: "timeout" });
+    expect(r.banned).not.toContain("u3");
+    expect((await round(roomId, roundKey)).abortedReason).toMatch(/did not respond/);
+    expect((await ops.enforceWarnings(deps(), "u1", { roomId })).removed).toBeNull();
+    // They may come back and watch (and take a seat again).
+    expect((await ops.joinRoom(deps(), "u3", { code: r.code, name: "Sai" })).spectating).toBe(true);
+  });
+
+  it("the host can remove a bot or kick a warned-out player at once, never themselves", async () => {
+    const { roomId } = await ops.createRoom(deps(), "me", { name: "Chandra" });
+    await ops.joinRoom(deps(), "p1", { code: (await room(roomId)).code, name: "Vasavi" });
+    await ops.setReady(deps(), "p1", { roomId, ready: true });
+    await ops.joinRoom(deps(), "p2", { code: (await room(roomId)).code, name: "Swetha" });
+    await ops.setReady(deps(), "p2", { roomId, ready: true });
+    await ops.addBot(deps(), "me", { roomId });
+    const bot = (await room(roomId)).memberUids.find(ops.isBot)!;
+    await ops.startGame(deps(), "me", { roomId });
+    await expectCode(ops.kickPlayer(deps(), "me", { roomId, uid: "me" }), "invalid-argument");
+    await expectCode(ops.warnPlayer(deps(), "me", { roomId, uid: bot }), "invalid-argument");
+    await ops.kickPlayer(deps(), "me", { roomId, uid: bot });
+    expect((await room(roomId)).memberUids).toEqual(["me", "p1", "p2"]);
+    // A warning that ran out also allows an immediate kick.
+    await ops.warnPlayer(deps(), "me", { roomId, uid: "p2" });
+    clock += 62_000;
+    await ops.kickPlayer(deps(), "me", { roomId, uid: "p2" });
+    const r = await room(roomId);
+    expect(r.memberUids).toEqual(["me", "p1"]);
+    // Two players can't play Movie Chits: the game finishes with scores so far.
+    expect(r.status).toBe("finished");
+    expect(r.endedReason).toBe("players");
+    expect(r.final!.map((s) => s.uid).sort()).toEqual(["me", "p1", "p2", bot].sort());
+  });
+
+  it("the host ends a game at any time: the round is void and everyone sees the standings", async () => {
+    const { roomId, roundKey } = await started(4);
+    await db.doc(`rooms/${roomId}`).update({ "totals.u1": 800 });
+    await expectCode(ops.endGame(deps(), "u1", { roomId }), "permission-denied");
+    await ops.endGame(deps(), "u0", { roomId });
+    const r = await room(roomId);
+    expect(r.status).toBe("finished");
+    expect(r.endedReason).toBe("host");
+    expect(r.final![0]).toMatchObject({ uid: "u1", total: 800, title: "King" });
+    expect((await round(roomId, roundKey)).status).toBe("aborted");
+    await expectCode(ops.endGame(deps(), "u0", { roomId }), "failed-precondition");
+    // Play again clears the early-end marker and the warnings.
+    await ops.playAgain(deps(), "u0", { roomId });
+    const again = await room(roomId);
+    expect(again.status).toBe("lobby");
+    expect(again.endedReason).toBeNull();
+    expect(again.warnings).toEqual({});
+  });
+
+  it("the host ending a lobby closes the room and frees its code", async () => {
+    const { roomId, code } = await lobby(3);
+    await ops.endGame(deps(), "u0", { roomId });
+    expect((await room(roomId)).status).toBe("closed");
+    await expectCode(ops.joinRoom(deps(), "x", { code, name: "X" }), "not-found");
+  });
+
+  it("ending a King & Queen game voids its round and keeps the totals", async () => {
+    const { roomId } = await ops.createRoom(deps(), "u0", { name: "Chandra", mode: "kingQueen" });
+    const code = (await room(roomId)).code;
+    for (const [i, u] of ["u1", "u2", "u3"].entries()) {
+      await ops.joinRoom(deps(), u, { code, name: ["Vasavi", "Swetha", "Sai"][i] });
+      await ops.setReady(deps(), u, { roomId, ready: true });
+    }
+    const { roundKey } = await ops.startGame(deps(), "u0", { roomId });
+    await ops.endGame(deps(), "u0", { roomId });
+    const kr = (await db.doc(`rooms/${roomId}/kqRounds/${roundKey}`).get()).data()!;
+    expect(kr.status).toBe("aborted");
+    expect((await room(roomId)).status).toBe("finished");
+  });
+});
+
+describe("joining a game in progress", () => {
+  it("a watcher takes a free seat and plays from the next round with 0 points", async () => {
+    const { roomId, code, roundKey } = await started(4);
+    await ops.joinRoom(deps(), "late", { code, name: "Lata" });
+    await expectCode(ops.takeSeat(deps(), "stranger", { roomId }), "permission-denied");
+    await ops.takeSeat(deps(), "late", { roomId });
+    let r = await room(roomId);
+    expect(r.memberUids).toContain("late");
+    expect(r.spectatorUids).toEqual([]);
+    expect(r.players.late).toMatchObject({ name: "Lata", ready: true, left: false });
+    expect(r.totals.late).toBe(0);
+    // The round in progress keeps its four players...
+    expect((await round(roomId, roundKey)).order).not.toContain("late");
+    await expectCode(ops.pickChit(deps(), "late", { roomId, roundKey, chitId: "x" }), "permission-denied");
+    // ...and the late player leaving does not void it.
+    await ops.joinRoom(deps(), "late2", { code, name: "Gopi" });
+    await ops.takeSeat(deps(), "late2", { roomId });
+    await ops.leaveRoom(deps(), "late2", { roomId });
+    expect((await round(roomId, roundKey)).status).toBe("exchange");
+    // Next round deals them in.
+    await db.doc(`rooms/${roomId}/rounds/${roundKey}`).update({ status: "aborted" });
+    const next = await ops.nextRound(deps(), "u0", { roomId });
+    expect((await round(roomId, next.roundKey)).order).toContain("late");
+    r = await room(roomId);
+    expect(ops.standingsFor(r).map((s) => s.uid)).toContain("late");
+  });
+
+  it("refuses a seat when the table is full, the name is taken, or the game isn't running", async () => {
+    const { roomId, code } = await started(10);
+    await ops.joinRoom(deps(), "late", { code, name: "Late" });
+    await expectCode(ops.takeSeat(deps(), "late", { roomId }), "resource-exhausted");
+    const small = await started(4);
+    await ops.joinRoom(deps(), "dup", { code: small.code, name: "vasavi" });
+    await expectCode(ops.takeSeat(deps(), "dup", { roomId: small.roomId }), "already-exists");
+    await db.doc(`rooms/${small.roomId}`).update({ status: "finished" });
+    await ops.joinRoom(deps(), "w", { code: small.code, name: "Watcher" });
+    await expectCode(ops.takeSeat(deps(), "w", { roomId: small.roomId }), "failed-precondition");
+  });
+
+  it("King & Queen: a late player joins the next round's chain", async () => {
+    const { roomId } = await ops.createRoom(deps(), "u0", { name: "Chandra", mode: "kingQueen" });
+    const code = (await room(roomId)).code;
+    for (const [i, u] of ["u1", "u2", "u3"].entries()) {
+      await ops.joinRoom(deps(), u, { code, name: ["Vasavi", "Swetha", "Sai"][i] });
+      await ops.setReady(deps(), u, { roomId, ready: true });
+    }
+    const { roundKey } = await ops.startGame(deps(), "u0", { roomId });
+    await ops.joinRoom(deps(), "late", { code, name: "Lata" });
+    await ops.takeSeat(deps(), "late", { roomId });
+    await db.doc(`rooms/${roomId}/kqRounds/${roundKey}`).update({ status: "aborted" });
+    const next = await ops.nextRound(deps(), "u0", { roomId });
+    const kr = (await db.doc(`rooms/${roomId}/kqRounds/${next.roundKey}`).get()).data()!;
+    expect(kr.players).toHaveLength(5);
+    expect(kr.chain).toEqual(["King", "Queen", "Minister", "Police", "Thief"]);
+  });
+});
+
+describe("stalemate: ending a long exchange", () => {
+  /** Passes [laps] full laps without anyone winning (cards go back and forth). */
+  async function passLaps(roomId: string, roundKey: string, laps: number) {
+    const r0 = await round(roomId, roundKey);
+    for (let i = 0; i < laps * r0.order.length; i++) {
+      const r = await round(roomId, roundKey);
+      if (r.status !== "exchange") throw new Error("someone won early");
+      const h = await hand(roomId, r.currentUid);
+      // Pass the card just received (or any) so hands never improve much.
+      const card = h.cards.find((c) => c.id === h.incomingCardId) ?? h.cards[0];
+      await ops.passCard(deps(), r.currentUid, { roomId, roundKey, turnId: r.turnId, cardId: card.id, requestId: `s${i}` });
+      clock += 500;
+    }
+  }
+
+  it("after 4 laps the host may end the round; everyone picks a character, King included", async () => {
+    // Several tries: a random deal can still produce a quick winner.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { roomId, roundKey, uids } = await started(4);
+      await expectCode(ops.endExchange(deps(), "u1", { roomId, roundKey }), "permission-denied");
+      await expect(ops.endExchange(deps(), "u0", { roomId, roundKey })).rejects.toThrow(/4 more laps/);
+      try {
+        await passLaps(roomId, roundKey, 3);
+        await expect(ops.endExchange(deps(), "u0", { roomId, roundKey })).rejects.toThrow(/1 more lap first/);
+        await passLaps(roomId, roundKey, 1);
+      } catch (e) {
+        if ((e as Error).message === "someone won early") continue;
+        throw e;
+      }
+      const { laps } = await ops.endExchange(deps(), "u0", { roomId, roundKey });
+      expect(laps).toBe(4);
+      let r = await round(roomId, roundKey);
+      expect(r.status).toBe("characters");
+      expect(r.stalemate).toBe(true);
+      expect(r.winner).toBeNull();
+      expect(r.charChits).toHaveLength(4);
+      expect((await room(roomId)).movieWins.u0).toBe(0);
+      // Everyone (nobody won) picks one chit...
+      clock = r.charPickOpensAt!.toMillis() + 1;
+      for (const u of uids) {
+        r = await round(roomId, roundKey);
+        await ops.pickCharacter(deps(), u, { roomId, roundKey, chitId: r.charChits.find((c) => !r.charPicks[c])! });
+      }
+      r = await round(roomId, roundKey);
+      expect(r.revealAt).not.toBeNull();
+      clock = r.revealAt!.toMillis() + 1;
+      await ops.revealRound(deps(), "u1", { roomId, roundKey });
+      r = await round(roomId, roundKey);
+      expect(r.status).toBe("revealed");
+      const names = Object.values(r.characters!).map((c) => c.name).sort();
+      expect(names).toEqual(["King", "Police", "Queen", "Thief"]);
+      // ...and scores their chit: the King chit is worth the win points.
+      const king = Object.entries(r.characters!).find(([, c]) => c.name === "King")![0];
+      expect(r.scores![king]).toBe(1000);
+      expect(Object.values(r.scores!).reduce((a, b) => a + b, 0)).toBe(2400);
+      expect((await room(roomId)).totals[king]).toBe(1000);
+      return;
+    }
+    throw new Error("every attempt produced an early winner");
+  });
+
+  it("late pickers in a stalemate round are picked for after the minute", async () => {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { roomId, roundKey, uids } = await started(4);
+      try {
+        await passLaps(roomId, roundKey, 4);
+      } catch (e) {
+        if ((e as Error).message === "someone won early") continue;
+        throw e;
+      }
+      await ops.endExchange(deps(), "u0", { roomId, roundKey });
+      const r = await round(roomId, roundKey);
+      clock = r.charPickDeadline!.toMillis() + 1500;
+      await online(roomId, uids, clock);
+      expect((await ops.autoPickCharacters(deps(), "u0", { roomId, roundKey })).assigned).toBe(4);
+      expect((await round(roomId, roundKey)).revealAt).not.toBeNull();
+      return;
+    }
+    throw new Error("every attempt produced an early winner");
+  });
+});

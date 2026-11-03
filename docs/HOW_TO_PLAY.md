@@ -42,7 +42,15 @@ All hands and characters are revealed, the leaderboard updates, and the host sta
 
 ## 7. Crown the King and Queen
 
-After the last round, the top score is **King** and the second is **Queen**. Tap **Play again** (host) for another game with the same group.
+After the last round's results, tap **See final results**: the top score is **King** and the second is **Queen**. Tap **Play again** (host) for another game with the same group.
+
+### Stuck round, slow player, or someone new?
+
+- **Drag it.** Drag a folded chit into your tray to pick it, drag a slip onto the circle to pass it, or drop a slip on another one to rearrange your hand. Tapping works too.
+- **No winner after 4 laps?** The host can tap **End round**. Everyone draws a character chit instead, and one of them is a King worth the win points.
+- **Someone went quiet?** The host opens the room menu (⋮), taps **Warn**, and they get 60 seconds to tap **I'm here!** After two warnings the host can remove them.
+- **A friend arrives late?** They join with the code and tap **Join the game**: they play from the next round.
+- **Need to stop?** The host can **End game for everyone** from the room menu, and anyone can leave at any time.
 
 ### Tips
 

@@ -54,6 +54,10 @@ The first player to hold **4 slips with the same name** wins the round and earns
 - If you hold 5 slips and four of them match, pass the odd one out. You win the moment you are back to four matching.
 - Passing stops immediately and the server records exactly **one** winner. If one pass completes two hands at once, the player who passed wins.
 
+## No winner after four laps
+
+Some deals go round and round. Once the slips have gone round the whole circle **4 times** (everyone has passed 4 times) with no winner, the host sees **End round**. Nobody wins the movie points that round. Instead **everyone** picks a character chit, and the sealed chits include one **King** worth the win points (1,000 by default) in addition to the usual characters. The reveal and scoring work as always, and the round counts.
+
 ## Secret characters
 
 The other players then pick their **character chits**. One character is written on each folded chit (for example Queen 800, Police 500, Thief 100), sealed and shuffled by the server. Each non-winner taps **one** chit and it unfolds privately. **The character inside is exactly what you get.** Nobody sees anyone else's character until the reveal. You have 1 minute; after that, anyone who hasn't picked gets a chit at random. The winner just watches.
@@ -106,6 +110,9 @@ Difficulty never changes the rules or the fairness of the deal. The game avoids 
 ## Leaving and reconnecting
 
 - **Losing connection or closing the app does not remove you.** Reopen Chittilata and you return to your seat with the right slips and timer. While you're away, your turns time out.
-- **Leaving** during passing **cancels the round** for everyone (no points), and it still counts as one of the rounds. If fewer than 3 players remain, the game ends with the scores so far.
-- In the lobby, the host can remove a player, who then can't rejoin that room.
+- **Leaving** during passing **cancels the round** for everyone (no points), and it still counts as one of the rounds. If fewer than 3 players remain, the game ends with the scores so far. You can leave at any time, from any screen.
+- **Joining a running game.** Friends who join after the start can take a free seat (up to 10) and play from the next round with 0 points; the round in progress goes on. They can also just watch, or ask the host for their old seat if they changed phones.
+- **The host** can remove a player in the lobby at once. During a game the host first **warns** them: the player gets 60 seconds to tap "I'm here" (any move counts). If they don't, the server removes them when any phone asks. After two warnings the host can remove them straight away. Removed players can't rejoin that room; players removed for not responding can.
+- **Ending early.** The host can end the game for everyone at any time. The current round is void and the points so far decide the King and Queen; everyone sees the final standings and can play again.
+- **The last round.** Its results are shown like any other round, and everyone taps **See final results** to move on to the ceremony.
 - Rooms close after 24 hours without activity.

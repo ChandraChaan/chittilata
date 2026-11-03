@@ -57,7 +57,7 @@ export interface KqGuessRecord {
   guesser: string;
   target: string;
   correct: boolean;
-  /** forced = only one candidate left; timeout = the server guessed. */
+  /** forced = the only candidate left (a sure thing); timeout = the server guessed. */
   kind: "guess" | "forced" | "timeout";
 }
 
@@ -106,14 +106,11 @@ export function kqGuess(
   if (!kqCandidates(state).includes(target)) {
     throw new GameError("invalid-argument", "You can't pick that player.");
   }
-  let s = applyOne(state, target, kind);
-  // Forced resolution: a single candidate must hold the target role.
-  while (!s.done) {
-    const c = kqCandidates(s);
-    if (c.length !== 1) break;
-    s = applyOne(s, c[0], "forced");
-  }
-  return s;
+  // With one candidate left the guess can only be right, but the guesser
+  // still makes it themselves: every player finishes their own step, so a
+  // round never ends before the people in it have played it out.
+  const forced = kind === "guess" && kqCandidates(state).length === 1;
+  return applyOne(state, target, forced ? "forced" : kind);
 }
 
 function applyOne(state: KqState, target: string, kind: KqGuessRecord["kind"]): KqState {

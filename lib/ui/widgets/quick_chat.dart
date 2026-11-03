@@ -6,28 +6,39 @@ import '../../core/theme/app_theme.dart';
 import '../../data/chat.dart';
 import '../../game/room_controller.dart';
 import 'common.dart';
+import 'polish.dart';
+import 'room_chat.dart';
+import 'room_menu.dart';
 
-/// A slim bar of one-tap emojis, plus a button for preset phrases.
+/// The bar under every room screen: the chat (with an unread count),
+/// one-tap emoji reactions, and the room menu (players, host controls,
+/// leave).
 class QuickChatBar extends StatelessWidget {
-  const QuickChatBar({super.key, required this.ctrl});
+  const QuickChatBar({super.key, required this.ctrl, required this.onLeave});
   final RoomController ctrl;
+  final VoidCallback onLeave;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final hostAttention =
+        ctrl.isHost && (ctrl.room?.memberUids.any(ctrl.warningOpen) ?? false);
     return Container(
-      height: 46,
+      height: 48,
       decoration: BoxDecoration(
         color: c.surface.withValues(alpha: 0.9),
         border: Border(top: BorderSide(color: c.outline)),
       ),
       child: Row(
         children: [
-          const SizedBox(width: Space.sm),
-          IconButton(
-            tooltip: 'Quick chat',
-            icon: Icon(Icons.chat_bubble_rounded, color: c.marigold),
-            onPressed: () => showQuickChatSheet(context, ctrl),
+          const SizedBox(width: Space.xs),
+          CountBadge(
+            count: ctrl.unreadChat,
+            child: IconButton(
+              tooltip: 'Room chat',
+              icon: Icon(Icons.forum_rounded, color: c.marigold),
+              onPressed: () => showRoomChat(context, ctrl),
+            ),
           ),
           Container(width: 1, height: 28, color: c.outline),
           Expanded(
@@ -43,6 +54,16 @@ class QuickChatBar extends StatelessWidget {
               ],
             ),
           ),
+          Container(width: 1, height: 28, color: c.outline),
+          CountBadge(
+            count: hostAttention ? 1 : 0,
+            child: IconButton(
+              tooltip: 'Room menu',
+              icon: Icon(Icons.more_vert_rounded, color: c.onSurface),
+              onPressed: () => showRoomMenu(context, ctrl, onLeave: onLeave),
+            ),
+          ),
+          const SizedBox(width: Space.xs),
         ],
       ),
     );
@@ -241,7 +262,7 @@ class _FloatingBubbleState extends State<_FloatingBubble>
         child: Text.rich(
           TextSpan(
             children: [
-              if (e.kind == ChatKind.phrase)
+              if (e.kind == ChatKind.phrase || e.kind == ChatKind.text)
                 TextSpan(
                   text: '${widget.mine ? 'You' : widget.bubble.name}  ',
                   style: TextStyle(color: c.marigold, fontSize: 12),

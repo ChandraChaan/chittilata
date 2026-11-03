@@ -90,19 +90,41 @@ class FakeGameRepository implements GameRepository {
     required ChatKind kind,
     required String code,
     String? to,
+    String? text,
   }) async {
-    await _record('chat:${kind.name}:$code${to == null ? '' : ':$to'}');
-    emitChat(
-      ChatEvent(
-        id: id,
-        uid: me,
-        kind: kind,
-        code: code,
-        to: to,
-        at: DateTime.now(),
-      ),
+    await _record(
+      'chat:${kind.name}:${kind == ChatKind.text ? text : code}'
+      '${to == null ? '' : ':$to'}',
     );
+    final e = ChatEvent(
+      id: id,
+      uid: me,
+      kind: kind,
+      code: code,
+      to: to,
+      at: DateTime.now(),
+      freeText: text,
+    );
+    emitChat(e);
+    if (kind != ChatKind.nudge && e.text != null) {
+      emitMessage(
+        ChatMessage(id: id, uid: me, kind: kind, text: e.text!, at: e.at),
+      );
+    }
   }
+
+  final _messages = StreamController<List<ChatMessage>>.broadcast();
+  final messages = <ChatMessage>[];
+
+  /// Adds a line to the room's chat history as the server would.
+  void emitMessage(ChatMessage m) {
+    messages.add(m);
+    _messages.add(List.of(messages));
+  }
+
+  @override
+  Stream<List<ChatMessage>> watchMessages(String roomId, {int limit = 60}) =>
+      _seeded(_messages.stream, List.of(messages));
 
   final _charades = StreamController<CharadesRound?>.broadcast();
   final _card = StreamController<CharadesCard?>.broadcast();
@@ -273,6 +295,22 @@ class FakeGameRepository implements GameRepository {
   @override
   Future<void> kickPlayer(String roomId, String uid) => _record('kick:$uid');
   @override
+  Future<void> warnPlayer(String roomId, String uid) => _record('warn:$uid');
+  @override
+  Future<void> respondToWarning(String roomId) => _record('imHere');
+  @override
+  Future<void> enforceWarnings(String roomId) => _record('enforceWarnings');
+  @override
+  Future<void> endGame(String roomId) => _record('endGame');
+  @override
+  Future<void> takeSeat(String roomId) => _record('takeSeat');
+  @override
+  Future<void> endExchange(String roomId, String roundKey) =>
+      _record('endExchange');
+
+  /// How long leaving takes (a cold Cloud Function can take seconds).
+  Duration leaveDelay = Duration.zero;
+  @override
   Future<void> addBot(String roomId) => _record('addBot');
   @override
   Future<void> claimSeat(String roomId, String? seat) =>
@@ -281,7 +319,11 @@ class FakeGameRepository implements GameRepository {
   Future<void> answerSeatClaim(String roomId, String spectator, bool approve) =>
       _record('answerSeat:$spectator:$approve');
   @override
-  Future<void> leaveRoom(String roomId) => _record('leave');
+  Future<void> leaveRoom(String roomId) async {
+    await _record('leave');
+    if (leaveDelay > Duration.zero) await Future<void>.delayed(leaveDelay);
+  }
+
   @override
   Future<void> startGame(String roomId) => _record('startGame');
   @override
@@ -373,6 +415,8 @@ Room makeRoom({
   Map<String, Spectator> spectators = const {},
   bool isPublic = false,
   DateTime? createdAt,
+  Map<String, Warning> warnings = const {},
+  String? endedReason,
 }) => Room(
   id: 'room1',
   code: 'ABC234',
@@ -403,6 +447,8 @@ Room makeRoom({
   spectators: spectators,
   isPublic: isPublic,
   createdAt: createdAt,
+  warnings: warnings,
+  endedReason: endedReason,
 );
 
 const kqDefaultSettings = KqSettings(
@@ -423,6 +469,8 @@ const kqDefaultSettings = KqSettings(
 );
 
 KqRound makeKqRound({
+  String key = 'g1r01',
+  int roundNo = 1,
   KqStatus status = KqStatus.guessing,
   int step = 0,
   String? guesser = 'me',
@@ -439,9 +487,9 @@ KqRound makeKqRound({
   Map<String, int>? revealedRoles,
   Map<String, int>? scores,
 }) => KqRound(
-  key: 'g1r01',
+  key: key,
   gameNo: 1,
-  roundNo: 1,
+  roundNo: roundNo,
   status: status,
   players: const ['me', 'v', 's', 'k'],
   chain: const ['King', 'Queen', 'Police', 'Thief'],
@@ -484,14 +532,17 @@ Round makeRound({
   DateTime? introEndsAt,
   DateTime? deadline,
   RoundWinner? winner,
+  bool stalemate = false,
   DateTime? revealAt,
   Map<String, List<GameCard>>? revealed,
   Map<String, CharacterDef>? characters,
   Map<String, int>? scores,
+  String key = 'g1r01',
+  int roundNo = 1,
 }) => Round(
-  key: 'g1r01',
+  key: key,
   gameNo: 1,
-  roundNo: 1,
+  roundNo: roundNo,
   tiebreak: tiebreak,
   status: status,
   order: order,
@@ -515,6 +566,7 @@ Round makeRound({
   handSizes: const {'me': 4, 'v': 4, 's': 4, 'k': 4},
   lastAction: null,
   winner: winner,
+  stalemate: stalemate,
   revealAt: revealAt,
   revealedHands: revealed,
   characters: characters,

@@ -531,6 +531,36 @@ class _ChitTableState extends State<ChitTable>
   late final AnimationController _ceremony = AnimationController(vsync: this);
   final _cued = <String>{};
 
+  /// A chit being dragged towards the tray, and where the finger is.
+  String? _dragId;
+  Offset _dragPos = Offset.zero;
+  List<(String, Offset, double)> _targets = const [];
+  double _chitW = 60;
+  double _matBottom = 0;
+
+  void _dragStart(DragStartDetails d) {
+    final id = _chitAt(d.localPosition, _targets, _chitW, _chitW * 0.72);
+    if (id == null) return;
+    setState(() {
+      _dragId = id;
+      _dragPos = d.localPosition;
+    });
+  }
+
+  void _dragUpdate(DragUpdateDetails d) {
+    if (_dragId == null) return;
+    setState(() => _dragPos = d.localPosition);
+  }
+
+  /// Dropped past the bottom of the mat (into the tray) picks the chit.
+  void _dragEnd(DragEndDetails d) {
+    final id = _dragId;
+    if (id == null) return;
+    final picked = _dragPos.dy > _matBottom - _chitW * 0.4;
+    setState(() => _dragId = null);
+    if (picked) widget.onPick(id);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -649,12 +679,19 @@ class _ChitTableState extends State<ChitTable>
               final tappable =
                   ceremonyDone && owner == null && widget.canPick && !pending;
               if (tappable) targets.add((id, pos, angle));
+              final dragging = id == _dragId && tappable;
+              if (dragging) {
+                // Follows the finger, lifted, on top of everything else.
+                pos = _dragPos;
+                angle = 0;
+                scale = 1.1;
+              }
               final chit = Transform.rotate(
                 angle: angle,
                 child: FoldedChit(
                   width: chitW,
-                  lifted: pending,
-                  glow: pending ? c.marigold : null,
+                  lifted: pending || dragging,
+                  glow: pending || dragging ? c.marigold : null,
                   seed: i,
                 ),
               );
@@ -686,7 +723,14 @@ class _ChitTableState extends State<ChitTable>
                 ),
               );
               chitWidgets.add(
-                ceremonyDone
+                dragging
+                    ? Positioned(
+                        key: ValueKey(id),
+                        left: pos.dx - chitW / 2 - 6,
+                        top: pos.dy - chitH / 2 - 6,
+                        child: positionedChild,
+                      )
+                    : ceremonyDone
                     ? AnimatedPositioned(
                         key: ValueKey(id),
                         duration: Motion.of(context, Motion.slow),
@@ -704,12 +748,28 @@ class _ChitTableState extends State<ChitTable>
               );
             }
 
+            // The dragged chit is drawn last so it sits above the others.
+            final dragIndex = chitWidgets.indexWhere(
+              (w) => w.key == ValueKey(_dragId),
+            );
+            if (dragIndex >= 0) {
+              chitWidgets.add(chitWidgets.removeAt(dragIndex));
+            }
+            _targets = targets;
+            _chitW = chitW;
+            _matBottom = matTop + matH;
+
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapUp: (d) {
                 final id = _chitAt(d.localPosition, targets, chitW, chitH);
                 if (id != null) widget.onPick(id);
               },
+              // Or drag a chit down into your tray to pick it.
+              onPanStart: _dragStart,
+              onPanUpdate: _dragUpdate,
+              onPanEnd: _dragEnd,
+              onPanCancel: () => setState(() => _dragId = null),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [

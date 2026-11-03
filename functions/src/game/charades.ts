@@ -1,7 +1,7 @@
 import { Firestore, Timestamp, Transaction } from "firebase-admin/firestore";
 import { eligibleNames, pickNames, shuffle } from "../engine";
 import type { Deps } from "./ops";
-import { fail, int, isBot, loadRoom, requireMember, roomRef, standingsFor, str } from "./ops";
+import { fail, int, isBot, loadRoom, requireMember, roomRef, standingsFor, str, warningAnswered } from "./ops";
 import { DEADLINE_GRACE_MS, RoomDoc, roundKeyFor } from "./model";
 
 /**
@@ -181,6 +181,8 @@ export async function charadesGuess(deps: Deps, uid: string, data: unknown) {
     } else {
       tx.update(charadesRef(deps.db, roomId, round.roundKey), { guesses });
     }
+    const answered = warningAnswered(room, uid);
+    if (answered) tx.update(roomRef(deps.db, roomId), answered);
     return { correct, duplicate: false };
   });
 }

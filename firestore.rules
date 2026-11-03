@@ -28,6 +28,17 @@ service cloud.firestore {
         || request.auth.uid in room(roomId).get('spectatorUids', []));
     }
 
+    // A text message is 1-80 characters, only with kind 'text', and never
+    // at a public table (strangers get presets only).
+    function chatTextOk(roomId, d) {
+      return (d.kind != 'text' && !('text' in d))
+        || (d.kind == 'text'
+            && d.text is string
+            && d.text.size() >= 1
+            && d.text.size() <= 80
+            && room(roomId).get('public', false) != true);
+    }
+
     // App-wide settings (minimum / latest app build), edited only in the
     // Firebase console. Readable before sign-in so the update check works.
     match /config/{doc} {
@@ -95,27 +106,50 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // Quick chat: each member's latest emoji, preset phrase or nudge. Only
-      // preset codes (no free text), at most one per second per player.
+      // Room chat: each member's latest emoji, preset phrase, nudge or short
+      // text message, at most one per second per player. Free text is for
+      // rooms of friends only: public (quick match) tables stay preset-only.
       match /chat/{uid} {
         allow read: if inRoom(roomId);
         allow create, update: if signedIn()
           && request.auth.uid == uid
           && inRoom(roomId)
-          && request.resource.data.keys().hasOnly(['id', 'kind', 'code', 'to', 'at'])
+          && request.resource.data.keys().hasOnly(['id', 'kind', 'code', 'to', 'at', 'text'])
           && request.resource.data.keys().hasAll(['id', 'kind', 'code', 'to', 'at'])
           && request.resource.data.id is string
           && request.resource.data.id.matches('^[a-z0-9]{1,12}$')
           && request.resource.data.at == request.time
-          && request.resource.data.kind in ['emoji', 'phrase', 'nudge']
+          && request.resource.data.kind in ['emoji', 'phrase', 'nudge', 'text']
           && request.resource.data.code is string
           && request.resource.data.code.matches('^[a-z0-9_]{1,16}$')
+          && chatTextOk(roomId, request.resource.data)
           && (request.resource.data.to == null
               || (request.resource.data.to is string
                   && request.resource.data.to in room(roomId).memberUids))
           && (resource == null
               || request.time > resource.data.at + duration.value(1, 's'));
         allow delete: if false;
+      }
+
+      // Chat history (what the panel scrolls through). A message is only
+      // accepted together with the sender's throttled "latest" document
+      // above, in one batch, so the one-per-second limit applies here too.
+      match /messages/{id} {
+        allow read: if inRoom(roomId);
+        allow create: if signedIn()
+          && inRoom(roomId)
+          && id.matches('^[a-z0-9]{1,12}$')
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'kind', 'code', 'at', 'text'])
+          && request.resource.data.keys().hasAll(['uid', 'kind', 'code', 'at'])
+          && request.resource.data.at == request.time
+          && request.resource.data.kind in ['emoji', 'phrase', 'text']
+          && request.resource.data.code is string
+          && request.resource.data.code.matches('^[a-z0-9_]{1,16}$')
+          && chatTextOk(roomId, request.resource.data)
+          && getAfter(/databases/$(database)/documents/rooms/$(roomId)/chat/$(request.auth.uid)).data.id == id
+          && getAfter(/databases/$(database)/documents/rooms/$(roomId)/chat/$(request.auth.uid)).data.at == request.time;
+        allow update, delete: if false;
       }
 
       // King & Queen: public round state (no hidden roles until the end).

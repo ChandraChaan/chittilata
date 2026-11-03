@@ -49,14 +49,16 @@ class PickingView extends StatelessWidget {
       title = 'Making the chits';
       subtitle = 'Writing names, folding and shuffling…';
     } else if (!playing) {
-      title = 'The players are picking chits';
+      title = ctrl.joinsNextRound
+          ? "You're in from the next round"
+          : 'The players are picking chits';
       subtitle = '$stillPicking still picking';
     } else if (mine < 4) {
       title = 'Pick ${4 - mine} more chit${4 - mine == 1 ? '' : 's'}';
       final left = ctrl.pickRemainingSeconds;
       subtitle = left <= 15
           ? 'Hurry! The rest are picked for you in ${left}s'
-          : 'Tap any folded chit on the mat';
+          : 'Tap a folded chit, or drag it down into your tray';
     } else {
       title = 'Your 4 chits are ready';
       subtitle =
@@ -64,7 +66,8 @@ class PickingView extends StatelessWidget {
           '${stillPicking == 1 ? '' : 's'}…';
     }
 
-    final reveal = ctrl.revealQueue.isNotEmpty ? ctrl.revealQueue.first : null;
+    // Only this phase's own reveals: anything else is stale.
+    final reveal = ctrl.revealQueue.whereType<GameCard>().firstOrNull;
 
     return Stack(
       children: [
@@ -146,7 +149,7 @@ class PickingView extends StatelessWidget {
             if (playing) _Tray(cards: ctrl.hand?.cards ?? const []),
           ],
         ),
-        if (reveal is GameCard)
+        if (reveal != null)
           ChitRevealOverlay(
             key: ValueKey('reveal-${reveal.id}'),
             caption: 'You picked…',
@@ -339,9 +342,9 @@ class CharacterPickView extends StatelessWidget {
     final c = context.colors;
     final room = ctrl.room!;
     final round = ctrl.round!;
-    final winner = round.winner!;
-    final eligible = round.order.where((u) => u != winner.uid).toList();
-    final iWon = winner.uid == ctrl.uid;
+    final winner = round.winner;
+    final eligible = round.characterPickers;
+    final iWon = winner != null && winner.uid == ctrl.uid;
     final spectating = !round.order.contains(ctrl.uid);
     final myChar = ctrl.hand?.character;
     final allPicked = round.revealAt != null;
@@ -349,11 +352,15 @@ class CharacterPickView extends StatelessWidget {
     final counts = {
       for (final u in eligible) u: round.charPicks.containsValue(u) ? 1 : 0,
     };
-    final labels = room.settings.characters
-        .take(eligible.length)
-        .map((d) => '${d.name} ${d.points}')
-        .toList();
-    final reveal = ctrl.revealQueue.isNotEmpty ? ctrl.revealQueue.first : null;
+    final labels = [
+      if (winner == null) 'King ${room.settings.winPoints}',
+      ...room.settings.characters
+          .take(round.order.length - 1)
+          .map((d) => '${d.name} ${d.points}'),
+    ];
+    // Only this phase's own reveal: a movie slip still "unfolding" from the
+    // picking phase must never block the character chits.
+    final reveal = ctrl.revealQueue.whereType<CharacterDef>().firstOrNull;
 
     final String title;
     if (allPicked) {
@@ -363,7 +370,9 @@ class CharacterPickView extends StatelessWidget {
     } else if (iWon) {
       title = 'The others are picking characters';
     } else if (spectating) {
-      title = 'Watching the character picks';
+      title = ctrl.joinsNextRound
+          ? "You're in from the next round"
+          : 'Watching the character picks';
     } else if (myChar == null) {
       title = 'Pick one chit to find your character';
     } else {
@@ -480,7 +489,7 @@ class CharacterPickView extends StatelessWidget {
             ),
           ],
         ),
-        if (reveal is CharacterDef)
+        if (reveal != null)
           ChitRevealOverlay(
             key: ValueKey('char-${reveal.name}'),
             caption: 'Your secret character is…',

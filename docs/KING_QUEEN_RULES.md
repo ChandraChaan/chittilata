@@ -74,7 +74,7 @@ State (server-authoritative):
   - *g* and *t* **exchange roles**. *t* now publicly holds chain[s]; *g* now privately holds *t*'s old role.
   - The guesser **loses the turn**: *t* becomes the guesser for the **same step** (they must now find chain[s+1]).
   - *E* += old *g*, because the old guesser now holds *t*'s old role, which is known not to be chain[s+1]. Everyone already in *E* keeps their role, so they stay excluded.
-- Then **forced resolution**: while the round isn't over and |*C*| = 1, the single candidate must hold chain[s+1]. That holder isn't locked (locked players hold chain[0..s−1]), isn't the guesser, and isn't excluded (excluded players hold other roles). So the server applies that correct guess automatically and logs it as **forced**.
+- When |*C*| = 1 the single candidate must hold chain[s+1] (that holder isn't locked, isn't the guesser and isn't excluded). The guess is a sure thing, but **the guesser still makes it themselves** (the app pre-selects the only candidate): every player finishes their own step, and a round never ends before the people in it have played it out. The server logs such a guess as **forced**. (Until 2.3.1 the server applied it automatically, which could declare the round's result while the Police had not even taken a turn.)
 - **Round over**: when *s* = N − 1, the guesser holds the last role (Thief), which is final: *L* += *g*. Every role is now locked.
 
 **Timeout.** Nothing is guessed automatically. Once the deadline passes (plus 1 second of grace) the guesser is buzzed and can be nudged, and can still guess. 45 seconds after the deadline, or sooner if the guesser is offline (no heartbeat for 45 s), any member may ask the server to play for them. The server then makes a **uniformly random** guess from *C* on the guesser's behalf, with the same transitions. That never helps or hurts anyone in particular. The host sets the turn timer (10–60 s), or picks **No timer**, which uses a 5-minute deadline so the game can't freeze.
@@ -83,7 +83,7 @@ State (server-authoritative):
 
 1. **Permutation:** roles are always a permutation of the chain. Exchanges never create or destroy a role.
 2. **Consistency:** locked players hold exactly chain[0..s−1], the guesser holds chain[s], and excluded players never hold chain[s+1].
-3. **Termination:** within a step every wrong guess shrinks *C* by one, so after at most |*C*| − 1 wrong guesses the forced rule fires. Every correct guess advances *s*. A round therefore ends after at most N(N−1)/2 guesses. No infinite loops.
+3. **Termination:** within a step every wrong guess shrinks *C* by one, so after at most |*C*| − 1 wrong guesses only one candidate is left and the next guess is right. Every correct guess advances *s*. A round therefore ends after at most N(N−1)/2 guesses. No infinite loops.
 4. **No duplicate or invalid actions:** a guess must come from the current guesser, carry the current `turnId`, target a current candidate, and arrive before the deadline. A replayed request (same `requestId`) returns the original result and changes nothing. Of two simultaneous requests for one turn, exactly one applies; the other fails on `turnId`.
 5. **Privacy:** an unlocked player's role is only ever readable by that player, until the reveal.
 
@@ -104,6 +104,8 @@ State (server-authoritative):
 
 - Disconnecting doesn't remove you: deadlines keep running, and once you're offline past your deadline, another player can make a random guess for you.
 - **Leaving** during picking or guessing **voids the round** (no points), and it counts as played. If fewer than 4 players remain, the game ends with the totals so far.
+- **Joining late.** Someone who joins a running game can take a free seat and plays from the next round (the chain grows by one role). The round in progress is not disturbed, and neither is it if they leave again before it ends.
+- **Host controls.** The host can end the game for everyone at any time (the round is void; totals so far decide the titles), warn a silent player (who has 60 seconds to respond, by tapping "I'm here" or making any move) and, after two warnings or one unanswered one, remove them. A player whose warning runs out is removed by the server when any phone in the room asks.
 
 ## 6. Worked example (4 players)
 
@@ -111,8 +113,8 @@ Roles after picking: A = King, B = Thief, C = Queen, D = Police. A is publicly t
 
 1. A guesses **B** for Queen: wrong. A and B swap, so B is publicly King and A privately holds Thief. *E* = {A}, guesser = B.
 2. B guesses **D** for Queen: wrong. B and D swap, so D is publicly King and B privately holds Police. *E* = {A, B}, guesser = D.
-3. Candidates for Queen are now {C}: **forced**. D is locked as King, and C is revealed as Queen and becomes the guesser.
+3. Candidates for Queen are now {C}: D confirms the sure guess (**forced**). D is locked as King, and C is revealed as Queen and becomes the guesser.
 4. C must find Police among {A, B}. C guesses **B**: correct. C is locked as Queen, B is revealed as Police and becomes the guesser.
-5. The only candidate left is A: **forced**. B is locked as Police, A is revealed as Thief and locked.
+5. The only candidate left is A: B confirms the sure guess (**forced**). B is locked as Police, A is revealed as Thief and locked.
 
 Final: D King 1000, C Queen 800, B Police 500, A Thief 100.

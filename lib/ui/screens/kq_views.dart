@@ -9,6 +9,7 @@ import '../../game/room_controller.dart';
 import '../widgets/chits.dart';
 import '../widgets/circle_order.dart';
 import '../widgets/common.dart';
+import '../widgets/polish.dart';
 import 'game_view.dart';
 import 'picking_view.dart';
 
@@ -47,8 +48,8 @@ class _KqTopBar extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
-                Text(
-                  '${room.totals[ctrl.uid] ?? 0} pts',
+                AnimatedPoints(
+                  value: room.totals[ctrl.uid] ?? 0,
                   style: context.text.titleMedium?.copyWith(color: c.marigold),
                 ),
               ],
@@ -76,16 +77,23 @@ class KqPickingView extends StatelessWidget {
     final open = ctrl.kqChitsOpen;
     final picked = kr.picks.containsValue(ctrl.uid);
     final waiting = kr.players.where((p) => !kr.picks.containsValue(p)).length;
-    final reveal = ctrl.revealQueue.isNotEmpty ? ctrl.revealQueue.first : null;
+    // Only this round's own reveal: a role still unfolding when the last
+    // chit started the guessing must not block the next round's chits.
+    final reveal = ctrl.revealQueue.whereType<KqRoleDef>().firstOrNull;
     final myRole = ctrl.kqRole;
+    final sittingOut = !kr.players.contains(ctrl.uid);
 
     final title = !open
         ? 'Writing the roles'
+        : sittingOut
+        ? "You're in from the next round"
         : !picked
         ? 'Pick one folded chit'
         : 'Waiting for $waiting more player${waiting == 1 ? '' : 's'}…';
     final subtitle = !open
         ? 'Folding and shuffling ${kr.chain.join(', ')}…'
+        : sittingOut
+        ? '$waiting still picking. Watch for now!'
         : !picked
         ? (ctrl.kqPickRemainingSeconds <= 15
               ? 'Hurry! One is picked for you in ${ctrl.kqPickRemainingSeconds}s'
@@ -158,7 +166,7 @@ class KqPickingView extends StatelessWidget {
               const SizedBox(height: Space.lg),
           ],
         ),
-        if (reveal is KqRoleDef)
+        if (reveal != null)
           ChitRevealOverlay(
             key: ValueKey('kqrole-${reveal.name}'),
             caption: 'Your secret role is…',
@@ -284,7 +292,12 @@ class KqGuessView extends StatelessWidget {
           '${ctrl.kqAnnounceRemainingSeconds}…';
     } else if (myTurn) {
       title = 'Find the ${kr.targetRole}!';
-      subtitle = 'You are the ${kr.seekerRole}. Tap who you think it is.';
+      subtitle = candidates.length == 1
+          ? 'Only one player is left: it has to be them. Confirm your guess!'
+          : 'You are the ${kr.seekerRole}. Tap who you think it is.';
+    } else if (!kr.players.contains(ctrl.uid)) {
+      title = '$guesserName (${kr.seekerRole}) is finding the ${kr.targetRole}';
+      subtitle = "You're in from the next round. Watch and learn!";
     } else {
       title = guesser == ctrl.uid
           ? 'You (${kr.seekerRole}) are finding the ${kr.targetRole}'
@@ -803,7 +816,13 @@ class KqResultsView extends StatelessWidget {
           padding: const EdgeInsets.all(Space.lg),
           child: SizedBox(
             width: double.infinity,
-            child: ctrl.isHost
+            child: ctrl.finalRoundShown
+                ? BigButton(
+                    label: 'See final results',
+                    icon: Icons.emoji_events_rounded,
+                    onPressed: ctrl.acknowledgeFinal,
+                  )
+                : ctrl.isHost
                 ? BigButton(
                     label: moreRounds
                         ? 'Start round ${room.currentRound + 1}'

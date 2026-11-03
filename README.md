@@ -2,9 +2,9 @@
 
 <img src="docs/store/feature-graphic.png" alt="Chittilata — Pass the slips. Collect four of a kind. Crown the King and Queen." width="720">
 
-# Chittilata (చిట్టిలాట)
+# Chittilata – ChitPlay (చిట్టిలాట)
 
-**The Telugu paper-chit games you grew up with, now on everyone's phone.**
+**The Telugu paper-chit games you grew up with, now on everyone's phone. English-first, so the whole table can play.**
 Real-time, cheat-proof multiplayer for 3–10 friends, built with Flutter and Firebase.
 
 [![CI](https://github.com/ChandraChaan/chittilata/actions/workflows/ci.yml/badge.svg)](https://github.com/ChandraChaan/chittilata/actions/workflows/ci.yml)
@@ -69,7 +69,9 @@ Paper-chit games like *Chittilu Aata* and *Raja Rani* are a staple of Telugu fam
 - ⏱️ **Timers that keep the game moving.** Every deadline lives on the server, so all phones count down together.
   - **Picking chits:** you have 1 minute. Any chit you haven't picked is then picked for you at random, which can't change your chances.
   - **Passing and guessing:** never done for you automatically. When time runs out, your phone buzzes and the others can nudge you 👋. After 45 more seconds, or if your phone is offline, someone at the table can choose to play for you, and the server makes that move fairly.
-- 💬 **Quick chat.** One-tap emojis and preset phrases in Telugu and English float up on everyone's screen. Presets only, so there's no free text to moderate.
+- 💬 **Room chat.** One-tap emoji reactions and fun preset lines (English first, with Telugu classics) float up on everyone's screen, plus a chat panel with the room's history and, in rooms of friends, short typed messages. Quick-match tables with strangers stay preset-only.
+- 🎛️ **Host controls, anytime.** End the game for everyone, warn a silent player (they get a minute to respond, then anyone's phone can remove them; two warnings allow an immediate removal), and let friends join a running game from the next round. Players can leave at any time.
+- 🤷 **No stalemates.** Four laps of passing with no winner? The host ends the round and everyone draws a character chit, King included.
 - 🔁 **Reconnect and resume.** Close the app mid-round and come back to exactly where you were. Changed phones? Watch the game and ask the host for your seat back.
 - 🤖 **Practice with bots**, 🌐 **quick match** with players online, and 📨 **invite links** that open the app straight into the room.
 - 🔔 **Turn notifications** when the app is closed, never while you're watching the game.

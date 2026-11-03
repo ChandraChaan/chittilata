@@ -8,9 +8,17 @@ import '../widgets/confetti.dart';
 
 /// Final ceremony: King and Queen, leaderboard and round-by-round history.
 class FinalView extends StatefulWidget {
-  const FinalView({super.key, required this.ctrl, required this.onHome});
+  const FinalView({
+    super.key,
+    required this.ctrl,
+    required this.onHome,
+    this.leaving = false,
+  });
   final RoomController ctrl;
   final VoidCallback onHome;
+
+  /// Return-home is already on its way (the button shows busy).
+  final bool leaving;
 
   @override
   State<FinalView> createState() => _FinalViewState();
@@ -80,6 +88,19 @@ class _FinalViewState extends State<FinalView> {
                 fontWeight: FontWeight.w900,
               ),
             ),
+            if (room.endedReason != null) ...[
+              const SizedBox(height: Space.sm),
+              Text(
+                room.endedReason == 'host'
+                    ? 'The host ended the game after ${room.currentRound} '
+                          'round${room.currentRound == 1 ? '' : 's'}. '
+                          'Points so far decide the titles.'
+                    : 'Too few players were left to continue. Points so far '
+                          'decide the titles.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.kumkum, fontWeight: FontWeight.w700),
+              ),
+            ],
             const SizedBox(height: Space.lg),
             if (kings.isNotEmpty)
               _Crowned(
@@ -193,6 +214,7 @@ class _FinalViewState extends State<FinalView> {
               label: 'Return to home',
               icon: Icons.home_rounded,
               secondary: true,
+              busy: widget.leaving,
               onPressed: widget.onHome,
             ),
             const SizedBox(height: Space.xl),

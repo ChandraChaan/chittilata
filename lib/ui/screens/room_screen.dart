@@ -10,9 +10,11 @@ import '../../data/models.dart';
 import '../../game/room_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/quick_chat.dart';
+import '../widgets/warning_banner.dart';
 import 'charades_views.dart';
 import 'final_view.dart';
 import 'game_view.dart';
+import 'home_screen.dart';
 import 'lobby_view.dart';
 import 'kq_views.dart';
 import 'picking_view.dart';
@@ -38,6 +40,11 @@ class _RoomScreenState extends State<RoomScreen> {
   RoomController? _ctrl;
   StreamSubscription<String>? _msgs;
   GameFeedback? _feedback;
+
+  /// Leaving is in progress (a second tap must not pop the screen twice:
+  /// popping twice took the home screen away too and left a black screen).
+  bool _leaving = false;
+  bool _popped = false;
 
   @override
   void didChangeDependencies() {
@@ -70,9 +77,10 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Future<void> _confirmLeave() async {
+    if (_leaving) return;
     final ctrl = _ctrl!;
     final p = ctrl.phase;
-    final midGame =
+    final playing =
         p != Phase.lobby &&
         p != Phase.finished &&
         p != Phase.closed &&
@@ -83,12 +91,15 @@ class _RoomScreenState extends State<RoomScreen> {
         : await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Leave the room?'),
+              title: Text(playing ? 'Leave the game?' : 'Leave the room?'),
               content: Text(
-                midGame
-                    ? 'The game is in progress. If you leave during passing, the '
-                          'round is cancelled for everyone, and you cannot rejoin '
-                          'this game.'
+                playing
+                    ? (ctrl.joinsNextRound
+                          ? 'You can leave now: the round in progress goes '
+                                'on without you.'
+                          : 'You can leave at any time. The round in progress '
+                                'is cancelled for everyone, and you cannot '
+                                'rejoin this game.')
                     : 'You can join again later with the room code.',
               ),
               actions: [
@@ -104,14 +115,29 @@ class _RoomScreenState extends State<RoomScreen> {
             ),
           );
     if (ok != true || !mounted) return;
-    if (p != Phase.closed && p != Phase.removed) await ctrl.leave();
-    if (mounted) Navigator.of(context).pop();
+    await _leaveAndGoHome(tellServer: p != Phase.closed && p != Phase.removed);
   }
 
-  void _home() {
-    _ctrl?.prefs.activeRoomId = null;
-    Navigator.of(context).pop();
+  /// Leaves once, then pops this screen once. If this screen is somehow the
+  /// only route (opened from a notification on a cold start), it goes to
+  /// the home screen instead of popping to nothing.
+  Future<void> _leaveAndGoHome({bool tellServer = true}) async {
+    if (_leaving) return;
+    setState(() => _leaving = true);
+    final ctrl = _ctrl!;
+    ctrl.prefs.activeRoomId = null;
+    if (tellServer) await ctrl.leave();
+    if (!mounted || _popped) return;
+    _popped = true;
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+    } else {
+      nav.pushReplacement(gameRoute(const HomeScreen()));
+    }
   }
+
+  void _home() => _leaveAndGoHome(tellServer: false);
 
   @override
   Widget build(BuildContext context) {
@@ -143,8 +169,18 @@ class _RoomScreenState extends State<RoomScreen> {
                 ),
                 Phase.removed => _Centered(
                   icon: Icons.person_off_rounded,
-                  title: "You're no longer in this room",
-                  body: 'You left, or the host removed you.',
+                  title: switch (ctrl.room?.players[ctrl.uid]?.leftReason) {
+                    'kicked' => 'The host removed you',
+                    'timeout' => 'You were removed for not responding',
+                    _ => "You're no longer in this room",
+                  },
+                  body: switch (ctrl.room?.players[ctrl.uid]?.leftReason) {
+                    'kicked' => 'You cannot rejoin this room.',
+                    'timeout' =>
+                      'The host asked if you were there and a minute passed. '
+                          'You can join again with the room code.',
+                    _ => 'You left, or the host removed you.',
+                  },
                   action: BigButton(label: 'Back to home', onPressed: _home),
                 ),
                 Phase.spectating => SpectatorView(
@@ -190,10 +226,8 @@ class _RoomScreenState extends State<RoomScreen> {
                 ),
                 Phase.finished => FinalView(
                   ctrl: ctrl,
-                  onHome: () async {
-                    await ctrl.leave();
-                    if (context.mounted) Navigator.of(context).pop();
-                  },
+                  leaving: _leaving,
+                  onHome: _leaveAndGoHome,
                 ),
               };
               final inRoom =
@@ -235,6 +269,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   ConnectionBanner(connected: ctrl.connected),
+                                  if (inRoom) WarningBanner(ctrl: ctrl),
                                   if (inRoom && phase != Phase.spectating)
                                     LateBanner(ctrl: ctrl),
                                   if (inRoom) SeatClaimBanner(ctrl: ctrl),
@@ -244,7 +279,8 @@ class _RoomScreenState extends State<RoomScreen> {
                           ],
                         ),
                       ),
-                      if (inRoom) QuickChatBar(ctrl: ctrl),
+                      if (inRoom)
+                        QuickChatBar(ctrl: ctrl, onLeave: _confirmLeave),
                     ],
                   ),
                 ),
