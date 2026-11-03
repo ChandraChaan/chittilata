@@ -1,7 +1,9 @@
 <en-IN>
-First release on Google Play!
-• Three games: Movie Chits, King & Queen and Movie Dumb Charades
-• Practice with bots, play online, or invite friends with a link
-• Profiles, badges, friend groups and festival themes
-• Fair server-side shuffles, private slips, timers and reconnect
+2.4.0 – Chittilata is now ChitPlay, English-first for everyone at the table!
+• Room chat with emojis, fun lines and messages
+• Drag a chit into your tray, drag a slip to the circle to pass
+• Join a game already in progress from the next round
+• Host controls: end the game, warn or remove a player
+• No winner after 4 laps? End the round and draw characters
+• Fixes: unresponsive last chit, blank screen after Return home, final round shown before the winner
 </en-IN>
