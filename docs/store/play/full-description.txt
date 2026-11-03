@@ -1,7 +1,7 @@
-Chittilata (చిట్టిలాట) brings two much-loved Telugu paper-chit games to your phone: Movie Chits (Chittilu Aata) and King & Queen. No paper, no pen, no scissors. Everyone plays on their own phone, and every chit stays secret.
+Chittilata (చిట్టిలాట) brings much-loved Telugu paper-chit games to your phone: Movie Chits (Chittilu Aata), King & Queen, and Movie Dumb Charades. No paper, no pen, no scissors. Everyone plays on their own phone, and every chit stays secret.
 
 🎬 MOVIE CHITS (3–10 players)
-• One person creates a room and shares the 6-letter code.
+• One person creates a room and shares the 6-letter code or an invite link.
 • Everyone picks four folded movie chits.
 • Pass one slip at a time around a random circle. Keep what you need, pass on what you don't.
 • The first to collect four of the same name wins the round!
@@ -14,14 +14,23 @@ Chittilata (చిట్టిలాట) brings two much-loved Telugu paper-chit
 • Guess wrong and you swap roles!
 • Everyone scores the role they end with. Most points after all rounds wins.
 
+🎭 MOVIE DUMB CHARADES (3–10 people together)
+• One player secretly gets a movie and acts it out without a word.
+• Everyone else picks the title from six on their phone. One guess each!
+• The fastest right guess scores most, and the actor scores too. Everyone takes turns acting.
+
 🎉 MADE FOR FAMILY GAME NIGHTS
 • Telugu movies by default, plus All-Indian, Hollywood, Mixed, or your own custom names: cities, cricketers, anything!
-• Easy, Normal and Challenging difficulty.
-• A turn timer with a live countdown everyone sees. No more waiting on that one cousin!
-• Folded-paper design, celebrations, paper sounds and gentle vibration, each with its own on/off switch.
-• Light and dark themes, and a history of your past games.
+• Practice with bots, or tap Play online to join a table with other players.
+• Friend groups with a monthly leaderboard and a champion every month.
+• Profiles with avatars, levels and 14 badges to unlock.
+• Notifications when it's your turn, even with the app closed (you can switch them off).
+• Festival themes for Sankranti, Ugadi and Diwali.
+• Festive music, crisp sounds and vibration, each with its own on/off switch.
 • Quick chat: tap an emoji or a fun phrase (త్వరగా! ⏰ అయ్యో! 😩 Good game! 🤝) and it floats up on everyone's screen.
-• Someone taking forever? Nudge them 👋 and their phone buzzes. Nothing is ever played for you automatically.
+• Live timers everyone sees. Chits not picked within a minute are picked for you, so the game keeps moving.
+• Someone taking forever to pass? Nudge them 👋 and their phone buzzes. Your passes and guesses are never made for you automatically.
+• Joined late? Watch the game and get a seat when the next game starts.
 
 🔒 FAIR AND PRIVATE
 • Every deal is shuffled fairly on our server, and nobody starts close to winning.

@@ -17,7 +17,7 @@ A two-minute guide for friends and family. The complete rules are in [GAME_RULES
 
 ## 2. Pick your chits
 
-Watch the names get written, folded and shuffled onto the mat. When the timer appears, **tap any 4 folded chits**. Each one unfolds just for you and drops into your tray.
+Watch the names get written, folded and shuffled onto the mat. When the timer appears, **tap any 4 folded chits**. Each one unfolds just for you and drops into your tray. You have 1 minute; after that, any chits you haven't picked are picked for you at random.
 
 ## 3. Watch the circle
 
@@ -57,7 +57,7 @@ After the last round, the top score is **King** and the second is **Queen**. Tap
 Full rules and the state model: [KING_QUEEN_RULES.md](KING_QUEEN_RULES.md).
 
 1. **Create a King & Queen room** and share the code. You need 4–10 players. The host can set the rounds, the time per guess and every role's points.
-2. **Pick one folded chit.** It unfolds privately to show your role: King, Queen, Police or Thief, plus Minister, Commander and more in bigger games. Keep a straight face!
+2. **Pick one folded chit** within the minute (or one is picked for you). It unfolds privately to show your role: King, Queen, Police or Thief, plus Minister, Commander and more in bigger games. Keep a straight face!
 3. **The King is announced** and must find the **Queen**. On your turn, tap the player you suspect and confirm **"Is … the Queen?"**
 4. **Right guess:** you keep your role for good, and the player you found must now find the next role in the chain.
 5. **Wrong guess:** you two **swap roles** and you lose your turn. They now hold your role and keep hunting. Players already ruled out are marked "not the …".

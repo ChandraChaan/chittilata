@@ -5,7 +5,7 @@ Thanks for helping! Bug reports, rule variants from your family's version of the
 ## Before you start
 
 - For anything bigger than a small fix, please open an issue first so we can agree on the approach.
-- Game rules are specified in [docs/GAME_RULES.md](docs/GAME_RULES.md) and [docs/KING_QUEEN_RULES.md](docs/KING_QUEEN_RULES.md). If a change alters gameplay, update the spec in the same pull request.
+- Game rules are specified in [docs/GAME_RULES.md](docs/GAME_RULES.md), [docs/KING_QUEEN_RULES.md](docs/KING_QUEEN_RULES.md) and [docs/CHARADES_RULES.md](docs/CHARADES_RULES.md). If a change alters gameplay, update the spec in the same pull request.
 
 ## Setup
 

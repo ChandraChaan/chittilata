@@ -3,7 +3,7 @@
 ## One-time setup
 
 - [x] Firebase project `chittilata-game` (Blaze), Firestore in `asia-south1`, anonymous Auth enabled
-- [x] Cloud Functions and Firestore rules deployed (`firebase deploy --only functions,firestore:rules`)
+- [x] Cloud Functions, Firestore rules and indexes, and Hosting deployed (`firebase deploy --only functions,firestore:rules,firestore:indexes,hosting`)
 - [x] Release keystore generated at `~/.android/chittilata/chittilata-release.jks`; `android/key.properties` (git-ignored) points at it
 - [ ] **Back up the keystore and `android/key.properties` somewhere safe (password manager).** If they are lost, you can never update the app on Play.
 - [ ] Add GitHub Actions secrets so tagged releases can be signed in CI:
@@ -20,7 +20,7 @@
 1. Bump `version:` in `pubspec.yaml` (e.g. `1.0.1+2`; the build number must increase).
 2. `flutter analyze && flutter test`
 3. `cd functions && npm test && npm run test:emulator` (needs Java 21: `export JAVA_HOME=/opt/homebrew/opt/openjdk@21`)
-4. If functions or rules changed: `firebase deploy --only functions,firestore:rules`
+4. If the backend changed, deploy what changed: `firebase deploy --only functions,firestore:rules,firestore:indexes` (add `hosting` if `hosting/` changed)
 5. Build:
    ```bash
    flutter build apk --release --obfuscate --split-debug-info=build/symbols
