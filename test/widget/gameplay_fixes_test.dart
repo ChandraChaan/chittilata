@@ -420,7 +420,9 @@ void main() {
       expect(find.text('End round'), findsNothing);
       repo.emitRound(makeRound(turnId: 16, current: 'me'));
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('LAP 5'), findsNothing); // the control replaces the chip
+      // The lap count lives in the middle of the circle; the host gets the
+      // End-round control in the status panel.
+      expect(find.text('LAP 5'), findsOneWidget);
       expect(find.textContaining('No winner after 4 laps'), findsOneWidget);
       await tester.tap(find.text('End round'));
       await tester.pump(const Duration(milliseconds: 400));

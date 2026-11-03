@@ -35,15 +35,28 @@ class GameView extends StatelessWidget {
           cards: phase == Phase.exchange ? round.handSizes[u] : null,
           online: ctrl.isOnline(u),
           isMe: u == ctrl.uid,
+          points: round.tiebreak ? null : room.totals[u] ?? 0,
         ),
     ];
+    final la = round.lastAction;
+    final flight = la == null
+        ? null
+        : PassFlight(
+            from: la.fromUid,
+            to: la.toUid,
+            key: '${round.key}:${la.turnId}',
+          );
+    final counts = <String, int>{};
+    for (final card in ctrl.hand?.cards ?? const <GameCard>[]) {
+      counts[card.name] = (counts[card.name] ?? 0) + 1;
+    }
 
     return Stack(
       children: [
         Column(
           children: [
             _GameTopBar(ctrl: ctrl, onLeave: onLeave),
-            _MovieStrip(names: round.movieNames),
+            _MovieStrip(names: round.movieNames, counts: counts),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, box) {
@@ -62,6 +75,10 @@ class GameView extends StatelessWidget {
                         nextUid: phase == Phase.exchange ? round.nextUid : null,
                         progress: round.timed ? ctrl.turnProgress : null,
                         size: size,
+                        flight: flight,
+                        center: phase == Phase.exchange
+                            ? _CircleCentre(ctrl: ctrl, size: size)
+                            : null,
                       ),
                     ),
                   );
@@ -195,9 +212,12 @@ class _GameTopBar extends StatelessWidget {
   }
 }
 
+/// The movies in play, each with how many of its slips you hold, so you
+/// can see at a glance which set you are closest to.
 class _MovieStrip extends StatelessWidget {
-  const _MovieStrip({required this.names});
+  const _MovieStrip({required this.names, this.counts = const {}});
   final List<String> names;
+  final Map<String, int> counts;
 
   @override
   Widget build(BuildContext context) {
@@ -209,22 +229,87 @@ class _MovieStrip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: Space.lg),
         itemCount: names.length,
         separatorBuilder: (_, _) => const SizedBox(width: 6),
-        itemBuilder: (_, i) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: c.surfaceHigh,
-            borderRadius: BorderRadius.circular(99),
-          ),
-          child: Text(
-            names[i],
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: c.onSurface,
+        itemBuilder: (_, i) {
+          final n = counts[names[i]] ?? 0;
+          final hot = n >= 3;
+          return AnimatedContainer(
+            duration: Motion.of(context, Motion.medium),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: hot ? c.leaf.withValues(alpha: 0.22) : c.surfaceHigh,
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(
+                color: hot ? c.leaf : (n > 0 ? c.outline : Colors.transparent),
+              ),
             ),
-          ),
-        ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  names[i],
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: c.onSurface,
+                  ),
+                ),
+                if (n > 0) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    '×$n',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: hot ? c.leaf : c.marigold,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
+    );
+  }
+}
+
+/// The middle of the circle during passing: the countdown (big, where
+/// every eye already is) and the lap count.
+class _CircleCentre extends StatelessWidget {
+  const _CircleCentre({required this.ctrl, required this.size});
+  final RoomController ctrl;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final round = ctrl.round!;
+    final secs = max(0, (ctrl.turnRemainingMs / 1000).ceil());
+    final badge = (size * 0.24).clamp(40.0, 72.0);
+    final stalemateNow = !round.tiebreak && ctrl.lapsUntilStalemate == 0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (round.timed)
+          CountdownBadge(
+            seconds: secs,
+            progress: ctrl.turnProgress,
+            size: badge,
+          )
+        else
+          Icon(
+            Icons.hourglass_empty_rounded,
+            color: c.muted,
+            size: badge * 0.7,
+          ),
+        if (size >= 200 && !round.tiebreak) ...[
+          const SizedBox(height: 4),
+          InfoChip(
+            label: 'LAP ${round.laps + 1}',
+            color: stalemateNow ? c.kumkum : c.muted,
+          ),
+        ],
+      ],
     );
   }
 }
@@ -243,7 +328,6 @@ class _StatusPanel extends StatelessWidget {
     final round = ctrl.round!;
     final mine = ctrl.myTurn;
     final ms = ctrl.turnRemainingMs;
-    final secs = max(0, (ms / 1000).ceil());
     final expired = ms <= 0;
     final next = round.nextUid == ctrl.uid ? 'you' : room.nameOf(round.nextUid);
     final who = room.nameOf(round.currentUid);
@@ -301,14 +385,15 @@ class _StatusPanel extends StatelessWidget {
           ),
           child: Row(
             children: [
-              if (round.timed)
-                CountdownBadge(
-                  seconds: secs,
-                  progress: ctrl.turnProgress,
-                  size: 48,
-                )
-              else
-                Icon(Icons.hourglass_empty_rounded, color: c.muted, size: 36),
+              Icon(
+                expired
+                    ? Icons.alarm_rounded
+                    : mine
+                    ? Icons.touch_app_rounded
+                    : Icons.hourglass_top_rounded,
+                color: expired ? c.kumkum : (mine ? c.marigold : c.muted),
+                size: 28,
+              ),
               const SizedBox(width: Space.md),
               Expanded(
                 child: Semantics(
@@ -353,12 +438,6 @@ class _StatusPanel extends StatelessWidget {
                     'End round',
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
-                )
-              else if (!round.tiebreak)
-                InfoChip(
-                  icon: Icons.loop_rounded,
-                  label: laps == 0 ? 'LAP 1' : 'LAP ${laps + 1}',
-                  color: stalemateNow ? c.kumkum : c.muted,
                 ),
             ],
           ),
@@ -459,6 +538,12 @@ class _HandAreaState extends State<_HandArea> {
       counts[card.name] = (counts[card.name] ?? 0) + 1;
     }
     final four = matchingName(hand.cards);
+    // The set you are closest to completing.
+    final best = counts.entries.fold<MapEntry<String, int>?>(
+      null,
+      (a, e) => a == null || e.value > a.value ? e : a,
+    );
+    final collecting = best != null && best.value >= 2 && four == null;
     // A late player can still pass: nothing is passed for them automatically.
     final canAct = ctrl.myTurn && !ctrl.busy;
     final width = MediaQuery.sizeOf(context).width;
@@ -488,17 +573,23 @@ class _HandAreaState extends State<_HandArea> {
         children: [
           Row(
             children: [
-              Icon(Icons.lock_rounded, size: 14, color: c.muted),
+              Icon(
+                collecting ? Icons.auto_awesome_rounded : Icons.lock_rounded,
+                size: 14,
+                color: collecting ? c.leaf : c.muted,
+              ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  'Your slips · only you can see these',
+                  collecting
+                      ? 'Collecting ${best.key} · ${best.value} of 4'
+                      : 'Your slips · only you can see these',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: c.muted,
+                    color: collecting ? c.leaf : c.muted,
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
