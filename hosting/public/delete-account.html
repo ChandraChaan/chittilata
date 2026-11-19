@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Delete your ChitPlay account</title>
+  <meta name="description" content="How to delete your ChitPlay (Chittilata) account and data.">
+  <meta name="theme-color" content="#2A1563">
+  <link rel="icon" href="/icon.png">
+  <style>
+    :root { --bg1:#2A1563; --bg2:#0C0620; --gold:#FFB627; --goldHi:#FFDA6B; --goldLo:#FF9F1C; --lip:#B45F06; --ink:#2B1B3D; --text:#F8F2FF; --muted:#BEAEE0; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; font-family: system-ui, -apple-system, Roboto, "Noto Sans Telugu", sans-serif;
+      color:var(--text); background: radial-gradient(circle at 10% 0%, rgba(224,69,123,.25), transparent 55%),
+      radial-gradient(circle at 100% 95%, rgba(255,182,39,.16), transparent 50%), linear-gradient(var(--bg1), var(--bg2));
+      padding:32px 16px; }
+    main { width:100%; max-width:560px; margin:0 auto; }
+    header { text-align:center; }
+    img.icon { width:80px; height:80px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,.4); }
+    h1 { margin:16px 0 4px; font-size:28px; font-weight:900; background:linear-gradient(var(--goldHi),var(--goldLo));
+      -webkit-background-clip:text; background-clip:text; color:transparent; }
+    h2 { font-size:18px; margin:0 0 8px; color:var(--gold); }
+    p, li { color:var(--muted); line-height:1.55; }
+    li { margin:4px 0; }
+    b { color:var(--text); }
+    section { margin:18px 0; padding:18px 20px; border-radius:22px; background:rgba(57,38,115,.85); border:1px solid rgba(255,255,255,.18); }
+    a { color:var(--gold); }
+    a.btn { display:block; text-align:center; margin:14px 0 4px; padding:14px 20px; border-radius:18px; font-weight:900; font-size:17px; text-decoration:none;
+      color:var(--ink); background:linear-gradient(var(--goldHi),var(--goldLo)); box-shadow:0 5px 0 var(--lip), 0 10px 24px rgba(255,182,39,.35); }
+    a.btn:active { transform: translateY(4px); box-shadow:0 1px 0 var(--lip); }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <img class="icon" src="/icon.png" alt="">
+    <h1>Delete your ChitPlay account</h1>
+    <p>ChitPlay (Chittilata) by ChandraChaan Apps</p>
+  </header>
+
+  <section>
+    <h2>In the app (fastest)</h2>
+    <ol>
+      <li>Open <b>ChitPlay</b> and tap <b>Settings</b> (the sliders icon at the top of the home screen).</li>
+      <li>In the account box, tap <b>Delete my account and data</b>.</li>
+      <li>Confirm with <b>Delete</b>. It happens right away.</li>
+    </ol>
+    <p>If you signed in with Google on several phones, doing this on one of them is enough.</p>
+  </section>
+
+  <section>
+    <h2>Without the app</h2>
+    <p>No longer have the app? Email us from the Google account you signed in with, or tell us that address, and we'll delete the account within 30 days and reply when it's done.</p>
+    <a class="btn" href="mailto:dumpalachandu@gmail.com?subject=Delete%20my%20ChitPlay%20account&amp;body=Please%20delete%20my%20ChitPlay%20account%20and%20data.%0A%0AGoogle%20account%20email%3A%20">Email a deletion request</a>
+    <p style="text-align:center;font-size:13px">dumpalachandu@gmail.com</p>
+  </section>
+
+  <section>
+    <h2>What gets deleted</h2>
+    <ul>
+      <li>Your sign-in (the Google link and your player ID).</li>
+      <li>Your saved profile: name, avatar, level and XP, stats, badges and match history.</li>
+      <li>Your push notification token.</li>
+      <li>Your place in any rooms and friend groups (you leave them, and your name is removed from your groups).</li>
+    </ul>
+    <h2>What is kept, and for how long</h2>
+    <ul>
+      <li>Rooms you played in keep past results, including your display name, until the room is deleted automatically: at most 24 hours of inactivity plus 7 days.</li>
+      <li>Reports you sent about other players are kept for up to 1 year for safety reviews, then deleted.</li>
+      <li>Crash reports (no name or game data) are kept by Firebase Crashlytics for 90 days.</li>
+    </ul>
+    <p>Playing as a guest (without Google sign-in)? Uninstalling the app or clearing its data removes everything on your phone, and the same button in Settings deletes what is on our server.</p>
+  </section>
+
+  <p style="text-align:center"><a href="https://github.com/ChandraChaan/chittilata/blob/main/docs/PRIVACY_POLICY.md">Privacy policy</a></p>
+</main>
+</body>
+</html>

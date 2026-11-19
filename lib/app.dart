@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'core/services/account.dart';
 import 'core/services/feedback.dart';
 import 'core/services/invite_links.dart';
 import 'core/services/push.dart';
@@ -18,6 +19,7 @@ class AppServices {
     required this.feedback,
     InviteLinks? invites,
     this.push,
+    this.account,
   }) : invites = invites ?? InviteLinks();
   final GameRepository repo;
   final Preferences prefs;
@@ -26,6 +28,10 @@ class AppServices {
 
   /// Null in tests (no Firebase Messaging there).
   final PushService? push;
+
+  /// Optional Google sign-in and the cloud profile. Null in tests that don't
+  /// cover accounts (the account section is then hidden).
+  final Account? account;
 }
 
 /// For opening a room from a tapped notification.

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app.dart';
+import 'core/services/account.dart';
 import 'core/services/feedback.dart';
 import 'core/services/invite_links.dart';
 import 'core/services/push.dart';
@@ -54,6 +55,17 @@ Future<void> main() async {
   final invites = InviteLinks()..start();
   final repo = FirebaseGameRepository();
   final push = PushService(repo, prefs);
+  final account = Account(
+    FirebaseAccountBackend(),
+    prefs,
+    // A different player id: move this phone's push token over to it.
+    beforeUserChange: () async {
+      try {
+        await repo.deletePushToken();
+      } catch (_) {}
+    },
+    afterUserChange: push.refresh,
+  );
   // Tapping a "your turn" notification opens that game.
   push.openedRooms.listen((roomId) {
     if (prefs.activeRoomId != roomId) return;
@@ -77,6 +89,7 @@ Future<void> main() async {
         feedback: GameFeedback(prefs),
         invites: invites,
         push: push,
+        account: account,
       ),
     ),
   );

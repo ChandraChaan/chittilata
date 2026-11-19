@@ -147,6 +147,6 @@ Then: **Production → Create new release → Add from library** (pick the teste
 ## Common rejection reasons to check first
 
 - **Privacy policy URL** returns 404 or doesn't name the app. Open the URL in a private browser window before submitting.
-- **Data safety mismatch:** the form must match the privacy policy. Both say: name, anonymous ID, game data, crash logs; no ads, no location.
+- **Data safety mismatch:** the form must match the privacy policy. Both say: name, user ID, game data, crash logs, and (only with the optional Google sign-in) email address and Google name; no ads, no location. The account deletion URL is https://chittilata-game.web.app/delete-account.
 - **Movie titles:** they're used as plain words in a game, with no posters or logos. Keep it that way: no film artwork in screenshots or the icon.
 - **Metadata:** don't add other games' names or "best/#1" claims to the title or short description.

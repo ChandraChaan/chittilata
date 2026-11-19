@@ -12,7 +12,36 @@
           "package_name": "com.chandra.chittilata"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "158543185837-92e5hc0uv8f89afskv70l66re2t8a9iv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.chandra.chittilata",
+            "certificate_hash": "7ffd9765cdd51a3170b709b1193796ed449f8c80"
+          }
+        },
+        {
+          "client_id": "158543185837-ntjq01cnubfjiah54kab9crjioa965d8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.chandra.chittilata",
+            "certificate_hash": "cf378346c0d05b956768c3e76433b6241edba55d"
+          }
+        },
+        {
+          "client_id": "158543185837-pm1jud7s3re32uems96sutdevc2d73hl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.chandra.chittilata",
+            "certificate_hash": "6c95aa2a4833becaeae540c1606c7df604910d9f"
+          }
+        },
+        {
+          "client_id": "158543185837-auem1hnl5gd2ubr4aelqcdn9b7oavng7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD1IvzbS2hp-qsjYrvybqYvEZ8sodkbzao"
@@ -20,7 +49,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "158543185837-auem1hnl5gd2ubr4aelqcdn9b7oavng7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

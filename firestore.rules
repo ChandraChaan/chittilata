@@ -4,7 +4,8 @@ rules_version = '2';
 // - Every game mutation goes through Cloud Functions (Admin SDK bypasses rules).
 // - Clients may READ only what they are entitled to and WRITE only their own
 //   presence heartbeat, chat messages (presets, plus short typed text
-//   between seated players in rooms of friends) and abuse reports.
+//   between seated players in rooms of friends), abuse reports and, once
+//   signed in with Google, their own cloud profile (users/{uid}).
 // - Active hands and secret characters are per-player documents readable only
 //   by their owner. The host has no extra read access.
 // - Round documents contain no card identities until the server reveals them.
@@ -80,6 +81,53 @@ service cloud.firestore {
     }
 
     // Each phone's push token. Write-only for its owner; the server reads it.
+    // Cloud profiles, only for players signed in with Google (guests keep
+    // theirs on the phone): the owner reads and writes their own, in this
+    // exact shape. The app merges copies itself (largest counters, union of
+    // badges and history); deleting goes through the deleteAccount function.
+    // A new stat counter in the app needs its key added here first.
+    function googleOwner(uid) {
+      return signedIn() && request.auth.uid == uid
+        && 'google.com' in request.auth.token.firebase.get('identities', {});
+    }
+
+    function counterOk(c, key) {
+      return !(key in c) || (c[key] is int && c[key] >= 0 && c[key] <= 1000000000);
+    }
+
+    function countersOk(c) {
+      return c is map
+        && c.keys().hasOnly(['games', 'xp', 'roundWins', 'kings', 'queens',
+             'hatTricks', 'kingRounds', 'botWins', 'bigTables', 'chats',
+             'nudges', 'nightGames', 'festivalGames'])
+        && counterOk(c, 'games') && counterOk(c, 'xp')
+        && counterOk(c, 'roundWins') && counterOk(c, 'kings')
+        && counterOk(c, 'queens') && counterOk(c, 'hatTricks')
+        && counterOk(c, 'kingRounds') && counterOk(c, 'botWins')
+        && counterOk(c, 'bigTables') && counterOk(c, 'chats')
+        && counterOk(c, 'nudges') && counterOk(c, 'nightGames')
+        && counterOk(c, 'festivalGames');
+    }
+
+    function profileOk(d) {
+      return d.keys().hasOnly(['name', 'avatar', 'counters', 'badges', 'seen',
+             'history', 'updatedAt'])
+        && d.keys().hasAll(['counters', 'badges', 'seen', 'history', 'updatedAt'])
+        && optString(d, 'name', 32)
+        && optString(d, 'avatar', 16)
+        && countersOk(d.counters)
+        && d.badges is list && d.badges.size() <= 30
+        && d.seen is list && d.seen.size() <= 300
+        && d.history is list && d.history.size() <= 50
+        && d.updatedAt == request.time;
+    }
+
+    match /users/{uid} {
+      allow read: if googleOwner(uid);
+      allow create, update: if googleOwner(uid) && profileOk(request.resource.data);
+      allow delete: if false;
+    }
+
     match /pushTokens/{uid} {
       allow read: if false;
       allow create, update: if signedIn()

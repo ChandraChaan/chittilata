@@ -121,10 +121,35 @@ const achievements = [
   ),
 ];
 
-/// Your games, wins, XP, level and badges. Kept only on this phone.
+/// Every counter the game records. The cloud profile (`users/{uid}`) only
+/// accepts these keys, so a new counter needs firestore.rules updated first.
+const counterKeys = {
+  'games',
+  'xp',
+  'roundWins',
+  'kings',
+  'queens',
+  'hatTricks',
+  'kingRounds',
+  'botWins',
+  'bigTables',
+  'chats',
+  'nudges',
+  'nightGames',
+  'festivalGames',
+};
+
+/// How many "already counted" keys are remembered.
+const maxSeenKeys = 300;
+
+/// Your games, wins, XP, level and badges. Kept on this phone and, when you
+/// sign in with Google, in your cloud profile too.
 class PlayerStats {
-  PlayerStats(this._p);
+  PlayerStats(this._p, {this.onChange});
   final SharedPreferences _p;
+
+  /// Called after the stats change (the cloud profile syncs then).
+  final void Function()? onChange;
 
   Map<String, int> get counters {
     try {
@@ -135,7 +160,13 @@ class PlayerStats {
     }
   }
 
-  List<String> get _seen => _p.getStringList('statsSeen') ?? const [];
+  /// Events already counted (rooms and games), oldest first.
+  List<String> get seen => _p.getStringList('statsSeen') ?? const [];
+
+  /// Badges earned so far, including ones a counter alone no longer shows
+  /// (e.g. earned on another phone).
+  Set<String> get badges =>
+      (_p.getStringList('statsBadges') ?? const []).toSet();
 
   int get xp => counters['xp'] ?? 0;
 
@@ -159,22 +190,56 @@ class PlayerStats {
 
   int get xpToNext => _total(level) - xp;
 
-  List<Achievement> get earned =>
-      achievements.where((b) => (counters[b.stat] ?? 0) >= b.goal).toList();
+  List<Achievement> get earned {
+    final c = counters;
+    final kept = badges;
+    return achievements
+        .where((b) => (c[b.stat] ?? 0) >= b.goal || kept.contains(b.id))
+        .toList();
+  }
 
   /// Adds [add] to the counters once per [key] (so a room shown twice
   /// counts once). Returns the badges this just unlocked.
   List<Achievement> record(String key, Map<String, int> add) {
-    final seen = _seen;
+    final seen = this.seen;
     if (seen.contains(key)) return const [];
     final before = earned.map((b) => b.id).toSet();
     final c = counters;
     add.forEach((k, v) => c[k] = (c[k] ?? 0) + v);
     _p.setString('stats', jsonEncode(c));
     _p.setStringList('statsSeen', [
-      ...seen.length > 300 ? seen.sublist(seen.length - 300) : seen,
+      ...seen.length >= maxSeenKeys
+          ? seen.sublist(seen.length - maxSeenKeys + 1)
+          : seen,
       key,
     ]);
-    return earned.where((b) => !before.contains(b.id)).toList();
+    final now = earned;
+    _p.setStringList('statsBadges', now.map((b) => b.id).toList());
+    onChange?.call();
+    return now.where((b) => !before.contains(b.id)).toList();
+  }
+
+  /// Replaces everything (with a merged cloud profile). Doesn't call
+  /// [onChange]: the data came from a sync.
+  void replace({
+    required Map<String, int> counters,
+    required Set<String> badges,
+    required List<String> seen,
+  }) {
+    _p.setString('stats', jsonEncode(counters));
+    _p.setStringList('statsBadges', badges.toList()..sort());
+    _p.setStringList(
+      'statsSeen',
+      seen.length > maxSeenKeys
+          ? seen.sublist(seen.length - maxSeenKeys)
+          : seen,
+    );
+  }
+
+  /// Forgets all stats and badges (signing out, deleting the account).
+  void clear() {
+    _p.remove('stats');
+    _p.remove('statsBadges');
+    _p.remove('statsSeen');
   }
 }
