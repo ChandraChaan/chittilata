@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Join a Chittilata game</title>
-  <meta name="description" content="You're invited to a game of Chittilata, the Telugu paper-slip game.">
-  <meta property="og:title" content="Join my Chittilata game! 🎬">
-  <meta property="og:description" content="Tap to join the room on Chittilata, the Telugu paper-slip game.">
+  <title>Join a ChitPlay game</title>
+  <meta name="description" content="You're invited to a game of ChitPlay, the paper-chit party game.">
+  <meta property="og:title" content="Join my ChitPlay game! 🎬">
+  <meta property="og:description" content="Tap to join the room on ChitPlay, the paper-chit party game.">
   <meta property="og:image" content="https://chittilata-game.web.app/og.png">
   <meta name="theme-color" content="#2A1563">
   <link rel="icon" href="/icon.png">
@@ -35,10 +35,10 @@
 <body>
 <main>
   <img class="icon" src="/icon.png" alt="">
-  <h1>Chittilata</h1>
+  <h1>ChitPlay</h1>
   <p>You're invited to a game! 🎬👑</p>
   <div class="code"><small>ROOM CODE</small><b id="code">——————</b></div>
-  <a class="btn" id="open" href="#">Open in Chittilata</a>
+  <a class="btn" id="open" href="#">Open in ChitPlay</a>
   <a class="btn secondary" id="get" href="https://play.google.com/store/apps/details?id=com.chandra.chittilata">Get it on Google Play</a>
   <div class="steps">
     <p>Don't have the app yet? Install it, then open this link again — or enter the code above in the app.</p>
@@ -51,7 +51,7 @@
   var code = m ? m[2].toUpperCase() : null;
   if (kind === 'group') {
     document.querySelector('.code small').textContent = 'GROUP CODE';
-    document.querySelector('main > p').textContent = "You're invited to a Chittilata group! 👥";
+    document.querySelector('main > p').textContent = "You're invited to a ChitPlay group! 👥";
   }
   var play = document.getElementById('get').href;
   if (code) {

@@ -79,11 +79,14 @@ abstract class GameRepository {
     required String reason,
   });
 
+  /// Creates a room; [category] is the movie list it starts with
+  /// (English titles when null).
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
     String? avatar,
     String? groupId,
+    Category? category,
   });
 
   // Movie Dumb Charades
@@ -425,12 +428,14 @@ class FirebaseGameRepository implements GameRepository {
     GameMode mode = GameMode.movie,
     String? avatar,
     String? groupId,
+    Category? category,
   }) async {
     final r = await _call('createRoom', {
       'name': name,
       'mode': mode.name,
       'avatar': avatar,
       'groupId': ?groupId,
+      'category': ?category?.name,
     });
     return (roomId: r['roomId'] as String, code: r['code'] as String);
   }

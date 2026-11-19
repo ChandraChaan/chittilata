@@ -1,6 +1,5 @@
 <en-IN>
-• Safer chat: long-press a message to mute or report a player, or hide typed messages in Settings
-• Abusive words are now filtered on every phone
-• Privacy policy and contact links in Settings
-• Host controls, late join, stalemate fix, drag-and-drop passing and a livelier passing screen (2.4)
+• Meet ChitPlay: a fresh new name and icon
+• English movies by default. Prefer Telugu, all-Indian or mixed? Pick once, or change it in Settings
+• The host can still switch the movie list in the lobby
 </en-IN>

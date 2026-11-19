@@ -139,7 +139,7 @@ class _UpdateRequired extends StatelessWidget {
                   const SizedBox(height: Space.md),
                   Text(
                     message ??
-                        'A new version of Chittilata is out. Update to keep '
+                        'A new version of ChitPlay is out. Update to keep '
                             'playing with your friends.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: c.muted, height: 1.4, fontSize: 16),

@@ -9,6 +9,7 @@ import '../../core/theme/festivals.dart';
 import '../../data/game_repository.dart';
 import '../../data/models.dart';
 import '../widgets/common.dart';
+import '../widgets/movie_list_picker.dart';
 import '../widgets/paper_card.dart';
 import 'groups_screen.dart';
 import 'history_screen.dart';
@@ -132,12 +133,18 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     final name = _validName();
     if (name == null) return;
     final s = Services.of(context);
+    // Movie games ask once which list the group knows (English by default).
+    if (mode != GameMode.kingQueen && !s.prefs.movieListChosen) {
+      final picked = await askMovieList(context, s.prefs);
+      if (picked == null || !mounted) return;
+    }
     setState(() => _busy = true);
     try {
       final r = await s.repo.createRoom(
         name,
         mode: mode,
         avatar: s.prefs.avatar,
+        category: Category.values.byName(s.prefs.movieList),
       );
       // Practice: fill the table with bots; Start is one tap away.
       for (var i = 0; i < bots; i++) {
@@ -244,19 +251,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     const SizedBox(height: Space.lg),
                     const _Hero(),
                     const SizedBox(height: Space.xl),
-                    const GoldText('Chittilata', textAlign: TextAlign.center),
+                    const GoldText('ChitPlay', textAlign: TextAlign.center),
                     Text(
-                      'ChitPlay',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: c.teal,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 3,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      'The paper-chit party games · చిట్టిలాట',
+                      'The paper-chit party games',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: c.muted,
@@ -482,7 +479,7 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const names = ['RRR', 'RRR', 'RRR', 'RRR'];
+    const names = ['Avatar', 'Avatar', 'Avatar', 'Avatar'];
     return SizedBox(
       height: 150,
       child: Stack(

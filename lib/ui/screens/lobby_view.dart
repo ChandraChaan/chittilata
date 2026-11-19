@@ -12,10 +12,11 @@ import '../../game/room_controller.dart';
 import '../widgets/common.dart';
 import 'onboarding_screen.dart';
 
+/// Movie lists, English first. The order is the order of the chips.
 const categoryLabels = {
+  Category.hollywood: 'English movies',
   Category.telugu: 'Telugu movies',
   Category.indian: 'All Indian movies',
-  Category.hollywood: 'Hollywood movies',
   Category.mixed: 'Mixed categories',
   Category.custom: 'Custom names',
 };
@@ -575,7 +576,7 @@ class _CodeCard extends StatelessWidget {
                 .share(
                   ShareParams(
                     text: InviteLinks.message(code),
-                    subject: 'Join my Chittilata – ChitPlay game',
+                    subject: 'Join my ChitPlay game',
                   ),
                 )
                 .catchError((_) => ShareResult.unavailable),
@@ -863,7 +864,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                   spacing: Space.sm,
                   runSpacing: Space.sm,
                   children: [
-                    for (final cat in Category.values)
+                    for (final cat in categoryLabels.keys)
                       ChoiceChip(
                         label: Text(categoryLabels[cat]!),
                         selected: category == cat,
@@ -1173,7 +1174,7 @@ class _CharadesSettings extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
-              for (final cat in Category.values.where(
+              for (final cat in categoryLabels.keys.where(
                 (x) => x != Category.custom,
               ))
                 ChoiceChip(

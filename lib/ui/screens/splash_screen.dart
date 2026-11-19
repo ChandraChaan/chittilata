@@ -105,13 +105,9 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                           Opacity(
                             opacity: _anim.value,
-                            child: Text(
-                              'చి',
-                              style: TextStyle(
-                                color: c.kumkum,
-                                fontSize: 46,
-                                fontWeight: FontWeight.w900,
-                              ),
+                            child: const Text(
+                              '👑',
+                              style: TextStyle(fontSize: 42),
                             ),
                           ),
                         ],
@@ -121,20 +117,12 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
                 const SizedBox(height: Space.xl),
                 Text(
-                  'Chittilata',
-                  style: context.text.displaySmall?.copyWith(color: c.marigold),
-                ),
-                Text(
                   'ChitPlay',
-                  style: context.text.titleMedium?.copyWith(
-                    color: c.teal,
-                    letterSpacing: 4,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: context.text.displaySmall?.copyWith(color: c.marigold),
                 ),
                 const SizedBox(height: Space.sm),
                 Text(
-                  'The paper-chit party games · చిట్టిలాట',
+                  'The paper-chit party games',
                   style: TextStyle(color: c.muted),
                 ),
                 const SizedBox(height: Space.xxl),

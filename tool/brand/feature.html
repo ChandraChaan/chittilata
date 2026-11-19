@@ -1,0 +1,40 @@
+<!doctype html>
+<!-- Play Store feature graphic and invite-link preview (1024x500):
+     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars \
+       --force-device-scale-factor=1 --window-size=1024,500 \
+       --screenshot=docs/store/feature-graphic.png "file://$PWD/tool/brand/feature.html" -->
+<html><head><meta charset="utf-8"><style>
+  html, body { margin: 0; width: 1024px; height: 100vh; overflow: hidden; }
+  body {
+    background: radial-gradient(ellipse at 30% 30%, #3A2378 0%, #1E1140 55%, #140B2C 100%);
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", Roboto, sans-serif;
+    color: #FFF6E3; position: relative;
+  }
+  .copy { position: absolute; left: 60px; top: 128px; width: 440px; }
+  h1 { margin: 0; font-size: 92px; font-weight: 900; letter-spacing: -2px; line-height: 1;
+       background: linear-gradient(180deg, #FFD36B, #FFB627 60%, #F09A12);
+       -webkit-background-clip: text; color: transparent; }
+  .sub { margin-top: 12px; font-size: 27px; font-weight: 700; color: #FFF6E3; }
+  .tag { margin-top: 22px; font-size: 20px; font-weight: 600; color: #CBB8F5; line-height: 1.45; }
+  .tag b { color: #4FD1C5; font-weight: 800; }
+  .fan { position: absolute; left: 512px; top: 80px; width: 440px; height: 360px; }
+  .slip { position: absolute; width: 132px; height: 190px; border-radius: 18px;
+          background: #FFF6E3; border: 5px solid #FFB627;
+          box-shadow: 0 18px 32px rgba(0,0,0,.45); transform-origin: 50% 120%;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          color: #2B1B3D; font-weight: 900; font-size: 25px; }
+  .slip .e { font-size: 52px; margin-bottom: 8px; }
+  .slip.k { border-color: #EF4A62; }
+</style></head><body>
+  <div class="copy">
+    <h1>ChitPlay</h1>
+    <div class="sub">The paper-chit party game</div>
+    <div class="tag">Pass the slips. <b>Collect four.</b><br>Find the Queen. <b>Wear the crown.</b></div>
+  </div>
+  <div class="fan">
+    <div class="slip" style="left:0px; top:96px; transform: rotate(-15deg)"><div class="e">🕵️</div>Thief</div>
+    <div class="slip" style="left:100px; top:64px; transform: rotate(-5deg)"><div class="e">👮</div>Police</div>
+    <div class="slip" style="left:200px; top:64px; transform: rotate(5deg)"><div class="e">👸</div>Queen</div>
+    <div class="slip k" style="left:300px; top:96px; transform: rotate(15deg)"><div class="e">👑</div>King</div>
+  </div>
+</body></html>
