@@ -3,7 +3,8 @@ rules_version = '2';
 // Chittilata security model
 // - Every game mutation goes through Cloud Functions (Admin SDK bypasses rules).
 // - Clients may READ only what they are entitled to and WRITE only their own
-//   presence heartbeat and quick-chat message (preset codes only).
+//   presence heartbeat, chat messages (presets, plus short typed text
+//   between seated players in rooms of friends) and abuse reports.
 // - Active hands and secret characters are per-player documents readable only
 //   by their owner. The host has no extra read access.
 // - Round documents contain no card identities until the server reveals them.
@@ -28,15 +29,47 @@ service cloud.firestore {
         || request.auth.uid in room(roomId).get('spectatorUids', []));
     }
 
-    // A text message is 1-80 characters, only with kind 'text', and never
-    // at a public table (strangers get presets only).
+    // A text message is 1-80 characters, only with kind 'text', only from
+    // a seated player (people watching send presets), and never at a public
+    // table (strangers get presets only).
     function chatTextOk(roomId, d) {
       return (d.kind != 'text' && !('text' in d))
         || (d.kind == 'text'
             && d.text is string
             && d.text.size() >= 1
             && d.text.size() <= 80
+            && request.auth.uid in room(roomId).memberUids
             && room(roomId).get('public', false) != true);
+    }
+
+    function optString(d, key, max) {
+      return !(key in d) || d[key] == null
+        || (d[key] is string && d[key].size() <= max);
+    }
+
+    // Abuse reports from the chat. Anyone in the room can file one about
+    // someone else in it; nobody can read, change or delete them from the
+    // app (the developer reviews them in the Firebase console).
+    match /reports/{id} {
+      allow read, update, delete: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['reporter', 'roomId', 'target',
+             'targetName', 'messageId', 'text', 'reason', 'at'])
+        && request.resource.data.keys().hasAll(['reporter', 'roomId', 'target',
+             'reason', 'at'])
+        && request.resource.data.reporter == request.auth.uid
+        && request.resource.data.at == request.time
+        && request.resource.data.roomId is string
+        && request.resource.data.roomId.size() <= 40
+        && request.resource.data.target is string
+        && request.resource.data.target.size() <= 128
+        && request.resource.data.target != request.auth.uid
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 40
+        && optString(request.resource.data, 'targetName', 40)
+        && optString(request.resource.data, 'messageId', 12)
+        && optString(request.resource.data, 'text', 200)
+        && inRoom(request.resource.data.roomId);
     }
 
     // App-wide settings (minimum / latest app build), edited only in the

@@ -44,6 +44,28 @@ class Preferences extends ChangeNotifier {
   bool get haptics => _p.getBool('haptics') ?? true;
   set haptics(bool v) => _set('haptics', v);
 
+  /// Show messages other players type (emojis and preset lines always show).
+  bool get typedChat => _p.getBool('typedChat') ?? true;
+  set typedChat(bool v) => _set('typedChat', v);
+
+  /// Players whose chat this phone hides (their anonymous ids).
+  Set<String> get mutedPlayers =>
+      (_p.getStringList('mutedPlayers') ?? const []).toSet();
+
+  bool isMuted(String uid) => mutedPlayers.contains(uid);
+
+  void setMuted(String uid, bool muted) {
+    final s = mutedPlayers;
+    muted ? s.add(uid) : s.remove(uid);
+    // Keep the newest 200: enough for anyone, bounded on disk.
+    final list = s.toList();
+    _p.setStringList(
+      'mutedPlayers',
+      list.length > 200 ? list.sublist(list.length - 200) : list,
+    );
+    notifyListeners();
+  }
+
   /// 'system' | 'dark' | 'light'
   String get themeMode => _p.getString('themeMode') ?? 'dark';
   set themeMode(String v) {

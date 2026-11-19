@@ -11,7 +11,8 @@ These answers are based on the code in this repository (Firebase Auth anonymous,
 | Personal info → **Name** (player-chosen display name) | Yes | No | Required to play | App functionality |
 | Personal info → **User IDs** (Firebase anonymous UID) | Yes | No | Required | App functionality |
 | App activity → **Other actions** (game moves, scores) | Yes | No | Required | App functionality |
-| Messages → **Other in-app messages** (preset emojis, phrases and nudges; no free text) | Yes | No | Optional | App functionality |
+| Messages → **Other in-app messages** (preset emojis, phrases and nudges, plus short typed messages of up to 80 characters between seated players in rooms of friends; chat history kept with the room) | Yes | No | Optional | App functionality |
+| App activity → **Other user-generated content** (abuse reports: reported player's ID and name, the message, the reason) | Yes | No | Optional | App functionality (safety) |
 | App activity → **Other user-generated content** (avatar emoji, friend group names and monthly results) | Yes | No | Optional | App functionality |
 | Device or other IDs → **Push notification token** (Firebase Cloud Messaging) | Yes | No | Optional (only if notifications are allowed) | App functionality |
 | App info & performance → **Crash logs** | Yes | No | Required | Analytics (crash diagnostics) |

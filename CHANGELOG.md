@@ -2,6 +2,21 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.5.0] — 2026-11-19
+
+First update after the Google Play production launch: chat safety and store compliance.
+
+### Added
+- **Mute and report.** Long-press any message in the room chat (or use the chat's ⋮ menu) to mute a player on your phone, which hides their messages and nudges, or report them. A report goes to the developer for review, written to a create-only `reports` collection that nobody can read from the app, and mutes them too.
+- **Typed chat switch.** Settings → *Typed chat messages* hides everything other players type; emojis and preset lines still show. Muted players can be unmuted from Settings.
+- **Privacy policy and contact links** in Settings → About.
+
+### Changed
+- **Abusive words are filtered on every phone, not just the sender's,** and disguised spellings ("sh1t", "fuuuck", "f u c k") are caught too. Text sent from an old or modified app is masked when it arrives.
+- **Only seated players can type messages.** People watching a game use emojis and preset lines; the security rules enforce it.
+- **Crashlytics records uncaught Dart errors as non-fatal,** so crash-free numbers count real crashes only.
+- Privacy policy, Data safety and listing docs now describe typed chat and reports. Reports are deleted after a year by the existing 6-hourly cleanup job.
+
 ## [2.4.0] — 2026-11-03
 
 ### Fixed

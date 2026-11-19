@@ -68,6 +68,17 @@ abstract class GameRepository {
   /// The room's chat history, oldest first (the last [limit] messages).
   Stream<List<ChatMessage>> watchMessages(String roomId, {int limit = 60});
 
+  /// Files a report about a player (and optionally one of their messages)
+  /// for the developer to review. Write-only: nobody can read reports back.
+  Future<void> reportChat(
+    String roomId, {
+    required String target,
+    required String targetName,
+    String? messageId,
+    String? text,
+    required String reason,
+  });
+
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
@@ -366,6 +377,28 @@ class FirebaseGameRepository implements GameRepository {
         if (kind == ChatKind.text) 'text': text,
       });
     return batch.commit();
+  }
+
+  @override
+  Future<void> reportChat(
+    String roomId, {
+    required String target,
+    required String targetName,
+    String? messageId,
+    String? text,
+    required String reason,
+  }) {
+    String cap(String v, int n) => v.length > n ? v.substring(0, n) : v;
+    return _db.collection('reports').add({
+      'reporter': uid,
+      'roomId': roomId,
+      'target': target,
+      'targetName': cap(targetName, 40),
+      'messageId': messageId,
+      'text': text == null ? null : cap(text, 200),
+      'reason': cap(reason, 40),
+      'at': FieldValue.serverTimestamp(),
+    });
   }
 
   @override

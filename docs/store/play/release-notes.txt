@@ -1,7 +1,6 @@
 <en-IN>
-First release on Google Play!
-• Three games: Movie Chits, King & Queen and Movie Dumb Charades
-• Practice with bots, play online, or invite friends with a link
-• Profiles, badges, friend groups and festival themes
-• Fair server-side shuffles, private slips, timers and reconnect
+• Safer chat: long-press a message to mute or report a player, or hide typed messages in Settings
+• Abusive words are now filtered on every phone
+• Privacy policy and contact links in Settings
+• Host controls, late join, stalemate fix, drag-and-drop passing and a livelier passing screen (2.4)
 </en-IN>

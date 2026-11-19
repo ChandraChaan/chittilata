@@ -1,6 +1,6 @@
 # Chittilata — Privacy Policy
 
-_Last updated: 2 November 2026._
+_Last updated: 19 November 2026._
 
 Chittilata ("the app") is a multiplayer card game made by Chandra ("we"). This policy explains what the app collects and why.
 
@@ -11,7 +11,8 @@ Chittilata ("the app") is a multiplayer card game made by Chandra ("we"). This p
 | **Anonymous account ID** (created automatically by Firebase Authentication; no email, phone or password) | Identifies your seat in a game so you can reconnect | Google Firebase |
 | **Display name you type** (e.g. "Chandra") | Shown to the other players in your room | Firebase Cloud Firestore, inside the room |
 | **Game data** (your slips, turns, scores, character cards, timestamps of your last activity in a room) | Running the game fairly on our server | Firebase Cloud Firestore |
-| **Quick-chat messages** you choose to send: a preset emoji, a preset phrase or a nudge (there is no free-text chat), and when you sent it. Only your latest message is kept | Showing it to the other players in your room | Firebase Cloud Firestore, inside the room |
+| **Chat messages** you choose to send: a preset emoji, a preset phrase, a nudge, or (in rooms of friends, for seated players) a short typed message of up to 80 characters, and when you sent it. The room's chat history is kept with the room | Showing it to the other players in your room | Firebase Cloud Firestore, inside the room |
+| **Reports** you send about another player: their anonymous ID and display name, the room, the reported message (if any) and the reason you picked | Reviewing abuse and keeping rooms safe | Firebase Cloud Firestore (readable only by the developer) |
 | **Avatar emoji** you choose (optional, from a fixed list) | Shown next to your name in rooms and groups | Firebase Cloud Firestore |
 | **Push notification token** (a random ID for this app install, only if you allow notifications) | Telling you when it's your turn, or someone nudged you, while the app is closed | Firebase Cloud Firestore (readable only by our server) and Firebase Cloud Messaging |
 | **Friend groups** you create or join: the group name, members' display names and avatars, and each month's points, games and King/Queen titles | Showing the group's monthly leaderboard to its members | Firebase Cloud Firestore |
@@ -24,7 +25,7 @@ Your sound, vibration, notification and theme preferences, your match history, a
 ## Who can see your data
 
 - **Other players in your room** see your display name, avatar, ready/online status, scores, your quick-chat messages and nudges, and, after each round ends, that round's slips and character cards. People who join a game after it started can watch the same public table (never anyone's private slips or role).
-- **Quick match (Play online)** puts you at a table with people you may not know. They see the same things as above. Names containing abusive words are replaced with "Player N" at public tables, and chat is preset-only.
+- **Quick match (Play online)** puts you at a table with people you may not know. They see the same things as above. Names containing abusive words are replaced with "Player N" at public tables, and chat there is preset-only (no typed messages).
 - **Members of your friend groups** see your display name, avatar and monthly results in that group.
 - **Your private slips** during a round are visible only to you, enforced by our server's security rules. The host can't see them either.
 - **Google (Firebase)** processes the data on our behalf as a service provider. See https://firebase.google.com/support/privacy.
@@ -36,10 +37,12 @@ Your sound, vibration, notification and theme preferences, your match history, a
 - Friend groups are kept until their last member leaves; then the group and its seasons are deleted.
 - Your push token is deleted when you turn notifications off in Settings, or when Firebase reports it no longer works (for example after uninstalling).
 - Crash reports are kept by Firebase Crashlytics for 90 days.
+- Reports are kept for up to 1 year, then deleted.
 - Your anonymous account ID stays until you uninstall the app or clear its data.
 
 ## Your choices
 
+- In the room chat, long-press a message (or use the chat's ⋮ menu) to **mute** a player on your phone or **report** them. Settings → *Typed chat messages* hides everything other players type. Typed messages are filtered for abusive words on every phone.
 - Use any display name you like. It doesn't have to be your real name.
 - Leaving a room removes you from it. Leaving a group removes you from it. Uninstalling the app deletes everything stored on your phone.
 - Notifications are optional: Android asks before any are shown, and Settings has a switch.

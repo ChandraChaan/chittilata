@@ -1,6 +1,7 @@
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app.dart';
 import '../../core/theme/app_theme.dart';
@@ -10,6 +11,13 @@ import '../widgets/common.dart';
 /// Only builds made with --dart-define=CRASH_TEST=true show the test-crash
 /// button used to verify Crashlytics end to end.
 const _crashTestBuild = bool.fromEnvironment('CRASH_TEST');
+
+const privacyPolicyUrl =
+    'https://github.com/ChandraChaan/chittilata/blob/main/docs/PRIVACY_POLICY.md';
+const supportEmail = 'dumpalachandu@gmail.com';
+
+Future<void> _open(String url) =>
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -74,6 +82,34 @@ class SettingsScreen extends StatelessWidget {
                           (v) => prefs.haptics = v,
                         ),
                       ),
+                      SwitchListTile(
+                        secondary: const Icon(Icons.chat_rounded),
+                        title: const Text('Typed chat messages'),
+                        subtitle: const Text(
+                          'Show what other players type. Emojis and quick '
+                          'lines always show',
+                        ),
+                        value: prefs.typedChat,
+                        onChanged: withClickValue(
+                          context,
+                          (v) => prefs.typedChat = v,
+                        ),
+                      ),
+                      if (prefs.mutedPlayers.isNotEmpty)
+                        ListTile(
+                          leading: const Icon(Icons.volume_off_rounded),
+                          title: Text(
+                            'Muted players: ${prefs.mutedPlayers.length}',
+                          ),
+                          trailing: TextButton(
+                            onPressed: () {
+                              for (final u in prefs.mutedPlayers) {
+                                prefs.setMuted(u, false);
+                              }
+                            },
+                            child: const Text('Unmute all'),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -173,7 +209,25 @@ class SettingsScreen extends StatelessWidget {
                         'setting.',
                         style: TextStyle(color: c.muted, height: 1.4),
                       ),
-                      const SizedBox(height: Space.sm),
+                      const SizedBox(height: Space.xs),
+                      Wrap(
+                        spacing: Space.sm,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => _open(privacyPolicyUrl),
+                            icon: const Icon(Icons.privacy_tip_rounded),
+                            label: const Text('Privacy policy'),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _open(
+                              'mailto:$supportEmail'
+                              '?subject=${Uri.encodeComponent('ChitPlay (Chittilata)')}',
+                            ),
+                            icon: const Icon(Icons.mail_rounded),
+                            label: const Text('Contact & report'),
+                          ),
+                        ],
+                      ),
                       // So players can tell which build they have installed.
                       FutureBuilder<PackageInfo>(
                         future: PackageInfo.fromPlatform(),

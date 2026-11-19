@@ -111,4 +111,117 @@ void main() {
     expect(find.text('Vasavi nudged you!'), findsOneWidget);
     await finish(tester);
   });
+
+  group('masking', () {
+    test('masks blocked words, also disguised ones', () {
+      expect(maskChatText('you are a bitch'), 'you are a *****');
+      expect(maskChatText('sh1t happens'), '**** happens');
+      expect(maskChatText('Fuuuuck!!'), '*********');
+      expect(maskChatText('f u c k off'), '* * * * off');
+      expect(maskChatText('Who has my fourth RRR?'), 'Who has my fourth RRR?');
+      expect(maskChatText('Kshitij passes classes'), 'Kshitij passes classes');
+      expect(cleanChatText('  hi   there  '), 'hi there');
+      expect(cleanChatText('   '), isNull);
+    });
+
+    test('text from an old or modified app is masked on arrival', () {
+      final m = ChatMessage.fromMap('m1', {
+        'uid': 'v',
+        'kind': 'text',
+        'code': textCode,
+        'text': 'what the fuck',
+      }, DateTime.now());
+      expect(m!.text, 'what the ****');
+    });
+  });
+
+  testWidgets('long-press mutes a player: their messages disappear', (
+    tester,
+  ) async {
+    repo.emitMessage(
+      ChatMessage(
+        id: 'm1',
+        uid: 'v',
+        kind: ChatKind.text,
+        text: 'pass faster!',
+        at: DateTime.now(),
+      ),
+    );
+    await pumpRoom(tester);
+    await tester.tap(find.byTooltip('Room chat'));
+    await tester.pumpAndSettle();
+    expect(find.text('pass faster!'), findsOneWidget);
+    await tester.longPress(find.text('pass faster!'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mute Vasavi'));
+    await tester.pumpAndSettle();
+    expect(find.text('pass faster!'), findsNothing);
+    expect(prefs.isMuted('v'), isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('reporting a message sends it for review and mutes them', (
+    tester,
+  ) async {
+    repo.emitMessage(
+      ChatMessage(
+        id: 'm2',
+        uid: 'v',
+        kind: ChatKind.text,
+        text: 'something rude',
+        at: DateTime.now(),
+      ),
+    );
+    await pumpRoom(tester);
+    await tester.tap(find.byTooltip('Room chat'));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('something rude'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report this message'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Abusive or hateful'));
+    await tester.pumpAndSettle();
+    expect(repo.reports.single, {
+      'roomId': 'room1',
+      'target': 'v',
+      'targetName': 'Vasavi',
+      'messageId': 'm2',
+      'text': 'something rude',
+      'reason': 'abusive',
+    });
+    expect(prefs.isMuted('v'), isTrue);
+    expect(find.text('something rude'), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('typed messages can be switched off; presets still show', (
+    tester,
+  ) async {
+    prefs.typedChat = false;
+    repo
+      ..emitMessage(
+        ChatMessage(
+          id: 'm3',
+          uid: 'v',
+          kind: ChatKind.text,
+          text: 'typed words',
+          at: DateTime.now(),
+        ),
+      )
+      ..emitMessage(
+        ChatMessage(
+          id: 'm4',
+          uid: 'v',
+          kind: ChatKind.phrase,
+          text: 'Nice one! 👏',
+          at: DateTime.now(),
+        ),
+      );
+    await pumpRoom(tester);
+    await tester.tap(find.byTooltip('Room chat'));
+    await tester.pumpAndSettle();
+    expect(find.text('typed words'), findsNothing);
+    expect(find.text('Nice one! 👏'), findsNWidgets(2));
+    await finish(tester);
+  });
 }

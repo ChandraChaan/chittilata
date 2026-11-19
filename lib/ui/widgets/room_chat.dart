@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/chat.dart';
+import '../../data/models.dart';
 import '../../game/room_controller.dart';
 import 'common.dart';
 
@@ -96,6 +97,7 @@ class _ChatPanelState extends State<ChatPanel> {
                         '${room?.activePlayers.length ?? 0} playing',
                         style: TextStyle(color: c.muted, fontSize: 12),
                       ),
+                      _ChatOptions(ctrl: ctrl),
                     ],
                   ),
                 ),
@@ -130,6 +132,14 @@ class _ChatPanelState extends State<ChatPanel> {
                             isHost: history[i].uid == room?.hostUid,
                             first:
                                 i == 0 || history[i - 1].uid != history[i].uid,
+                            onLongPress: history[i].uid == ctrl.uid
+                                ? null
+                                : () => showChatActions(
+                                    context,
+                                    ctrl,
+                                    history[i].uid,
+                                    message: history[i],
+                                  ),
                           ),
                         ),
                 ),
@@ -235,12 +245,14 @@ class _MessageRow extends StatelessWidget {
     required this.mine,
     required this.isHost,
     required this.first,
+    this.onLongPress,
   });
   final ChatMessage message;
   final String name;
   final bool mine;
   final bool isHost;
   final bool first;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -311,11 +323,201 @@ class _MessageRow extends StatelessWidget {
                     ),
                   ),
                 ),
-              bubble,
+              GestureDetector(
+                onLongPress: onLongPress,
+                child: Semantics(
+                  onLongPressHint: onLongPress == null
+                      ? null
+                      : 'Mute or report $name',
+                  child: bubble,
+                ),
+              ),
             ],
           ),
         ],
       ),
     );
   }
+}
+
+/// The chat header's ⋮: typed messages on/off and the people in the room,
+/// each of whom can be muted or reported.
+class _ChatOptions extends StatelessWidget {
+  const _ChatOptions({required this.ctrl});
+  final RoomController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final room = ctrl.room;
+    final others = [
+      for (final p in room?.players.values ?? const <PlayerInfo>[])
+        if (p.uid != ctrl.uid) p,
+    ];
+    return PopupMenuButton<String>(
+      tooltip: 'Chat options',
+      icon: const Icon(Icons.more_vert_rounded),
+      onSelected: (v) {
+        if (v == '#typed') {
+          ctrl.setTypedChat(!ctrl.prefs.typedChat);
+        } else {
+          showChatActions(context, ctrl, v);
+        }
+      },
+      itemBuilder: (_) => [
+        CheckedPopupMenuItem(
+          value: '#typed',
+          checked: ctrl.prefs.typedChat,
+          child: const Text('Show typed messages'),
+        ),
+        if (others.isNotEmpty) const PopupMenuDivider(),
+        for (final p in others)
+          PopupMenuItem(
+            value: p.uid,
+            child: Row(
+              children: [
+                Icon(
+                  ctrl.isMuted(p.uid)
+                      ? Icons.volume_off_rounded
+                      : Icons.person_rounded,
+                  size: 18,
+                ),
+                const SizedBox(width: Space.sm),
+                Flexible(
+                  child: Text(
+                    ctrl.isMuted(p.uid) ? '${p.name} (muted)' : p.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Mute / unmute and report for one player (and the message long-pressed).
+Future<void> showChatActions(
+  BuildContext context,
+  RoomController ctrl,
+  String player, {
+  ChatMessage? message,
+}) {
+  final name = ctrl.room?.nameOf(player) ?? 'Player';
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      final muted = ctrl.isMuted(player);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: Space.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ctx.text.titleMedium,
+                ),
+              ),
+              if (message != null && message.kind == ChatKind.text)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    Space.lg,
+                    Space.xs,
+                    Space.lg,
+                    0,
+                  ),
+                  child: Text(
+                    '"${message.text}"',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: ctx.colors.muted),
+                  ),
+                ),
+              const SizedBox(height: Space.sm),
+              ListTile(
+                leading: Icon(
+                  muted ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                ),
+                title: Text(muted ? 'Unmute $name' : 'Mute $name'),
+                subtitle: Text(
+                  muted
+                      ? 'Show their messages again'
+                      : 'Hide their messages and nudges on this phone',
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ctrl.setMuted(player, !muted);
+                  showGameSnack(
+                    context,
+                    muted ? '$name unmuted' : '$name muted on this phone',
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.flag_rounded),
+                title: Text(
+                  message == null ? 'Report $name' : 'Report this message',
+                ),
+                subtitle: const Text(
+                  'Sends it to the developer to review, and mutes them',
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final reason = await _pickReason(context);
+                  if (reason == null) return;
+                  final ok = await ctrl.report(
+                    player,
+                    message: message,
+                    reason: reason,
+                  );
+                  if (!context.mounted) return;
+                  showGameSnack(
+                    context,
+                    ok
+                        ? 'Thanks. Report sent, and $name is muted.'
+                        : "Couldn't send the report. $name is muted; "
+                              'try again when you are online.',
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Future<String?> _pickReason(BuildContext context) {
+  const reasons = {
+    'abusive': 'Abusive or hateful',
+    'sexual': 'Sexual or inappropriate',
+    'spam': 'Spam',
+    'name': 'Offensive name',
+    'other': 'Something else',
+  };
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      title: const Text('What is wrong?'),
+      children: [
+        for (final r in reasons.entries)
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, r.key),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: Space.xs),
+              child: Text(r.value),
+            ),
+          ),
+      ],
+    ),
+  );
 }

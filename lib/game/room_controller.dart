@@ -1367,7 +1367,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
       _seenChat[e.uid] = e.id;
       // On joining, only show what was sent in the last few seconds.
       if (first && now.difference(e.at) > const Duration(seconds: 6)) continue;
-      if (e.text == null) continue;
+      if (e.text == null || _hidden(e.uid, e.kind)) continue;
       chatFeed.add(
         ChatBubble(_chatSeq++, e, room?.nameOf(e.uid) ?? 'Player', now),
       );
@@ -1385,13 +1385,71 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _onMessages(List<ChatMessage> list) {
-    final fresh = list.where((m) => _seenMessages.add(m.id)).toList();
-    chatHistory = list;
+    _allMessages = list;
+    final fresh = list
+        .where((m) => _seenMessages.add(m.id) && !_hidden(m.uid, m.kind))
+        .toList();
+    chatHistory = _visible(list);
     if (_messagesLoaded && !chatOpen) {
       unreadChat += fresh.where((m) => m.uid != uid).length;
     }
     _messagesLoaded = true;
     notifyListeners();
+  }
+
+  List<ChatMessage> _allMessages = const [];
+
+  /// Muted players' messages, and typed ones when typed chat is switched
+  /// off, never show. My own always do.
+  bool _hidden(String from, ChatKind kind) =>
+      from != uid &&
+      (prefs.isMuted(from) || (kind == ChatKind.text && !prefs.typedChat));
+
+  List<ChatMessage> _visible(List<ChatMessage> list) =>
+      list.where((m) => !_hidden(m.uid, m.kind)).toList();
+
+  bool isMuted(String player) => prefs.isMuted(player);
+
+  /// Hides (or shows again) everything [player] sends, on this phone only.
+  void setMuted(String player, bool muted) {
+    if (player == uid) return;
+    prefs.setMuted(player, muted);
+    chatHistory = _visible(_allMessages);
+    chatFeed.removeWhere((b) => _hidden(b.event.uid, b.event.kind));
+    notifyListeners();
+  }
+
+  /// Shows or hides typed messages from everyone (emojis and preset lines
+  /// still show).
+  void setTypedChat(bool on) {
+    prefs.typedChat = on;
+    chatHistory = _visible(_allMessages);
+    chatFeed.removeWhere((b) => _hidden(b.event.uid, b.event.kind));
+    notifyListeners();
+  }
+
+  /// Reports a chat message (or a player, with [message] null) for review,
+  /// and mutes them on this phone. False if the report could not be sent.
+  Future<bool> report(
+    String player, {
+    ChatMessage? message,
+    required String reason,
+  }) async {
+    if (player == uid) return false;
+    setMuted(player, true);
+    try {
+      await repo.reportChat(
+        roomId,
+        target: player,
+        targetName: room?.nameOf(player) ?? '',
+        messageId: message?.id,
+        text: message?.kind == ChatKind.text ? message!.text : null,
+        reason: reason,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// The chat panel opened or closed: unread counts only while it's closed.
@@ -1401,8 +1459,12 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  /// Free text is for rooms of friends; quick-match tables stay preset-only.
-  bool get canSendText => room?.isPublic != true;
+  /// Free text is for seated players in rooms of friends; quick-match
+  /// tables and people watching stay preset-only (the rules agree).
+  bool get canSendText =>
+      room != null &&
+      !room!.isPublic &&
+      room!.memberUids.contains(uid);
 
   /// Sends a short typed message; false if throttled, empty or not allowed.
   bool sendText(String raw) {
