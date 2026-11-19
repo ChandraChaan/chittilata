@@ -2,6 +2,12 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.7.0] — 2026-11-19
+
+### Added
+- **Invite a contact.** *Contact* in the lobby opens Android's own contact picker. ChitPlay gets only the one number you tap, and needs no contacts permission. Then send the invite on WhatsApp (straight to that chat) or by text message, with the room link typed in. The number stays on your phone: it isn't stored or sent to our server.
+- **QR code invites.** *QR code* in the lobby shows a big code of the room's invite link. Friends at the same table scan it with their phone camera to join, or reach the Play Store page if they don't have ChitPlay yet.
+
 ## [2.6.0] — 2026-11-19
 
 ChitPlay: English first, Telugu as an option.

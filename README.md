@@ -66,7 +66,7 @@ Paper-chit games like *Chittilu Aata* (చిట్టిలాట) and *Raja Ra
 - 🎛️ **Host controls, anytime.** End the game for everyone, warn a silent player (they get a minute to respond, then anyone's phone can remove them; two warnings allow an immediate removal), and let friends join a running game from the next round. Players can leave at any time.
 - 🤷 **No stalemates.** Four laps of passing with no winner? The host ends the round and everyone draws a character chit, King included.
 - 🔁 **Reconnect and resume.** Close the app mid-round and come back to exactly where you were. Changed phones? Watch the game and ask the host for your seat back.
-- 🤖 **Practice with bots**, 🌐 **quick match** with players online, and 📨 **invite links** that open the app straight into the room.
+- 🤖 **Practice with bots**, 🌐 **quick match** with players online, and 📨 **invites** that open the app straight into the room: share a link, send it to a contact on WhatsApp or SMS (no contacts permission), or show a QR code to friends at the table.
 - 🔔 **Turn notifications** when the app is closed, never while you're watching the game.
 - 😀 **Profiles, levels and badges**, 👥 **friend groups** with a monthly leaderboard, and 🪔 **festival themes** for Sankranti, Ugadi and Diwali.
 - 🤝 **Ties handled gracefully.** Tied for King? Vote for a tie-breaker round or share the crown.
