@@ -97,7 +97,7 @@ After the last round:
 
 ## Categories and difficulty
 
-**Categories:** Telugu movies (default), All Indian movies, Hollywood movies, Mixed, or **Custom names**. Custom names can be anything, such as countries, cities, fruits or celebrities, and you need at least one name per player.
+**Categories:** English (Hollywood) movies (default), Telugu movies, All Indian movies, Mixed, or **Custom names**. Each player picks the list their rooms start with (asked once, changeable in Settings), and the host can switch it in the lobby. Custom names can be anything, such as countries, cities, fruits or celebrities, and you need at least one name per player.
 
 | Difficulty | Names used | Default timer |
 |---|---|---|

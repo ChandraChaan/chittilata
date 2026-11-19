@@ -72,7 +72,7 @@ class ChittilataApp extends StatelessWidget {
   }
 
   Widget _app(Festival? festival) => MaterialApp(
-    title: 'Chittilata – ChitPlay',
+    title: 'ChitPlay',
     debugShowCheckedModeBanner: false,
     theme: buildTheme(Brightness.light, festival: festival),
     darkTheme: buildTheme(Brightness.dark, festival: festival),

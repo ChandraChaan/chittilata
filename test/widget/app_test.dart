@@ -70,9 +70,16 @@ void main() {
     await tester.ensureVisible(find.text('New Movie Chits room'));
     await tester.pump();
     await tester.tap(find.text('New Movie Chits room'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    // The first movie game asks which list the group knows, English first.
+    expect(find.text('Which movies does your group know?'), findsOneWidget);
+    expect(repo.calls, isEmpty);
+    await tester.tap(find.text('Telugu movies'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(repo.calls, ['createRoom:Chandra']);
+    expect(repo.lastCreateCategory, Category.telugu);
+    expect(prefs.movieList, 'telugu');
     expect(find.text('ABC234'), findsOneWidget);
     expect(prefs.activeRoomId, 'room1');
     await unmount(tester);
@@ -1000,6 +1007,14 @@ void main() {
     await tester.tap(find.text('Vibration'));
     await tester.pump();
     expect(prefs.haptics, isFalse);
+    expect(prefs.movieList, 'hollywood');
+    await tester.ensureVisible(find.text('Telugu movies'));
+    await tester.pump();
+    await tester.tap(find.text('Telugu movies'));
+    await tester.pump();
+    expect(prefs.movieList, 'telugu');
+    await tester.ensureVisible(find.text('Day'));
+    await tester.pump();
     await tester.tap(find.text('Day'));
     await tester.pump();
     expect(prefs.themeMode, 'light');

@@ -13,6 +13,8 @@ import {
   cleanPlayerName,
   dealHands,
   defaultSettings,
+  STARTING_CATEGORIES,
+  type Category,
   eligibleNames,
   ExchangeState,
   GameError,
@@ -253,6 +255,11 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
     fail("invalid-argument", "Unknown game mode.");
   }
   const mode = rawMode as "movie" | "kingQueen" | "charades";
+  // The creator's movie list (English by default; older apps send none).
+  const rawCategory = (data as Record<string, unknown> | null)?.category;
+  const category = STARTING_CATEGORIES.includes(rawCategory as Category)
+    ? (rawCategory as Category)
+    : "hollywood";
   const { db, now, rng } = deps;
   for (let attempt = 0; attempt < 6; attempt++) {
     const code = roomCode(rng);
@@ -276,7 +283,7 @@ export async function createRoom(deps: Deps, uid: string, data: unknown) {
         public: isPublic,
         groupId: group?.groupId ?? null,
         groupName: group?.groupName ?? null,
-        settings: defaultSettings(),
+        settings: defaultSettings(category),
         kqSettings: kq.defaultKqSettings(),
         kingWins: {},
         gameNo: 1,

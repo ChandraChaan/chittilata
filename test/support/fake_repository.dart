@@ -284,13 +284,18 @@ class FakeGameRepository implements GameRepository {
   Future<void> kqClaimTimeout(String roomId, String roundKey, int turnId) =>
       _record('kqTimeout:$turnId');
 
+  /// The movie list the last [createRoom] asked for.
+  Category? lastCreateCategory;
+
   @override
   Future<({String roomId, String code})> createRoom(
     String name, {
     GameMode mode = GameMode.movie,
     String? avatar,
     String? groupId,
+    Category? category,
   }) async {
+    lastCreateCategory = category;
     await _record(
       mode == GameMode.movie
           ? 'createRoom:$name'

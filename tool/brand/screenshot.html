@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- Captioned Play Store screenshot, 1080x1920. Rendered by tool/brand/make_store_screenshots.sh;
-     takes ?shot=<path to raw capture>&t=<headline>&s=<subline>. -->
+     takes ?shot=<path to raw capture>&t=<headline>&s=<subline>[&crop=<status bar px to hide>]. -->
 <html><head><meta charset="utf-8"><style>
   html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; }
   body {
@@ -11,10 +11,10 @@
   h1 { margin: 88px 64px 0; color: #FFB627; font-size: 72px; font-weight: 800; letter-spacing: -1px; text-align: center; white-space: nowrap; }
   p  { margin: 16px 64px 0; color: #E4DAFF; font-size: 40px; font-weight: 500; text-align: center; white-space: nowrap; }
   .phone {
-    margin-top: 60px; width: 750px; height: 1500px; border-radius: 52px; overflow: hidden;
+    margin-top: 60px; width: 750px; border-radius: 52px; overflow: hidden;
     box-shadow: 0 0 0 3px rgba(255, 182, 39, 0.35), 0 40px 90px rgba(0, 0, 0, 0.55);
   }
-  .phone img { width: 100%; height: 100%; display: block; }
+  .phone img { width: 100%; height: auto; display: block; } /* any phone aspect */
 </style></head><body>
   <h1 id="t"></h1><p id="s"></p>
   <div class="phone"><img id="shot"></div>
@@ -22,6 +22,15 @@
     const q = new URLSearchParams(location.search);
     document.getElementById('t').textContent = q.get('t');
     document.getElementById('s').textContent = q.get('s');
-    document.getElementById('shot').src = q.get('shot');
+    const img = document.getElementById('shot');
+    // Raw 1080-wide captures may include the phone's status bar: hide its
+    // top `crop` pixels and size the frame to what is left.
+    const crop = Number(q.get('crop') || 0);
+    img.onload = () => {
+      const k = 750 / img.naturalWidth;
+      img.style.marginTop = `${-crop * k}px`;
+      img.parentElement.style.height = `${(img.naturalHeight - crop) * k}px`;
+    };
+    img.src = q.get('shot');
   </script>
 </body></html>

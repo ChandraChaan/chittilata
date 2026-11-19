@@ -836,6 +836,19 @@ describe("avatars", () => {
   });
 });
 
+describe("movie list", () => {
+  it("new rooms use English titles unless the creator picks another list", async () => {
+    const a = await ops.createRoom(deps(), "a", { name: "Asha" });
+    expect((await room(a.roomId)).settings.category).toBe("hollywood");
+    const b = await ops.createRoom(deps(), "b", { name: "Bala", category: "telugu" });
+    expect((await room(b.roomId)).settings.category).toBe("telugu");
+    const c = await ops.createRoom(deps(), "c", { name: "Chitti", category: "custom" });
+    expect((await room(c.roomId)).settings.category).toBe("hollywood");
+    const d = await ops.createRoom(deps(), "d", { name: "Dev", category: "<bad>" });
+    expect((await room(d.roomId)).settings.category).toBe("hollywood");
+  });
+});
+
 describe("friend groups", () => {
   it("create, join by code, start a room for the group; outsiders can't", async () => {
     const { groupId, code } = await groups.createGroup(deps(), "a", { name: " Family ", playerName: "Asha", avatar: "🦁" });

@@ -25,9 +25,13 @@ const CATEGORIES: Category[] = ["telugu", "indian", "hollywood", "custom", "mixe
 const DIFFICULTIES: Difficulty[] = ["easy", "normal", "challenging"];
 const POLICIES: TimeoutPolicy[] = ["passIncoming", "passRandom"];
 
-export function defaultSettings(): GameSettings {
+/** Movie lists a player may pick when creating a room (custom needs names). */
+export const STARTING_CATEGORIES: Category[] = ["hollywood", "telugu", "indian", "mixed"];
+
+/** English titles by default; Telugu, all-Indian and mixed lists are options. */
+export function defaultSettings(category: Category = "hollywood"): GameSettings {
   return {
-    category: "telugu",
+    category,
     customNames: [],
     rounds: 7,
     turnSeconds: DIFFICULTY_TURN_SECONDS.normal,

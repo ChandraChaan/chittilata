@@ -7,6 +7,7 @@ import '../../app.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/festivals.dart';
 import '../widgets/common.dart';
+import '../widgets/movie_list_picker.dart';
 
 /// Only builds made with --dart-define=CRASH_TEST=true show the test-crash
 /// button used to verify Crashlytics end to end.
@@ -119,6 +120,31 @@ class SettingsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
+                        'Movies for new games',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: Space.xs),
+                      Text(
+                        'The host can still switch lists in the lobby.',
+                        style: TextStyle(color: c.muted, fontSize: 13),
+                      ),
+                      const SizedBox(height: Space.sm),
+                      MovieListChoices(
+                        selected: prefs.movieList,
+                        onSelected: withClickValue(
+                          context,
+                          (v) => prefs.movieList = v,
+                        )!,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: Space.lg),
+                Panel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
                         'Theme',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
@@ -200,7 +226,7 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: Space.sm),
                       Text(
-                        'Chittilata – ChitPlay brings the traditional Telugu '
+                        'ChitPlay (Chittilata) brings the traditional Telugu '
                         'paper-chit games (చిట్టిలాట, Chittilu Aata) to every '
                         'phone, in English for everyone at the table. Movie '
                         'titles are used only as game words. Sounds are '

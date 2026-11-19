@@ -1,4 +1,4 @@
-# Submitting Chittilata to Google Play
+# Submitting ChitPlay (Chittilata) to Google Play
 
 A click-by-click walkthrough of Play Console, with every answer filled in. Copy-paste text lives in [`play/`](play/); the reasoning behind the policy answers is in [LISTING.md](LISTING.md) and [DATA_SAFETY.md](DATA_SAFETY.md).
 
@@ -27,7 +27,7 @@ Tablet screenshots are optional. Leave them out unless you want the app featured
 
 | Field | Value |
 |---|---|
-| App name | `Chittilata - Telugu Chit Games` (30/30). Use plain `Chittilata` if you prefer |
+| App name | `ChitPlay: Chit Party Games` (26/30). Until 2.6.0 it was `Chittilata - Telugu Chit Games` |
 | Default language | English (India) – en-IN |
 | App or game | **Game** |
 | Free or paid | **Free**. You can't change a free app to paid later |
@@ -94,7 +94,7 @@ Paste the privacy policy URL.
 
 | Field | Paste from |
 |---|---|
-| App name | `Chittilata - Telugu Chit Games` |
+| App name | `ChitPlay: Chit Party Games` |
 | Short description (80) | [`play/short-description.txt`](play/short-description.txt) |
 | Full description (4000) | [`play/full-description.txt`](play/full-description.txt). Plain text, because Play shows `**markdown**` literally |
 | App icon, feature graphic, phone screenshots | See [What to upload](#what-to-upload) |

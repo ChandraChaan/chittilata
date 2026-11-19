@@ -44,6 +44,25 @@ class Preferences extends ChangeNotifier {
   bool get haptics => _p.getBool('haptics') ?? true;
   set haptics(bool v) => _set('haptics', v);
 
+  /// The movie list new rooms start with: 'hollywood' (English titles, the
+  /// default), 'telugu', 'indian' or 'mixed'. The host can still change it in
+  /// the lobby.
+  String get movieList {
+    final v = _p.getString('movieList');
+    return const ['hollywood', 'telugu', 'indian', 'mixed'].contains(v)
+        ? v!
+        : 'hollywood';
+  }
+
+  set movieList(String v) {
+    _p.setString('movieList', v);
+    _p.setBool('movieListChosen', true);
+    notifyListeners();
+  }
+
+  /// Whether the player has picked a movie list yet (asked once).
+  bool get movieListChosen => _p.getBool('movieListChosen') ?? false;
+
   /// Show messages other players type (emojis and preset lines always show).
   bool get typedChat => _p.getBool('typedChat') ?? true;
   set typedChat(bool v) => _set('typedChat', v);

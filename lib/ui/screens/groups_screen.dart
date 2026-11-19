@@ -362,6 +362,7 @@ class GroupScreen extends StatelessWidget {
         mode: mode,
         avatar: s.prefs.avatar,
         groupId: g.id,
+        category: Category.values.byName(s.prefs.movieList),
       ),
     );
     if (r == null || !context.mounted) return;

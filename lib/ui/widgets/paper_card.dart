@@ -84,11 +84,12 @@ class PaperSlip extends StatelessWidget {
               child: state == SlipState.faceDown
                   ? Center(
                       child: Text(
-                        'చిట్టి',
+                        'CHIT',
                         style: TextStyle(
                           color: c.ink.withValues(alpha: 0.35),
-                          fontWeight: FontWeight.w800,
-                          fontSize: width * 0.18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: width * 0.02,
+                          fontSize: width * 0.15,
                         ),
                       ),
                     )

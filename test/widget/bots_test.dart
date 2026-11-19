@@ -28,6 +28,7 @@ void main() {
       'sound': false,
       'music': false,
       'playerName': 'Chandra',
+      'movieListChosen': true,
     });
     prefs = await Preferences.load();
     repo = FakeGameRepository();

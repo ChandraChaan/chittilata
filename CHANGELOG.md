@@ -2,6 +2,19 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.6.0] — 2026-11-19
+
+ChitPlay: English first, Telugu as an option.
+
+### Changed
+- **New name: ChitPlay.** The launcher label, home and splash screens, invites, invite-link pages and the store listing now say ChitPlay (formerly Chittilata). Telugu script is gone from the brand: the icon shows a crown on paper chits, face-down chits read "CHIT", and the home artwork uses an English title.
+- **English movies by default.** New rooms, including quick-match tables, start with English (Hollywood) titles. Older apps get English too, since the server default changed.
+- Movie lists are shown English first everywhere.
+
+### Added
+- **Pick your movies.** The first time you create a Movie Chits or Dumb Charades room, ChitPlay asks which movies your group knows: English (pre-selected), Telugu, all-Indian or mixed. Change it any time in Settings → *Movies for new games*; the host can still switch lists in the lobby. `createRoom` accepts the creator's list.
+- New icon, feature graphic, invite preview and GitHub social preview (sources in `tool/brand/`), and fresh store screenshots with English movies.
+
 ## [2.5.0] — 2026-11-19
 
 First update after the Google Play production launch: chat safety and store compliance.

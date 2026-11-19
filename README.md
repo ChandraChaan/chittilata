@@ -1,29 +1,32 @@
 <div align="center">
 
-<img src="docs/store/feature-graphic.png" alt="Chittilata — Pass the slips. Collect four of a kind. Crown the King and Queen." width="720">
+<img src="docs/store/feature-graphic.png" alt="ChitPlay — the paper-chit party game. Pass the slips, collect four, find the Queen, wear the crown." width="720">
 
-# Chittilata – ChitPlay (చిట్టిలాట)
+# ChitPlay
 
-**The Telugu paper-chit games you grew up with, now on everyone's phone. English-first, so the whole table can play.**
-Real-time, cheat-proof multiplayer for 3–10 friends, built with Flutter and Firebase.
+**The paper-chit party game, on everyone's phone.** Pass folded slips, collect four of a kind, find the Queen and wear the crown.
+English movies by default, Telugu (and all-Indian) movies one tap away. Real-time, cheat-proof multiplayer for 3–10 friends, built with Flutter and Firebase.
+
+<a href="https://play.google.com/store/apps/details?id=com.chandra.chittilata"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80"></a>
 
 [![CI](https://github.com/ChandraChaan/chittilata/actions/workflows/ci.yml/badge.svg)](https://github.com/ChandraChaan/chittilata/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/ChandraChaan/chittilata?label=download%20APK&color=F5B82E)](https://github.com/ChandraChaan/chittilata/releases/latest)
+[![Google Play](https://img.shields.io/badge/Google%20Play-live-34A853?logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=com.chandra.chittilata)
+[![Latest release](https://img.shields.io/github/v/release/ChandraChaan/chittilata?label=release&color=F5B82E)](https://github.com/ChandraChaan/chittilata/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
 ![Flutter](https://img.shields.io/badge/Flutter-3.44-02569B?logo=flutter&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20and%20Functions-FFCA28?logo=firebase&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/backend-TypeScript-3178C6?logo=typescript&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-[**Download APK**](https://github.com/ChandraChaan/chittilata/releases/latest) · [How to play](docs/HOW_TO_PLAY.md) · [Video walkthrough](docs/media/chittilata-how-to-play.mp4) · [Architecture](docs/ARCHITECTURE.md)
+[**Google Play**](https://play.google.com/store/apps/details?id=com.chandra.chittilata) · [How to play](docs/HOW_TO_PLAY.md) · [Video walkthrough](docs/media/chittilata-how-to-play.mp4) · [Architecture](docs/ARCHITECTURE.md)
 
 <img src="docs/media/demo.gif" alt="Picking folded movie chits, passing slips around the circle, and a winner picking a character chit" width="300">
 
 </div>
 
-## Why Chittilata?
+## Why ChitPlay?
 
-Paper-chit games like *Chittilu Aata* and *Raja Rani* are a staple of Telugu family gatherings, but they need paper, a pen and everyone in one room. Chittilata keeps the feel of real paper: chits are written, folded, shuffled and scattered on a mat, and you pick them with your finger. It also adds what paper can't do: a fair dealer, a referee that can't be fooled, timers, and scores that add themselves up.
+Paper-chit games like *Chittilu Aata* (చిట్టిలాట) and *Raja Rani* are a staple of family gatherings across India, but they need paper, a pen and everyone in one room. ChitPlay (formerly Chittilata) keeps the feel of real paper: chits are written, folded, shuffled and scattered on a mat, and you pick them with your finger. It also adds what paper can't do: a fair dealer, a referee that can't be fooled, timers, and scores that add themselves up.
 
 ## Three games
 
@@ -36,33 +39,22 @@ Paper-chit games like *Chittilu Aata* and *Raja Rani* are a staple of Telugu fam
 
 <table>
   <tr>
-    <td><img src="docs/store/screenshots/01-lobby.png" alt="Room lobby with a six-letter code" width="180"></td>
-    <td><img src="docs/store/screenshots/03-your-turn.png" alt="Your turn: pick a slip to pass" width="180"></td>
-    <td><img src="docs/store/screenshots/04-winner-and-character.png" alt="Winner and secret character chits" width="180"></td>
-    <td><img src="docs/store/screenshots/06-king-and-queen.png" alt="Final King and Queen ceremony" width="180"></td>
+    <td><img src="docs/store/play/screenshots/01-pass-the-slips.png" alt="Pass one slip at a time around the circle" width="200"></td>
+    <td><img src="docs/store/play/screenshots/02-four-of-a-kind.png" alt="Four of a kind wins the round" width="200"></td>
+    <td><img src="docs/store/play/screenshots/03-your-movies.png" alt="Pick English, Telugu, all-Indian or mixed movies" width="200"></td>
+    <td><img src="docs/store/play/screenshots/08-crown-king-queen.png" alt="Crown the King and Queen" width="200"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Lobby with a shareable code</sub></td>
-    <td align="center"><sub>Pass one slip at a time</sub></td>
-    <td align="center"><sub>Four of a kind wins</sub></td>
-    <td align="center"><sub>Crown the King and Queen</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/store/screenshots/08-king-queen-secret-role.png" alt="Privately revealed role chit" width="180"></td>
-    <td><img src="docs/store/screenshots/09-king-queen-find-the-queen.png" alt="The King looks for the Queen" width="180"></td>
-    <td><img src="docs/store/screenshots/10-king-queen-swaps.png" alt="A wrong guess swaps roles" width="180"></td>
-    <td><img src="docs/store/screenshots/12-king-queen-final.png" alt="King and Queen final standings" width="180"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Your role, for your eyes only</sub></td>
-    <td align="center"><sub>King, find the Queen!</sub></td>
-    <td align="center"><sub>Wrong guess? Swap roles</sub></td>
-    <td align="center"><sub>Final standings</sub></td>
+    <td><img src="docs/store/play/screenshots/05-play-with-friends.png" alt="Lobby with a room code and WhatsApp invite" width="200"></td>
+    <td><img src="docs/store/play/screenshots/04-find-the-queen.png" alt="King & Queen: the King looks for the Queen" width="200"></td>
+    <td><img src="docs/store/play/screenshots/06-secret-role.png" alt="Your secret role, for your eyes only" width="200"></td>
+    <td><img src="docs/store/play/screenshots/07-round-results.png" alt="Every slip revealed after each round" width="200"></td>
   </tr>
 </table>
 
 ## Features
 
+- 🎬 **Your movies, your language.** English movies by default; switch to Telugu, all-Indian, mixed or your own custom names (cities, cricketers, anything) when you create a room or in the lobby.
 - 📜 **Real paper feel.** Chits are written, folded, gathered and scattered on a woven mat, with a private unfold when you pick one. Paper sounds and haptics included, and reduced-motion settings are respected.
 - 🔒 **Nobody can peek, not even the host.** Your hand and your role live in documents only you can read. Undealt slips and sealed chits sit where no client can read them at all.
 - ⚖️ **Fair by construction.** Shuffles use cryptographic randomness, and the deal never gives anyone three copies of a name at the start. Every pick, pass and guess is checked on the server.
@@ -70,6 +62,7 @@ Paper-chit games like *Chittilu Aata* and *Raja Rani* are a staple of Telugu fam
   - **Picking chits:** you have 1 minute. Any chit you haven't picked is then picked for you at random, which can't change your chances.
   - **Passing and guessing:** never done for you automatically. When time runs out, your phone buzzes and the others can nudge you 👋. After 45 more seconds, or if your phone is offline, someone at the table can choose to play for you, and the server makes that move fairly.
 - 💬 **Room chat.** One-tap emoji reactions and fun preset lines (English first, with Telugu classics) float up on everyone's screen, plus a chat panel with the room's history and, in rooms of friends, short typed messages. Quick-match tables with strangers stay preset-only.
+- 🛡️ **Safe chat.** Abusive words are masked on every phone (disguised spellings too), anyone can be muted or reported with a long-press, and typed messages can be switched off in Settings.
 - 🎛️ **Host controls, anytime.** End the game for everyone, warn a silent player (they get a minute to respond, then anyone's phone can remove them; two warnings allow an immediate removal), and let friends join a running game from the next round. Players can leave at any time.
 - 🤷 **No stalemates.** Four laps of passing with no winner? The host ends the round and everyone draws a character chit, King included.
 - 🔁 **Reconnect and resume.** Close the app mid-round and come back to exactly where you were. Changed phones? Watch the game and ask the host for your seat back.
@@ -104,17 +97,14 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 |---|---|
 | App | Flutter 3.44 / Dart 3.12, Android (minSdk 24) |
 | Backend | Firebase Anonymous Auth, Cloud Firestore, Cloud Functions v2 (Node 22, TypeScript), Cloud Messaging, Hosting (invite links), region `asia-south1` |
-| Quality | 165 backend tests (engine, security rules, transactions on the emulator), 235 Flutter unit, widget and layout tests, GitHub Actions CI |
+| Quality | 182 backend tests (engine, security rules, transactions on the emulator), 259 Flutter unit, widget and layout tests, GitHub Actions CI |
 | Ops | Crashlytics (Dart + NDK), Firebase App Distribution, signed and R8-optimised release builds |
 
 ## Install
 
-Chittilata is in closed testing on Google Play, and the public listing is coming soon. Until then:
+ChitPlay is live on **[Google Play](https://play.google.com/store/apps/details?id=com.chandra.chittilata)** (Android 7.0 or later). Invite links (`chittilata-game.web.app/join/CODE`) open the app straight into a room, or the Play Store if it isn't installed yet.
 
-- Download the APK from the [latest release](https://github.com/ChandraChaan/chittilata/releases/latest). Most phones need `chittilata-<version>-arm64-v8a.apk`; if unsure, use the `universal` APK.
-- Check it against `SHA256SUMS.txt`, then allow installs from your browser or file manager.
-
-The app needs Android 7.0 or later. Invite links (`chittilata-game.web.app/join/CODE`) open the app straight into a room once it's installed.
+Signed APKs are also attached to each [GitHub release](https://github.com/ChandraChaan/chittilata/releases/latest) for testing. They are signed with the upload key, so they can't update a Play install (uninstall first); everyone else should use Google Play.
 
 ## Develop
 
@@ -173,7 +163,7 @@ docs/                  Rules, architecture, store assets, media
 
 Ideas, bug reports and pull requests are welcome. New movie packs and regional variants are especially welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). To report a security issue, please follow [SECURITY.md](SECURITY.md) rather than opening a public issue.
 
-If Chittilata brought back memories of family game nights, consider giving it a ⭐. It helps other people find it.
+If ChitPlay brought back memories of family game nights, consider giving it a ⭐. It helps other people find it.
 
 ## Notes
 
