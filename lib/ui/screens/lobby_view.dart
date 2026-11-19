@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models.dart';
 import '../../game/room_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/invite_sheets.dart';
 import 'onboarding_screen.dart';
 
 /// Movie lists, English first. The order is the order of the chips.
@@ -597,6 +598,22 @@ class _CodeCard extends StatelessWidget {
                 }),
                 icon: const Text('💬'),
                 label: const Text('WhatsApp'),
+              ),
+              TextButton.icon(
+                onPressed: withClick(
+                  context,
+                  () => inviteContact(context, code),
+                ),
+                icon: const Icon(Icons.contact_phone_rounded, size: 18),
+                label: const Text('Contact'),
+              ),
+              TextButton.icon(
+                onPressed: withClick(
+                  context,
+                  () => showInviteQr(context, code),
+                ),
+                icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                label: const Text('QR code'),
               ),
               TextButton.icon(
                 onPressed: withClick(context, () {

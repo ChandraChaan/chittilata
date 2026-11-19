@@ -1,5 +1,4 @@
 <en-IN>
-• Meet ChitPlay: a fresh new name and icon
-• English movies by default. Prefer Telugu, all-Indian or mixed? Pick once, or change it in Settings
-• The host can still switch the movie list in the lobby
+• Invite a friend from your contacts: send the room on WhatsApp or SMS in two taps (no contacts permission needed)
+• Show a QR code in the lobby: friends at the table scan it to join
 </en-IN>

@@ -19,7 +19,7 @@ These answers are based on the code in this repository (Firebase Auth anonymous,
 | App info & performance → **Diagnostics** (device model, OS, app version) | Yes | No | Required | Analytics (crash diagnostics) |
 | Device or other IDs → **Firebase installation ID** | Yes | No | Required | Analytics (crash diagnostics) |
 
-Not collected: location, contacts, photos/videos, audio, files, calendar, messages, health, financial info, web browsing, advertising ID.
+Not collected: location, contacts (the *Contact* invite uses Android's system picker; the one number chosen is used on the device only to open WhatsApp/SMS and never leaves it, so it is not "collected"), photos/videos, audio, files, calendar, messages, health, financial info, web browsing, advertising ID.
 
 "Shared" means transferred to a third party. Firebase acts as a **service provider** processing data on our behalf, which Play does not count as sharing.
 

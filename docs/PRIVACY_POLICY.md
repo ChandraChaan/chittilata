@@ -18,7 +18,7 @@ Chittilata ("the app") is a multiplayer card game made by Chandra ("we"). This p
 | **Friend groups** you create or join: the group name, members' display names and avatars, and each month's points, games and King/Queen titles | Showing the group's monthly leaderboard to its members | Firebase Cloud Firestore |
 | **Crash reports** (stack traces, device model, OS version, app version, a random installation ID) | Fixing crashes | Firebase Crashlytics |
 
-We do **not** collect your contacts, location, photos, microphone, advertising ID, or payment details. The app contains **no ads** and **no analytics SDK**. Crash reports never include your name, your slips or room codes.
+When you invite a friend with *Contact*, Android's own picker gives the app only the one phone number you choose. It is used on your phone to open WhatsApp or your messaging app, and is never stored or sent to us. We do **not** collect your contacts, location, photos, microphone, advertising ID, or payment details. The app contains **no ads** and **no analytics SDK**. Crash reports never include your name, your slips or room codes.
 
 Your sound, vibration, notification and theme preferences, your match history, and your profile stats, levels and badges are stored **only on your phone**.
 
