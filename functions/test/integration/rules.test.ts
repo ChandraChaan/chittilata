@@ -95,7 +95,45 @@ describe("spectators", () => {
     await assertSucceeds(
       setDoc(doc(w, `rooms/${ROOM}/chat/watcher`), { id: "abc", kind: "emoji", code: "laugh", to: null, at: serverTimestamp() }),
     );
+    await assertFails(
+      setDoc(doc(w, `rooms/${ROOM}/chat/watcher`), {
+        id: "abd", kind: "text", code: "text", text: "hi all", to: null, at: serverTimestamp(),
+      }),
+    );
     await assertFails(getDoc(doc(as("mallory"), `rooms/${ROOM}`)));
+  });
+});
+
+describe("reports", () => {
+  const report = (extra: Record<string, unknown> = {}) => ({
+    reporter: "alice",
+    roomId: ROOM,
+    target: "bob",
+    targetName: "Bob",
+    messageId: "k3x9a",
+    text: "something rude",
+    reason: "abusive",
+    at: serverTimestamp(),
+    ...extra,
+  });
+
+  it("anyone in the room can report someone else; nobody can read reports back", async () => {
+    await assertSucceeds(setDoc(doc(as("alice"), "reports/r1"), report()));
+    await assertSucceeds(setDoc(doc(as("alice"), "reports/r2"), report({ messageId: null, text: null })));
+    await assertFails(getDoc(doc(as("alice"), "reports/r1")));
+    await assertFails(getDoc(doc(as("bob"), "reports/r1")));
+    await assertFails(updateDoc(doc(as("alice"), "reports/r1"), { reason: "spam" }));
+    await assertFails(deleteDoc(doc(as("alice"), "reports/r1")));
+  });
+
+  it("rejects forged reporters, outsiders, self-reports, fake times and extra fields", async () => {
+    await assertFails(setDoc(doc(as("bob"), "reports/r1"), report()));
+    await assertFails(setDoc(doc(as("mallory"), "reports/r1"), report({ reporter: "mallory" })));
+    await assertFails(setDoc(doc(as("alice"), "reports/r1"), report({ target: "alice" })));
+    await assertFails(setDoc(doc(as("alice"), "reports/r1"), report({ at: Timestamp.fromMillis(1) })));
+    await assertFails(setDoc(doc(as("alice"), "reports/r1"), report({ text: "x".repeat(201) })));
+    await assertFails(setDoc(doc(as("alice"), "reports/r1"), report({ extra: true })));
+    await assertFails(setDoc(doc(as(null), "reports/r1"), report()));
   });
 });
 

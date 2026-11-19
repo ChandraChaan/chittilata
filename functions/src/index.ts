@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
@@ -89,6 +89,19 @@ export const ping = callable("ping", async () => ({}));
 export const expireRooms = onSchedule({ schedule: "every 6 hours", timeZone: "Asia/Kolkata" }, async () => {
   const result = await ops.expireRooms(deps(), ROOM_TTL_HOURS * 3600 * 1000);
   logger.info("expireRooms", result);
+  // Abuse reports are kept for a year (see the privacy policy), then deleted.
+  const db = getFirestore();
+  const old = await db
+    .collection("reports")
+    .where("at", "<", Timestamp.fromMillis(Date.now() - 365 * 24 * 3600 * 1000))
+    .limit(400)
+    .get();
+  if (!old.empty) {
+    const batch = db.batch();
+    old.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    logger.info("expired reports", { count: old.size });
+  }
 });
 
 // ---------- push notifications ----------

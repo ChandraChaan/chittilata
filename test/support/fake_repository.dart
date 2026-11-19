@@ -83,6 +83,29 @@ class FakeGameRepository implements GameRepository {
   Stream<List<ChatEvent>> watchChat(String roomId) =>
       _seeded(_chat.stream, chat.isEmpty ? null : chat.values.toList());
 
+  /// Reports filed through [reportChat], newest last.
+  final reports = <Map<String, Object?>>[];
+
+  @override
+  Future<void> reportChat(
+    String roomId, {
+    required String target,
+    required String targetName,
+    String? messageId,
+    String? text,
+    required String reason,
+  }) async {
+    await _record('report:$target:$reason');
+    reports.add({
+      'roomId': roomId,
+      'target': target,
+      'targetName': targetName,
+      'messageId': messageId,
+      'text': text,
+      'reason': reason,
+    });
+  }
+
   @override
   Future<void> sendChat(
     String roomId, {

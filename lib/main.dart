@@ -40,9 +40,12 @@ Future<void> main() async {
   // traces only; we never attach card names, hands, room codes or names.
   final crashlytics = FirebaseCrashlytics.instance;
   await crashlytics.setCrashlyticsCollectionEnabled(kReleaseMode);
-  FlutterError.onError = crashlytics.recordFlutterFatalError;
+  // Uncaught Dart errors don't close the app, so they are recorded as
+  // non-fatal: Crashlytics' crash-free numbers then count real crashes only
+  // (native crashes are still reported as crashes).
+  FlutterError.onError = crashlytics.recordFlutterError;
   PlatformDispatcher.instance.onError = (error, stack) {
-    crashlytics.recordError(error, stack, fatal: true);
+    crashlytics.recordError(error, stack, fatal: false);
     return true;
   };
 

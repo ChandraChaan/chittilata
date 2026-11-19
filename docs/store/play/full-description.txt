@@ -1,9 +1,9 @@
-Chittilata (చిట్టిలాట) brings much-loved Telugu paper-chit games to your phone: Movie Chits (Chittilu Aata), King & Queen, and Movie Dumb Charades. No paper, no pen, no scissors. Everyone plays on their own phone, and every chit stays secret.
+ChitPlay – Chittilata (చిట్టిలాట) brings much-loved Telugu paper-chit games to your phone: Movie Chits (Chittilu Aata), King & Queen, and Movie Dumb Charades. No paper, no pen, no scissors. Everyone plays on their own phone, and every chit stays secret.
 
 🎬 MOVIE CHITS (3–10 players)
 • One person creates a room and shares the 6-letter code or an invite link.
 • Everyone picks four folded movie chits.
-• Pass one slip at a time around a random circle. Keep what you need, pass on what you don't.
+• Pass one slip at a time around a random circle: tap it, or drag it onto the circle and watch it fly to the next player. Keep what you need, pass on what you don't.
 • The first to collect four of the same name wins the round!
 • Everyone else picks a secret character chit: Queen, Police, Thief and more, each worth different points.
 • Play 7, 10, 15 or 20 rounds. The top scorer is crowned King and the runner-up is Queen.
@@ -27,16 +27,19 @@ Chittilata (చిట్టిలాట) brings much-loved Telugu paper-chit gam
 • Notifications when it's your turn, even with the app closed (you can switch them off).
 • Festival themes for Sankranti, Ugadi and Diwali.
 • Festive music, crisp sounds and vibration, each with its own on/off switch.
-• Quick chat: tap an emoji or a fun phrase (త్వరగా! ⏰ అయ్యో! 😩 Good game! 🤝) and it floats up on everyone's screen.
+• Room chat: tap an emoji or a fun line (Hurry up! ⏰ అయ్యో! 😩 Good game! 🤝) and it floats up on everyone's screen. Friends can also type short messages.
 • Live timers everyone sees. Chits not picked within a minute are picked for you, so the game keeps moving.
 • Someone taking forever to pass? Nudge them 👋 and their phone buzzes. Your passes and guesses are never made for you automatically.
-• Joined late? Watch the game and get a seat when the next game starts.
+• Joined late? Take a free seat and play from the next round.
+• The host is in charge: warn a silent player ("Are you still there?"), remove someone, or end the game for everyone.
+• No endless rounds: if the slips go round and round with no winner, the host can end the round.
 
 🔒 FAIR AND PRIVATE
 • Every deal is shuffled fairly on our server, and nobody starts close to winning.
 • Only you can see your slips and your role. Not even the host can peek.
 • Every pick, pass and guess is checked by the server, so nobody can cheat.
 • Lost connection? Reopen the app and you're right back in your seat.
+• Safe chat: abusive words are filtered, and you can mute or report anyone. Strangers at online tables can only use emojis and preset lines.
 • No ads. No in-app purchases. No sign-up: just pick a name and play.
 
 Gather the family. Pick the chits. Wear the crown. 👑

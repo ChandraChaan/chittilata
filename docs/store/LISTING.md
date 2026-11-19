@@ -17,8 +17,8 @@
 Paste these as-is. They're plain text because Play Console shows markdown literally.
 
 - Short description (76/80): [`play/short-description.txt`](play/short-description.txt)
-- Full description (2827/4000): [`play/full-description.txt`](play/full-description.txt)
-- First release notes: [`play/release-notes.txt`](play/release-notes.txt)
+- Full description (3294/4000): [`play/full-description.txt`](play/full-description.txt)
+- Release notes for the current version: [`play/release-notes.txt`](play/release-notes.txt)
 
 ## Graphics
 
@@ -33,7 +33,7 @@ Paste these as-is. They're plain text because Play Console shows markdown litera
 ## Content rating questionnaire (IARC) — expected answers
 
 - Violence, sexual content, profanity, drugs, gambling: **None**. The game has no real-money stakes and no simulated gambling; points have no value.
-- User interaction: players can see the **display names** other players choose in a private room, and send each other **preset** quick-chat emojis, phrases and nudges. There is no free-text chat, no user-generated media, and no location sharing.
+- User interaction: players see the **display names** and avatar emojis others choose, and send **preset** emojis, phrases and nudges. In rooms of friends, seated players can also type **short messages** (80 characters, filtered for abusive words on every phone). Quick-match tables with strangers are preset-only. Players can **mute** or **report** anyone from the chat, and hide typed messages in Settings. No user-generated media, no location sharing.
 - Expected rating: **Everyone / PEGI 3 / IARC 3+**. Note "Users interact" in the questionnaire.
 
 ## Target audience

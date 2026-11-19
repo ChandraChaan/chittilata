@@ -111,7 +111,7 @@ Clients run a 250 ms ticker for the UI. Past a deadline, the late player's phone
 
 ## Quick chat
 
-`rooms/{id}/chat/{uid}` holds each member's latest message: `{id, kind: emoji|phrase|nudge, code, to, at}`. Members write only their own doc, `code` must be a preset code (no free text), `to` must be a member, `at` must be server time, and rules allow one write per second. Codes map to emojis and Telugu/English phrases in `lib/data/chat.dart`; unknown codes from newer apps are ignored. Docs are deleted with the room.
+`rooms/{id}/chat/{uid}` holds each member's latest message: `{id, kind: emoji|phrase|nudge|text, code, to, at, text?}`, and `rooms/{id}/messages/{id}` the history (written in the same batch). Members write only their own doc, `code` must be a preset code, `text` (kind `text` only) is 1–80 characters and only from a seated player at a non-public table, `to` must be a member, `at` must be server time, and rules allow one write per second. Text is masked for abusive words by `maskChatText` on the sender's and every receiver's phone. Players can mute others (device-local) or file a report: `reports/{id}` `{reporter, roomId, target, targetName, messageId, text, reason, at}` is create-only for someone in that room and unreadable from the app; review reports in the Firebase console. Codes map to emojis and Telugu/English phrases in `lib/data/chat.dart`; unknown codes from newer apps are ignored. Docs are deleted with the room.
 
 ## Reliability
 
