@@ -1462,9 +1462,7 @@ class RoomController extends ChangeNotifier with WidgetsBindingObserver {
   /// Free text is for seated players in rooms of friends; quick-match
   /// tables and people watching stay preset-only (the rules agree).
   bool get canSendText =>
-      room != null &&
-      !room!.isPublic &&
-      room!.memberUids.contains(uid);
+      room != null && !room!.isPublic && room!.memberUids.contains(uid);
 
   /// Sends a short typed message; false if throttled, empty or not allowed.
   bool sendText(String raw) {
