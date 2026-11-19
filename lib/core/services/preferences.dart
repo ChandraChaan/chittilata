@@ -13,21 +13,62 @@ class Preferences extends ChangeNotifier {
   static Future<Preferences> load() async =>
       Preferences(await SharedPreferences.getInstance());
 
+  /// Called when the profile (name, avatar, stats or history) changes, so a
+  /// signed-in player's cloud profile can sync. [identity] is true for a
+  /// name or avatar change, which then wins over the cloud copy.
+  void Function({bool identity})? onProfileChanged;
+
   String get playerName => _p.getString('playerName') ?? '';
   set playerName(String v) {
+    final changed = v != playerName;
     _p.setString('playerName', v);
     notifyListeners();
+    if (changed) onProfileChanged?.call(identity: true);
   }
 
   /// Profile emoji shown to other players (null: initials).
   String? get avatar => _p.getString('avatar');
   set avatar(String? v) {
+    final changed = v != avatar;
     v == null ? _p.remove('avatar') : _p.setString('avatar', v);
+    notifyListeners();
+    if (changed) onProfileChanged?.call(identity: true);
+  }
+
+  /// Games, wins, XP and badges (synced when signed in with Google).
+  late final stats = PlayerStats(_p, onChange: () => onProfileChanged?.call());
+
+  /// Takes a merged cloud profile without triggering another sync.
+  void applyProfile({
+    required String? name,
+    required String? avatar,
+    required Map<String, int> counters,
+    required Set<String> badges,
+    required List<String> seen,
+    required List<MatchRecord> history,
+  }) {
+    if (name != null && name.isNotEmpty) {
+      _p.setString('playerName', name);
+      avatar == null ? _p.remove('avatar') : _p.setString('avatar', avatar);
+    }
+    stats.replace(counters: counters, badges: badges, seen: seen);
+    _saveHistory(history);
     notifyListeners();
   }
 
-  /// Games, wins, XP and badges (this phone only).
-  late final stats = PlayerStats(_p);
+  /// Forgets this phone's profile: stats, badges, history and the room to
+  /// resume, plus the name and avatar when [identity] is true. Settings such
+  /// as sound and theme stay.
+  void clearProfile({bool identity = false}) {
+    stats.clear();
+    _p.remove('history');
+    _p.remove('activeRoomId');
+    if (identity) {
+      _p.remove('playerName');
+      _p.remove('avatar');
+    }
+    notifyListeners();
+  }
 
   bool get onboarded => _p.getBool('onboarded') ?? false;
   set onboarded(bool v) => _p.setBool('onboarded', v);
@@ -133,13 +174,19 @@ class Preferences extends ChangeNotifier {
   /// Saves a finished game once (keyed by room + game number).
   void addHistory(MatchRecord r) {
     final list = history.where((h) => h.key != r.key).toList()..insert(0, r);
-    _p.setStringList(
-      'history',
-      list.take(50).map((h) => jsonEncode(h.toJson())).toList(),
-    );
+    _saveHistory(list);
     notifyListeners();
+    onProfileChanged?.call();
   }
+
+  void _saveHistory(List<MatchRecord> list) => _p.setStringList(
+    'history',
+    list.take(maxHistory).map((h) => jsonEncode(h.toJson())).toList(),
+  );
 }
+
+/// How many finished games the history keeps.
+const maxHistory = 50;
 
 class MatchRecord {
   MatchRecord({

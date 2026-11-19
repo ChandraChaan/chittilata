@@ -2,6 +2,16 @@
 
 All notable changes to Chittilata. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.8.0] — 2026-11-19
+
+### Added
+- **Optional Google sign-in.** Profile and Settings have *Sign in with Google*. Your guest player is linked to the Google account, keeping the same player ID, rooms and groups. Your name, avatar, level and XP, stats, badges and match history are then saved to a cloud profile (`users/{uid}`, readable and writable only by you). They follow you to other phones and survive reinstalls. Copies merge both ways: the larger of each counter, plus every badge and game from either copy. If that Google account already has a ChitPlay player, the app asks first, then switches to it and adds this phone's progress. *Sign out* goes back to a fresh guest. Playing without signing in works exactly as before.
+- **Delete my account and data** in Settings (and on your profile when signed in). The new `deleteAccount` function takes you out of your rooms and groups, removes your name from your groups, and deletes your cloud profile, push token and sign-in. The phone's profile is cleared too. Without the app, see https://chittilata-game.web.app/delete-account.
+
+### Changed
+- Privacy policy and Data safety answers cover the optional Google sign-in (email address and name), the cloud profile and account deletion.
+- Firebase: Google is enabled as a sign-in provider, and the upload key's SHA-1/SHA-256 are registered next to Play App Signing's (`google-services.json` refreshed).
+
 ## [2.7.0] — 2026-11-19
 
 ### Added

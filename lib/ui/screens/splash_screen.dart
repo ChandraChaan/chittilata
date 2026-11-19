@@ -46,6 +46,8 @@ class _SplashScreenState extends State<SplashScreen>
       }
       return;
     }
+    // Signed in with Google: keep the cloud profile in step from now on.
+    s.account?.start();
     if (!mounted) return;
     final nav = Navigator.of(context);
     if (!s.prefs.onboarded) {

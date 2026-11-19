@@ -4,10 +4,12 @@ import '../../app.dart';
 import '../../core/services/feedback.dart';
 import '../../core/services/stats.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/account_panel.dart';
 import '../widgets/common.dart';
 
-/// Your avatar, level, stats and badges. Everything here stays on this
-/// phone; only the avatar is shown to the players in your rooms.
+/// Your avatar, level, stats and badges. They stay on this phone unless you
+/// sign in with Google (optional), which saves them to your account; only
+/// the avatar is shown to the players in your rooms.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -68,6 +70,10 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (Services.of(context).account != null) ...[
+                    const SizedBox(height: Space.lg),
+                    const AccountPanel(deleteForGuests: false),
+                  ],
                   const SizedBox(height: Space.lg),
                   _Title('Avatar'),
                   Panel(

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/festivals.dart';
+import '../widgets/account_panel.dart';
 import '../widgets/common.dart';
 import '../widgets/movie_list_picker.dart';
 
@@ -204,6 +205,10 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: Space.lg),
+                if (Services.of(context).account != null) ...[
+                  const AccountPanel(),
+                  const SizedBox(height: Space.lg),
+                ],
                 if (_crashTestBuild) ...[
                   OutlinedButton(
                     onPressed: () => FirebaseCrashlytics.instance.crash(),

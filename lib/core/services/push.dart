@@ -61,6 +61,23 @@ class PushService {
     }
   }
 
+  /// After signing in or out (a different player id): saves this phone's
+  /// token for the new player, if notifications were already allowed.
+  Future<void> refresh() async {
+    if (!_prefs.notifications) return;
+    try {
+      final settings = await _fm.getNotificationSettings();
+      if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
+        return;
+      }
+      final token = await _fm.getToken();
+      if (token != null) await _repo.savePushToken(token);
+    } catch (e) {
+      debugPrint('push refresh failed: $e');
+    }
+  }
+
   /// The room a tapped notification belongs to (app opened from it).
   Stream<String> get openedRooms async* {
     try {

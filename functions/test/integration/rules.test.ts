@@ -363,3 +363,74 @@ describe("quick chat", () => {
     await assertSucceeds(setDoc(doc(as("bob"), `rooms/${ROOM}/chat/bob`), msg()));
   });
 });
+
+describe("cloud profiles (users/{uid})", () => {
+  // Linking Google to the anonymous player adds a google.com identity.
+  const google = (uid: string) =>
+    env
+      .authenticatedContext(uid, {
+        firebase: { sign_in_provider: "google.com", identities: { "google.com": ["1234"] } },
+      })
+      .firestore();
+  const guest = (uid: string) =>
+    env.authenticatedContext(uid, { firebase: { sign_in_provider: "anonymous", identities: {} } }).firestore();
+  const profile = (extra: Record<string, unknown> = {}) => ({
+    name: "Chandra",
+    avatar: "🦁",
+    counters: { games: 3, xp: 250, kings: 1 },
+    badges: ["first_game", "king"],
+    seen: ["game:r1:1", "game:r2:1"],
+    history: [{ key: "r1-1", playedAt: "2026-11-19T10:00:00.000Z", rounds: 5, category: "hollywood", standings: [] }],
+    updatedAt: serverTimestamp(),
+    ...extra,
+  });
+
+  it("a Google player can write and read their own profile", async () => {
+    await assertSucceeds(setDoc(doc(google("alice"), "users/alice"), profile()));
+    await assertSucceeds(getDoc(doc(google("alice"), "users/alice")));
+    await assertSucceeds(setDoc(doc(google("alice"), "users/alice"), profile({ counters: { games: 4 } })));
+    // Name and avatar are optional.
+    await assertSucceeds(setDoc(doc(google("alice"), "users/alice"), profile({ name: null, avatar: null })));
+  });
+
+  it("nobody else can read or write it, and guests have no cloud profile", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "users/alice"), { counters: {}, badges: [], seen: [], history: [] });
+    });
+    await assertFails(getDoc(doc(google("bob"), "users/alice")));
+    await assertFails(setDoc(doc(google("bob"), "users/alice"), profile()));
+    await assertFails(getDoc(doc(as("alice"), "users/alice")));
+    await assertFails(getDoc(doc(guest("alice"), "users/alice")));
+    await assertFails(setDoc(doc(guest("alice"), "users/alice"), profile()));
+    await assertFails(getDoc(doc(as(null), "users/alice")));
+  });
+
+  it("enforces the schema", async () => {
+    const db = google("alice");
+    const bad: Record<string, unknown>[] = [
+      { extra: true },
+      { counters: { games: -1 } },
+      { counters: { games: 1.5 } },
+      { counters: { games: "3" } },
+      { counters: { cheats: 1 } },
+      { counters: { xp: 2_000_000_000 } },
+      { counters: "lots" },
+      { badges: "king" },
+      { badges: Array.from({ length: 31 }, (_, i) => `b${i}`) },
+      { seen: Array.from({ length: 301 }, (_, i) => `k${i}`) },
+      { history: Array.from({ length: 51 }, () => ({})) },
+      { name: "x".repeat(33) },
+      { name: 7 },
+      { avatar: "🦁".repeat(20) },
+      { updatedAt: Timestamp.fromMillis(0) },
+    ];
+    for (const b of bad) await assertFails(setDoc(doc(db, "users/alice"), profile(b)));
+    const { history: _h, ...missing } = profile();
+    await assertFails(setDoc(doc(db, "users/alice"), missing));
+  });
+
+  it("the app cannot delete it (the deleteAccount function does)", async () => {
+    await assertSucceeds(setDoc(doc(google("alice"), "users/alice"), profile()));
+    await assertFails(deleteDoc(doc(google("alice"), "users/alice")));
+  });
+});

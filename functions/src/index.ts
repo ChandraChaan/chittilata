@@ -6,6 +6,8 @@ import { logger } from "firebase-functions/v2";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { getAuth } from "firebase-admin/auth";
+import * as account from "./game/account";
 import * as push from "./game/push";
 import * as groups from "./game/groups";
 import * as publicTables from "./game/public";
@@ -85,6 +87,16 @@ export const kqAutoPick = callable("kqAutoPick", kq.kqAutoPick);
 export const kqGuess = callable("kqGuess", kq.kqGuess);
 export const kqClaimTimeout = callable("kqClaimTimeout", kq.kqClaimTimeout);
 export const ping = callable("ping", async () => ({}));
+export const deleteAccount = callable("deleteAccount", (d, uid) =>
+  account.deleteAccount(d, uid, async (id) => {
+    try {
+      await getAuth().deleteUser(id);
+    } catch (e) {
+      // Already gone (a repeated request) is fine.
+      if ((e as { code?: string }).code !== "auth/user-not-found") throw e;
+    }
+  }),
+);
 
 export const expireRooms = onSchedule({ schedule: "every 6 hours", timeZone: "Asia/Kolkata" }, async () => {
   const result = await ops.expireRooms(deps(), ROOM_TTL_HOURS * 3600 * 1000);
